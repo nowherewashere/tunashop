@@ -22,11 +22,22 @@ from src.core.types import NotificationType
 
 from .base import BaseDto, TimestampMixin, TrackableMixin
 
+SAFE_DISABLED_NOTIFICATIONS: tuple[NotificationType, ...] = (
+    SystemNotificationType.TORRENT_BLOCKER,
+    UserNotificationType.NOT_CONNECTED,
+    UserNotificationType.TORRENT_BLOCKED,
+)
+
 
 def get_default_notifications() -> dict[str, bool]:
     system_keys = {ntf.value: True for ntf in SystemNotificationType}
     user_keys = {ntf.value: True for ntf in UserNotificationType}
-    return {**system_keys, **user_keys}
+    notifications = {**system_keys, **user_keys}
+
+    for ntf_type in SAFE_DISABLED_NOTIFICATIONS:
+        notifications[ntf_type.value] = False
+
+    return notifications
 
 
 def get_default_notifications_routes() -> dict[str, "SystemNotificationRouteDto"]:
@@ -92,7 +103,8 @@ class NotificationsSettingsDto(TrackableMixin):
     )
 
     def is_enabled(self, ntf_type: NotificationType) -> bool:
-        return self.settings.get(ntf_type, True)
+        fallback = ntf_type not in SAFE_DISABLED_NOTIFICATIONS
+        return self.settings.get(ntf_type, fallback)
 
     def toggle(self, ntf_type: NotificationType) -> None:
         new_settings = self.settings.copy()
