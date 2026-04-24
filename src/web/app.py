@@ -10,7 +10,13 @@ from src.__version__ import __version__
 from src.core.config import AppConfig
 from src.lifespan import lifespan
 
-from .endpoints import TelegramWebhookEndpoint, health_router, payments_router, remnawave_router
+from .endpoints import (
+    TelegramWebhookEndpoint,
+    health_router,
+    payments_router,
+    public_router,
+    remnawave_router,
+)
 
 
 def get_app(config: AppConfig, dispatcher: Dispatcher) -> FastAPI:
@@ -22,10 +28,9 @@ def get_app(config: AppConfig, dispatcher: Dispatcher) -> FastAPI:
         redoc_url=None,
         openapi_url=None,
     )
-
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=config.origins,
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -34,6 +39,8 @@ def get_app(config: AppConfig, dispatcher: Dispatcher) -> FastAPI:
     app.include_router(health_router)
     app.include_router(payments_router)
     app.include_router(remnawave_router)
+    if config.web_enabled:
+        app.include_router(public_router)
 
     if config.swagger_enabled:
 
