@@ -6,7 +6,7 @@ from dishka import AsyncContainer
 from loguru import logger
 
 from src.application.common import Notifier
-from src.application.dto import UserDto
+from src.application.dto import TelegramUserDto
 from src.core.constants import CONTAINER_KEY, USER_KEY
 from src.core.enums import MiddlewareEventType
 
@@ -26,13 +26,13 @@ class ThrottlingMiddleware(EventTypedMiddleware):
         data: dict[str, Any],
     ) -> Any:
         container: AsyncContainer = data[CONTAINER_KEY]
-        user: UserDto = data[USER_KEY]
+        user: TelegramUserDto = data[USER_KEY]
 
         notifier = await container.get(Notifier)
 
         if user.telegram_id in self.cache:
             await notifier.notify_user(user, i18n_key="ntf-common.throttling")
-            logger.warning(f"User '{user.telegram_id}' throttled")
+            logger.warning(f"User '{user.remna_name}' throttled")
             return
 
         self.cache[user.telegram_id] = None

@@ -47,6 +47,7 @@ from .getters import (
 )
 from .handlers import (
     on_active_toggle,
+    on_back_to_referrals,
     on_block_toggle,
     on_current_subscription,
     on_device_delete,
@@ -66,6 +67,7 @@ from .handlers import (
     on_points_select,
     on_purchase_discount_input,
     on_purchase_discount_select,
+    on_referral_reset,
     on_reissue_subscription,
     on_reset_traffic,
     on_role_select,
@@ -94,6 +96,13 @@ user = Window(
             on_click=on_current_subscription,
         ),
         when=F["has_subscription"],
+    ),
+    Row(
+        Button(
+            text=I18nFormat("btn-user.referral-reset"),
+            id="referral_reset",
+            on_click=on_referral_reset,
+        ),
     ),
     Row(
         SwitchTo(
@@ -163,6 +172,14 @@ user = Window(
             id="block",
             on_click=on_block_toggle,
             when=F["is_not_self"] & F["can_edit"],
+        ),
+    ),
+    Row(
+        Button(
+            text=I18nFormat("btn-back.referrals"),
+            id="back_referrals",
+            on_click=on_back_to_referrals,
+            when=F["from_referral_user_id"],
         ),
     ),
     Row(

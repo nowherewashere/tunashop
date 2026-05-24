@@ -85,7 +85,7 @@ class BlockUsersByIds(Interactor[list[int], BlockUsersResult]):
 
 @dataclass(frozen=True)
 class SetBotBlockedStatusDto:
-    telegram_id: int
+    user_id: int
     is_blocked: bool
 
 
@@ -98,10 +98,10 @@ class SetBotBlockedStatus(Interactor[SetBotBlockedStatusDto, None]):
 
     async def _execute(self, actor: UserDto, data: SetBotBlockedStatusDto) -> None:
         async with self.uow:
-            await self.user_dao.set_bot_blocked_status(data.telegram_id, data.is_blocked)
+            await self.user_dao.set_bot_blocked_status(data.user_id, data.is_blocked)
             await self.uow.commit()
 
-        logger.info(f"Set bot blocked status for user '{data.telegram_id}' to '{data.is_blocked}'")
+        logger.info(f"Set bot blocked status for user_id='{data.user_id}' to '{data.is_blocked}'")
 
 
 class ToggleUserBlockedStatus(Interactor[int, None]):
@@ -111,23 +111,23 @@ class ToggleUserBlockedStatus(Interactor[int, None]):
         self.uow = uow
         self.user_dao = user_dao
 
-    async def _execute(self, actor: UserDto, telegram_id: int) -> None:
-        target_user = await self.user_dao.get_by_telegram_id(telegram_id)
+    async def _execute(self, actor: UserDto, user_id: int) -> None:
+        target_user = await self.user_dao.get_by_id(user_id)
         if target_user is None:
-            raise UserNotFoundError(telegram_id)
+            raise UserNotFoundError(user_id)
 
         if not actor.role > target_user.role:
             logger.warning(
-                f"{actor.log} Attempted to toggle block for user '{telegram_id}' "
+                f"{actor.log} Attempted to toggle block for user '{user_id}' "
                 f"with role '{target_user.role}' — insufficient role"
             )
             raise PermissionDeniedError
 
         async with self.uow:
-            await self.user_dao.toggle_blocked_status(telegram_id)
+            await self.user_dao.toggle_blocked_status(target_user.id)
             await self.uow.commit()
 
-        logger.info(f"{actor.log} Toggled user '{telegram_id}' blocked status")
+        logger.info(f"{actor.log} Toggled user '{user_id}' blocked status")
 
 
 class ClearBlockedIds(Interactor[None, int]):

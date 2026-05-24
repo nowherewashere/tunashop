@@ -8,10 +8,9 @@ from dishka.integrations.aiogram_dialog import inject
 from remnapy import RemnawaveSDK
 from remnapy.enums.users import TrafficLimitStrategy
 
-from src.application.common import TranslatorRunner
+from src.application.common import BotService, TranslatorRunner
 from src.application.common.dao import PlanDao
 from src.application.dto import PlanDto, PlanDurationDto, PlanPriceDto
-from src.application.services import BotService
 from src.core.enums import Currency, PlanAvailability, PlanType
 
 
@@ -256,7 +255,9 @@ async def allowed_users_getter(
     **kwargs: Any,
 ) -> dict[str, Any]:
     plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
-    return {"allowed_users": plan.allowed_user_ids if plan.allowed_user_ids else []}
+    combined: list[str] = [f"tg:{tg_id}" for tg_id in plan.allowed_telegram_ids]
+    combined += [f"em:{email}" for email in plan.allowed_emails]
+    return {"allowed_users": combined}
 
 
 @inject

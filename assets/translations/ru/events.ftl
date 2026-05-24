@@ -93,7 +93,7 @@ event-bot =
 
     { frg-build-info }
 
-    <b>🔓 Доступность:</b>
+    <b>🔓 Доступность</b>:
     <blockquote>
     • <b>Режим</b>: { access-mode }
     • <b>Платежи</b>: { $payments_allowed ->
@@ -133,7 +133,7 @@ event-bot =
 
     <b>🔅 Событие: Обнаружено обновление Remnashop!</b>
 
-    <b>📑 Версии:</b>
+    <b>📑 Версии</b>:
     <blockquote>
     • <b>Текущая</b>: { $local_version }
     • <b>Последняя</b>: { $remote_version }
@@ -149,13 +149,16 @@ event-user =
     { hdr-user }
     { frg-user-info }
 
-    { $referrer_telegram_id ->
+    { $referrer_user_id ->
     [0] { empty }
     *[HAS]
-    <b>🤝 Пригласитель:</b>
+    <b>🤝 Пригласитель</b>:
     <blockquote>
-    • <b>ID</b>: <code>{ NUMBER($referrer_telegram_id, useGrouping: 0) }</code>
-    • <b>Имя</b>: { $referrer_name } { $referrer_username -> 
+    { $referrer_telegram_id ->
+        [0] • <b>Почта</b>: <code>{ $referrer_email }</code>
+        *[HAS] • <b>ID</b>: <code>{ NUMBER($referrer_telegram_id, useGrouping: 0) }</code>
+    }
+    • <b>Имя</b>: { $referrer_name } { $referrer_username ->
         [0] { empty }
         *[HAS] (<a href="tg://user?id={ $referrer_telegram_id }">@{ $referrer_username }</a>)
     }
@@ -292,6 +295,11 @@ event-subscription =
         }
     }
 
+    .not-connected =
+    <b>🔌 Не получилось подключиться?</b>
+
+    Если у вас возникли сложности с настройкой VPN — мы готовы помочь! Напишите в поддержку, и мы разберёмся вместе.
+
     .revoked =
     #SubscriptionRevokedEvent
 
@@ -316,7 +324,7 @@ event-node =
     .connection-restored =
     #NodeConnectionRestoredEvent
 
-    <b>🔅 Событие: Cоединение с узлом восстановлено!</b>
+    <b>🔅 Событие: Соединение с узлом восстановлено!</b>
 
     { hdr-node }
     { frg-node-info }

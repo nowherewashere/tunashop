@@ -48,6 +48,7 @@ class RemnaSubscriptionDto:
 
 @dataclass(kw_only=True)
 class SubscriptionDto(BaseDto, TrackableMixin, TimestampMixin):
+    user_id: int = 0
     user_remna_id: UUID
 
     status: SubscriptionStatus = SubscriptionStatus.ACTIVE

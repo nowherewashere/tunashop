@@ -96,7 +96,7 @@ msg-menu-invite =
         *[OTHER] { $reward_type }
     }!
 
-    <b>📊 Статистика:</b>
+    <b>📊 Статистика</b>:
     <blockquote>
     👥 Всего приглашенных: { $referrals }
     💳 Платежей по вашей ссылке: { $payments }
@@ -109,7 +109,7 @@ msg-menu-invite =
 msg-menu-invite-about =
     <b>🎁 Подробнее о вознаграждении</b>
 
-    <b>✨ Как получить награду:</b>
+    <b>✨ Как получить награду</b>:
     <blockquote>
     { $accrual_strategy ->
     [ON_FIRST_PAYMENT] Награда начисляется за первую покупку подписки приглашенным пользователем.
@@ -118,7 +118,7 @@ msg-menu-invite-about =
     }
     </blockquote>
 
-    <b>💎 Что вы получаете:</b>
+    <b>💎 Что вы получаете</b>:
     <blockquote>
     { $max_level -> 
     [1] За приглашенных друзей: { $reward_level_1 }
@@ -272,7 +272,7 @@ msg-statistics-promocodes =
     *[HAS] { $most_popular_promo }
     }
     • <b>Выдано дней</b>: { $total_promo_days }
-    • <b>Выдано трафика</b>: { $total_promo_days }
+    • <b>Выдано трафика</b>: { $total_promo_traffic }
     • <b>Выдано подписок</b>: { $total_promo_subscriptions }
     • <b>Выдано личных скидок</b>: { $total_promo_personal_discounts }
     • <b>Выдано одноразовых скидок</b>: { $total_promo_purchase_discounts }
@@ -286,12 +286,15 @@ msg-statistics-referrals =
     • <b>Уровень 1</b>: { $level_1_count }
     • <b>Уровень 2</b>: { $level_2_count }
     • <b>Уникальных реферреров</b>: { $unique_referrers }
-    { $top_referrer_telegram_id ->
+    { $top_referrer_id ->
         [0] { empty }
-        *[HAS] • <b>Топ реферрер</b>: { $top_referrer_username ->
-            [0] { NUMBER($top_referrer_telegram_id, useGrouping: 0) }
-            *[HAS] <a href="tg://user?id={ $top_referrer_telegram_id }">@{ $top_referrer_username }</a> 
-            } ({ $top_referrer_referrals_count } приглашенных)
+        *[HAS] • <b>Топ реферрер</b>: { $top_referrer_telegram_id ->
+            [0] <code>{ $top_referrer_email }</code>
+            *[HAS] { $top_referrer_username ->
+                [0] { NUMBER($top_referrer_telegram_id, useGrouping: 0) }
+                *[HAS] <a href="tg://user?id={ $top_referrer_telegram_id }">@{ $top_referrer_username }</a>
+            }
+        } ({ $top_referrer_referrals_count } приглашенных)
     }
     </blockquote>
 
@@ -418,7 +421,7 @@ msg-user-main =
     { hdr-user-profile }
     { frg-user-details }
 
-    <b>💸 Скидка:</b>
+    <b>💸 Скидка</b>:
     <blockquote>
     • <b>Персональная</b>: { $personal_discount }%
     • <b>На следующую покупку</b>: { $purchase_discount }%
@@ -466,11 +469,14 @@ msg-user-statistics =
 
     <blockquote>
     • <b>Приглашен</b>: { $referrer_telegram_id ->
-        [0] { unknown }
-        *[HAS] { $referrer_username -> 
+        [0] { $referrer_email ->
+            [0] { unknown }
+            *[HAS] <code>{ $referrer_email }</code>
+        }
+        *[HAS] { $referrer_username ->
             [0] { NUMBER($referrer_telegram_id, useGrouping: 0) }
             *[HAS] <a href="tg://user?id={ $referrer_telegram_id }">@{ $referrer_username }</a>
-            }
+        }
     }
     • <b>Приглашенных (ур. 1)</b>: { $referrals_level_1 }
     • <b>Приглашенных (ур. 2)</b>: { $referrals_level_2 }
@@ -485,7 +491,7 @@ msg-user-referrals = <b>👪 Рефералы пользователя</b>
 msg-user-sync = 
     <b>🌀 Синхронизировать пользователя</b>
 
-    <b>🛍 Remnashop:</b> { $bot_version }
+    <b>🛍 Remnashop</b>: { $bot_version }
     <blockquote>
     { $has_bot_subscription -> 
     [0] Данные отсутствуют
@@ -493,7 +499,7 @@ msg-user-sync =
     }
     </blockquote>
 
-    <b>🌊 Remnawave:</b> { $remna_version }
+    <b>🌊 Remnawave</b>: { $remna_version }
     <blockquote>
     { $has_remna_subscription -> 
     [0] Данные отсутствуют
@@ -501,7 +507,10 @@ msg-user-sync =
     }
     </blockquote>
 
-    Выберите актуальные данные для синхронизации.
+    Выберите источник данных для синхронизации.
+
+    • <b>Remnawave</b> — данные из панели перезапишут бот. Если пользователь отсутствует в панели — подписка в боте будет помечена как удаленная.
+    • <b>Remnashop</b> — данные из бота перезапишут панель. Если подписка в боте отсутствует — пользователь будет удален из панели.
 
 msg-user-sync-version = { $version ->
     [NEWER] (новее)
@@ -606,12 +615,12 @@ msg-user-subscription-squads =
 
     { $internal_squads ->
     [0] { empty }
-    *[HAS] <b>⏺️ Внутренние:</b> { $internal_squads }
+    *[HAS] <b>⏺️ Внутренние</b>: { $internal_squads }
     }
 
     { $external_squad ->
     [0] { empty }
-    *[HAS] <b>⏹️ Внешний:</b> { $external_squad }
+    *[HAS] <b>⏹️ Внешний</b>: { $external_squad }
     }
 
 msg-user-subscription-internal-squads =
@@ -717,7 +726,7 @@ msg-user-message =
 msg-remnawave-main =
     <b>🌊 RemnaWave v{ $version }</b>
     
-    <b>🖥️ Система:</b>
+    <b>🖥️ Система</b>:
     <blockquote>
     • <b>ЦПУ</b>: { $cpu_cores } { $cpu_cores ->
     [one] ядро
@@ -731,7 +740,7 @@ msg-remnawave-main =
 msg-remnawave-users =
     <b>👥 Пользователи</b>
 
-    <b>📊 Статистика:</b>
+    <b>📊 Статистика</b>:
     <blockquote>
     • <b>Всего</b>: { $users_total }
     • <b>Активные</b>: { $users_active }
@@ -740,7 +749,7 @@ msg-remnawave-users =
     • <b>Истекшие</b>: { $users_expired }
     </blockquote>
 
-    <b>🟢 Онлайн:</b>
+    <b>🟢 Онлайн</b>:
     <blockquote>
     • <b>За день</b>: { $online_last_day }
     • <b>За неделю</b>: { $online_last_week }
@@ -752,7 +761,7 @@ msg-remnawave-host-details =
     <b>{ $remark } ({ $is_disabled ->
     [1] выключен
     *[0] включен
-    }):</b>
+    })</b>:
     <blockquote>
     • <b>Адрес</b>: <code>{ $address }:{ $port }</code>
     { $inbound_uuid ->
@@ -765,7 +774,7 @@ msg-remnawave-node-details =
     <b>{ $country } { $name } ({ $is_connected ->
     [1] подключено
     *[0] отключено
-    }):</b>
+    })</b>:
     <blockquote>
     • <b>Адрес</b>: <code>{ $address }{ $port -> 
     [0] { empty }
@@ -815,6 +824,8 @@ msg-remnashop-main = <b>🛍 RemnaShop { $version ->
 [0] { space }
 *[HAS] { $version }
 }</b>
+
+msg-remnashop-transactions = <b>🧾 Последние транзакции</b>
 
 
 # Backup
@@ -1152,12 +1163,12 @@ msg-plan-squads =
 
     { $internal_squads ->
     [0] { space }
-    *[HAS] <b>⏺️ Внутренние:</b> { $internal_squads }
+    *[HAS] <b>⏺️ Внутренние</b>: { $internal_squads }
     }
 
     { $external_squad ->
     [0] { space }
-    *[HAS] <b>⏹️ Внешний:</b> { $external_squad }
+    *[HAS] <b>⏹️ Внешний</b>: { $external_squad }
     }
 
 msg-plan-internal-squads =
@@ -1249,7 +1260,7 @@ msg-subscription-plan =
     }
     
 msg-subscription-details =
-    <b>{ $plan }:</b>
+    <b>{ $plan }</b>:
     <blockquote>
     { $description ->
     [0] { empty }
@@ -1355,7 +1366,7 @@ msg-importer-from-xui =
     
     { $has_exported -> 
     [1]
-    <b>🔍 Найдено:</b>
+    <b>🔍 Найдено</b>:
     <blockquote>
     Всего пользователей: { $total }
     С активной подпиской: { $active }
@@ -1377,7 +1388,7 @@ msg-importer-squads =
 msg-importer-import-completed =
     <b>📥 Импорт пользователей завершен</b>
     
-    <b>📃 Информация:</b>
+    <b>📃 Информация</b>:
     <blockquote>
     • <b>Всего пользователей</b>: { $total_count }
     • <b>Успешно импортированы</b>: { $success_count }
@@ -1387,33 +1398,32 @@ msg-importer-import-completed =
 msg-importer-sync-panel =
     <b>🌀 Синхронизация: панель → бот</b>
 
-    Проходит по всем пользователям в RemnaWave. Если пользователь отсутствует в боте — создает его и добавляет подписку. Если присутствует — обновляет данные.
+    Проходит по всем пользователям в RemnaWave. Если пользователь отсутствует в боте — создает его и импортирует подписку. Если пользователь есть в боте без подписки — импортирует подписку из панели. Если пользователь есть в боте с подпиской — обновляет данные.
 
 msg-importer-sync-bot =
     <b>🤖 Синхронизация: бот → панель</b>
 
-    Проходит по всем пользователям бота с подпиской. Если пользователь отсутствует в панели — создает его. Если присутствует — обновляет данные.
+    Проходит по всем пользователям бота. Если у пользователя нет подписки в боте — пропускает его, панель не затрагивается. Если подписка есть, но пользователь отсутствует в панели — создает его. Если пользователь присутствует в панели — обновляет данные.
 
 msg-importer-sync-panel-completed =
     <b>📥 Синхронизация панель → бот завершена</b>
 
-    <b>📃 Информация:</b>
+    <b>📃 Информация</b>:
     <blockquote>
     Всего пользователей в панели: { $total_panel_users }
     Всего пользователей в боте: { $total_bot_users }
 
     Новые пользователи: { $added_users }
     Добавлены подписки: { $added_subscription }
-    Обновлены подписки: { $updated}
-    
-    Пользователи без Telegram ID: { $missing_telegram }
+    Обновлены подписки: { $updated }
+
     Ошибки при синхронизации: { $errors }
     </blockquote>
 
 msg-importer-sync-bot-completed =
     <b>🔄 Синхронизация бот → панель завершена</b>
 
-    <b>📃 Информация:</b>
+    <b>📃 Информация</b>:
     <blockquote>
     Всего пользователей в боте: { $total_bot_users }
 

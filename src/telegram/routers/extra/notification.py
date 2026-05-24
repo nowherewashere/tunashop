@@ -4,7 +4,7 @@ from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 
 from src.application.common import Notifier
-from src.application.dto import UserDto
+from src.application.dto import TelegramUserDto
 from src.telegram.states import Notification
 
 router = Router(name=__name__)
@@ -14,7 +14,7 @@ router = Router(name=__name__)
 @router.callback_query(F.data.startswith(Notification.CLOSE.state))
 async def on_close_notification(
     callback: CallbackQuery,
-    user: UserDto,
+    user: TelegramUserDto,
     notifier: FromDishka[Notifier],
 ) -> None:
     if not callback.message:

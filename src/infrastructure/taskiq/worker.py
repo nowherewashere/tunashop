@@ -8,6 +8,7 @@ from src.application.common import EventSubscriber
 from src.core.config import AppConfig
 from src.core.logger import setup_logger
 from src.infrastructure.di import create_taskiq_container
+from src.infrastructure.services import NotificationWorker
 from src.telegram.dispatcher import get_bg_manager_factory, get_dispatcher, setup_worker_dispatcher
 
 from .broker import broker
@@ -34,9 +35,14 @@ def worker() -> RedisStreamBroker:
         event_bus.set_container_factory(lambda: container)
         event_bus.autodiscover()
 
+        notification_worker = await container.get(NotificationWorker)
+        notification_worker.set_container_factory(lambda: container)
+
     @broker.on_event(TaskiqEvents.WORKER_SHUTDOWN)
     async def shutdown(state: TaskiqState) -> None:
         event_bus = await container.get(EventSubscriber)
         await event_bus.shutdown()
+        notification_worker = await container.get(NotificationWorker)
+        await notification_worker.shutdown()
 
     return broker

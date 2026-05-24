@@ -47,7 +47,8 @@ class CommitPlan(Interactor[PlanDto, CommitPlanResultDto]):
             plan.device_limit = 0
 
         if plan.availability != PlanAvailability.ALLOWED:
-            plan.allowed_user_ids = []
+            plan.allowed_telegram_ids = []
+            plan.allowed_emails = []
 
         async with self.uow:
             if plan.id:
@@ -61,7 +62,9 @@ class CommitPlan(Interactor[PlanDto, CommitPlanResultDto]):
                 logger.warning(f"{actor.log} Plan name '{plan.name}' already exists")
                 raise PlanNameAlreadyExistsError()
 
-            plan.public_code = self.cryptographer.generate_short_code(plan.name, length=8)
+            plan.public_code = await self.cryptographer.generate_unique_code(
+                self.plan_dao.get_by_public_code, length=8
+            )
             new_plan = await self.plan_dao.create(plan)
             await self.uow.commit()
 

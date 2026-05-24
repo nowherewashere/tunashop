@@ -67,7 +67,7 @@ class Interactor(ABC, Generic[InputDto, OutputDto]):
 
         if not PermissionPolicy.has_permission(actor, self.required_permission):
             logger.warning(
-                f"Permission denied for actor '{actor.telegram_id}' with role '{actor.role}'"
+                f"Permission denied for actor '{actor.remna_name}' with role '{actor.role}'"
             )
             raise PermissionDeniedError
 

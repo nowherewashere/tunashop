@@ -5,7 +5,7 @@ from aiogram_dialog.widgets.kbd import Button, Select
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 
-from src.application.dto import UserDto
+from src.application.dto import TelegramUserDto
 from src.application.use_cases.settings.commands.access import (
     ChangeAccessMode,
     TogglePayments,
@@ -29,7 +29,7 @@ async def on_access_mode_select(
     selected_mode: AccessMode,
     change_access_mode: FromDishka[ChangeAccessMode],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await change_access_mode(user, selected_mode)
 
 
@@ -40,7 +40,7 @@ async def on_payments_toggle(
     dialog_manager: DialogManager,
     toggle_payments: FromDishka[TogglePayments],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await toggle_payments(user)
 
 
@@ -51,7 +51,7 @@ async def on_registration_toggle(
     dialog_manager: DialogManager,
     toggle_registration: FromDishka[ToggleRegistration],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await toggle_registration(user)
 
 
@@ -62,7 +62,7 @@ async def on_condition_toggle(
     dialog_manager: DialogManager,
     toggle_condition_requirement: FromDishka[ToggleConditionRequirement],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await toggle_condition_requirement(user, AccessRequirements(callback.data or ""))
 
 
@@ -74,7 +74,7 @@ async def on_rules_input(
     update_rules_requirement: FromDishka[UpdateRulesRequirement],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if await update_rules_requirement(user, message.text or ""):
         await dialog_manager.switch_to(state=DashboardAccess.CONDITIONS)
@@ -88,5 +88,5 @@ async def on_channel_input(
     update_channel_requirement: FromDishka[UpdateChannelRequirement],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await update_channel_requirement(user, message.text or "")

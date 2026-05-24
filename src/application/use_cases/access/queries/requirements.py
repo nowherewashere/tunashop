@@ -36,20 +36,20 @@ class CheckRules(Interactor[None, CheckRulesResultDto]):
         settings = await self.settings_dao.get()
 
         if actor.is_privileged:
-            logger.debug(f"User '{actor.telegram_id}' skipped rules check due to privileges")
+            logger.debug(f"User '{actor.remna_name}' skipped rules check due to privileges")
             return CheckRulesResultDto(is_required=False, is_accepted=True)
 
         if not settings.requirements.rules_required:
-            logger.debug(f"Rules check skipped for '{actor.telegram_id}': requirement is disabled")
+            logger.debug(f"Rules check skipped for '{actor.remna_name}': requirement is disabled")
             return CheckRulesResultDto(is_required=False, is_accepted=True)
 
         rules_url = settings.requirements.rules_url
 
         if actor.is_rules_accepted:
-            logger.debug(f"User '{actor.telegram_id}' has already accepted rules")
+            logger.debug(f"User '{actor.remna_name}' has already accepted rules")
             return CheckRulesResultDto(is_required=True, is_accepted=True, rules_url=rules_url)
 
-        logger.debug(f"User '{actor.telegram_id}' must accept rules before proceeding")
+        logger.debug(f"User '{actor.remna_name}' must accept rules before proceeding")
         return CheckRulesResultDto(is_required=True, is_accepted=False, rules_url=rules_url)
 
 
@@ -82,7 +82,7 @@ class CheckChannelSubscription(Interactor[None, CheckChannelSubscriptionResultDt
             return CheckChannelSubscriptionResultDto(is_subscribed=True)
 
         if actor.is_privileged:
-            logger.debug(f"User '{actor.telegram_id}' skipped channel check due to privileges")
+            logger.debug(f"User '{actor.remna_name}' skipped channel check due to privileges")
             return CheckChannelSubscriptionResultDto(is_subscribed=True)
 
         req = settings.requirements
@@ -97,10 +97,11 @@ class CheckChannelSubscription(Interactor[None, CheckChannelSubscriptionResultDt
 
         if chat_id is None:
             logger.warning(
-                f"Channel check skipped for '{actor.telegram_id}': no valid chat_id or username"
+                f"Channel check skipped for '{actor.remna_name}': no valid chat_id or username"
             )
             return CheckChannelSubscriptionResultDto(is_subscribed=True)
 
+        assert actor.telegram_id is not None
         try:
             member = await self.bot.get_chat_member(chat_id=chat_id, user_id=actor.telegram_id)
 
@@ -108,7 +109,7 @@ class CheckChannelSubscription(Interactor[None, CheckChannelSubscriptionResultDt
             return CheckChannelSubscriptionResultDto(is_subscribed, member.status, channel_url)
 
         except TelegramBadRequest as e:
-            logger.error(f"Failed to check channel for '{actor.telegram_id}': '{e}'")
+            logger.error(f"Failed to check channel for '{actor.remna_name}': '{e}'")
 
             await self.event_publisher.publish(
                 ChannelCheckErrorEvent(

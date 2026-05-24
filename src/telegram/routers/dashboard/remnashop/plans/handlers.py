@@ -17,7 +17,7 @@ from remnapy.enums.users import TrafficLimitStrategy
 
 from src.application.common import Notifier
 from src.application.common.dao import PlanDao
-from src.application.dto import MediaDescriptorDto, MessagePayloadDto, PlanDto, UserDto
+from src.application.dto import MediaDescriptorDto, MessagePayloadDto, PlanDto, TelegramUserDto
 from src.application.use_cases.plan.commands.access import (
     AddAllowedUserToPlan,
     AddAllowedUserToPlanDto,
@@ -78,7 +78,7 @@ async def on_import_input(
     commit_plan: FromDishka[CommitPlan],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if not message.document:
         await notifier.notify_user(user, i18n_key="ntf-plan.not-file")
@@ -118,7 +118,7 @@ async def on_export_plan_select(
     dialog_manager: DialogManager,
     selected_plan: int,
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     selected_plans: list = dialog_manager.dialog_data.get("selected_plans", [])
 
     if selected_plan in selected_plans:
@@ -139,7 +139,7 @@ async def on_export(
     notifier: FromDishka[Notifier],
     export_plans: FromDishka[ExportPlans],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     selected_plans: list = dialog_manager.dialog_data.get("selected_plans", [])
 
     if not selected_plans:
@@ -182,7 +182,7 @@ async def on_plan_select(
     plan_dao: FromDishka[PlanDao],
 ) -> None:
     plan_id = int(dialog_manager.item_id)  # type: ignore[attr-defined]
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     plan: Optional[PlanDto] = await plan_dao.get_by_id(plan_id)
 
     if not plan:
@@ -202,7 +202,7 @@ async def on_plan_move(
     dialog_manager: DialogManager,
     move_plan_up: FromDishka[MovePlanUp],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await move_plan_up(user, int(dialog_manager.item_id))  # type: ignore[attr-defined]
 
 
@@ -215,11 +215,11 @@ async def on_plan_delete(
     notifier: FromDishka[Notifier],
     delete_plan: FromDishka[DeletePlan],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
 
     if is_double_click(dialog_manager, key=f"delete_confirm_{plan.id}", cooldown=10):
-        await delete_plan(user, plan.id)  # type: ignore[arg-type]
+        await delete_plan(user, plan.id)
 
         await notifier.notify_user(user, i18n_key="ntf-plan.deleted")
         await dialog_manager.start(state=RemnashopPlans.MAIN, mode=StartMode.RESET_STACK)
@@ -239,7 +239,7 @@ async def on_name_input(
     update_plan_name: FromDishka[UpdatePlanName],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if message.text is None:
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
@@ -266,7 +266,7 @@ async def on_description_input(
     update_plan_description: FromDishka[UpdatePlanDescription],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if message.text is None:
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
@@ -294,7 +294,7 @@ async def on_description_remove(
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
     plan.description = None
@@ -313,7 +313,7 @@ async def on_tag_input(
     update_plan_tag: FromDishka[UpdatePlanTag],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if message.text is None:
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
@@ -337,7 +337,7 @@ async def on_tag_remove(
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
     plan.tag = None
@@ -353,7 +353,7 @@ async def on_trial_toggle(
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
     plan.is_trial = not plan.is_trial
@@ -371,7 +371,7 @@ async def on_type_select(
     retort: FromDishka[Retort],
     update_plan_type: FromDishka[UpdatePlanType],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     current_plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
     updated_plan = await update_plan_type(user, UpdatePlanTypeDto(current_plan, selected_type))
@@ -388,7 +388,7 @@ async def on_availability_select(
     selected_availability: PlanAvailability,
     retort: FromDishka[Retort],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
     plan.availability = selected_availability
@@ -405,7 +405,7 @@ async def on_active_toggle(
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
     plan.is_active = not plan.is_active
@@ -424,7 +424,7 @@ async def on_traffic_input(
     update_plan_traffic: FromDishka[UpdatePlanTraffic],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if message.text is None:
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
@@ -452,7 +452,7 @@ async def on_strategy_select(
     selected_strategy: TrafficLimitStrategy,
     retort: FromDishka[Retort],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
     plan.traffic_limit_strategy = selected_strategy
@@ -472,7 +472,7 @@ async def on_devices_input(
     update_plan_device: FromDishka[UpdatePlanDevice],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if message.text is None:
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
@@ -498,7 +498,7 @@ async def on_duration_select(
     widget: Button,
     dialog_manager: DialogManager,
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     duration_id = int(dialog_manager.item_id)  # type: ignore[attr-defined]
     dialog_manager.dialog_data["selected_duration"] = duration_id
@@ -515,7 +515,7 @@ async def on_duration_move(
     retort: FromDishka[Retort],
     move_duration_up: FromDishka[MoveDurationUp],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     current_plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
 
     plan = await move_duration_up(
@@ -535,7 +535,7 @@ async def on_duration_remove(
     notifier: FromDishka[Notifier],
     remove_plan_duration: FromDishka[RemovePlanDuration],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     duration_id = int(dialog_manager.item_id)  # type: ignore[attr-defined]
 
     current_plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
@@ -562,7 +562,7 @@ async def on_duration_input(
     add_plan_duration: FromDishka[AddPlanDuration],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if message.text is None:
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
@@ -587,7 +587,7 @@ async def on_currency_select(
     dialog_manager: DialogManager,
     selected_currency: Currency,
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     dialog_manager.dialog_data["selected_currency"] = selected_currency.value
     logger.info(f"{user.log} Selected currency '{selected_currency.name}'")
     await dialog_manager.switch_to(state=RemnashopPlans.PRICE)
@@ -603,7 +603,7 @@ async def on_price_input(
     update_plan_price: FromDishka[UpdatePlanPrice],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if not message.text:
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
@@ -645,7 +645,7 @@ async def on_allowed_user_input(
     add_allowed_user: FromDishka[AddAllowedUserToPlan],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if message.text is None:
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
@@ -656,7 +656,7 @@ async def on_allowed_user_input(
     try:
         updated_plan = await add_allowed_user(
             user,
-            AddAllowedUserToPlanDto(current_plan, message.text),
+            AddAllowedUserToPlanDto(plan=current_plan, input_value=message.text),
         )
         dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(updated_plan)
 
@@ -673,16 +673,28 @@ async def on_allowed_user_remove(
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_user_id = int(dialog_manager.item_id)  # type: ignore[attr-defined]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    item_id: str = dialog_manager.item_id  # type: ignore[attr-defined]
     plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
 
-    if target_user_id in plan.allowed_user_ids:
-        plan.allowed_user_ids.remove(target_user_id)
-        dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(plan)
-        logger.info(f"{user.log} Removed allowed user '{target_user_id}' from plan in memory")
-    else:
-        logger.warning(f"{user.log} Tried to remove non-existent user '{target_user_id}' from plan")
+    if item_id.startswith("tg:"):
+        tg_id = int(item_id[3:])
+        if tg_id in plan.allowed_telegram_ids:
+            plan.allowed_telegram_ids.remove(tg_id)
+            dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(plan)
+            logger.info(f"{user.log} Removed allowed telegram ID '{tg_id}' from plan in memory")
+        else:
+            logger.warning(
+                f"{user.log} Tried to remove non-existent telegram ID '{tg_id}' from plan"
+            )
+    elif item_id.startswith("em:"):
+        email = item_id[3:]
+        if email in plan.allowed_emails:
+            plan.allowed_emails.remove(email)
+            dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(plan)
+            logger.info(f"{user.log} Removed allowed email '{email}' from plan in memory")
+        else:
+            logger.warning(f"{user.log} Tried to remove non-existent email '{email}' from plan")
 
 
 @inject
@@ -693,7 +705,7 @@ async def on_squads(
     remnawave_sdk: FromDishka[RemnawaveSDK],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     result = await remnawave_sdk.internal_squads.get_internal_squads()
 
     if not result.internal_squads:
@@ -712,7 +724,7 @@ async def on_internal_squad_select(
     selected_squad: UUID,
     retort: FromDishka[Retort],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
 
     if selected_squad in plan.internal_squads:
@@ -733,7 +745,7 @@ async def on_external_squad_select(
     selected_squad: UUID,
     retort: FromDishka[Retort],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
 
     if selected_squad == plan.external_squad:
@@ -755,7 +767,7 @@ async def on_plan_confirm(
     notifier: FromDishka[Notifier],
     commit_plan: FromDishka[CommitPlan],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     plan_dto = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
 
     try:

@@ -7,7 +7,7 @@ from dishka.integrations.aiogram_dialog import inject
 
 from src.application.common import Notifier
 from src.application.common.dao import SettingsDao
-from src.application.dto import UserDto
+from src.application.dto import TelegramUserDto
 from src.application.use_cases.settings.commands.notifications import (
     ToggleNotification,
     UpdateSystemNotificationRoute,
@@ -27,7 +27,7 @@ async def on_user_type_select(
     selected_type: UserNotificationType,
     toggle_notification: FromDishka[ToggleNotification],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await toggle_notification(user, selected_type)
 
 
@@ -48,7 +48,7 @@ async def on_system_type_toggle(
     dialog_manager: DialogManager,
     toggle_notification: FromDishka[ToggleNotification],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     notification_type = dialog_manager.dialog_data["notification_type"]
 
     if notification_type == SystemNotificationType.SYSTEM:
@@ -64,7 +64,7 @@ async def on_route_clear(
     dialog_manager: DialogManager,
     update_system_notification_route: FromDishka[UpdateSystemNotificationRoute],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     notification_type = dialog_manager.dialog_data["notification_type"]
     await update_system_notification_route(
         user,
@@ -87,7 +87,7 @@ async def on_route_chat_id_input(
     update_system_notification_route: FromDishka[UpdateSystemNotificationRoute],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     notification_type = dialog_manager.dialog_data["notification_type"]
 
     chat_id = parse_int(message.text)
@@ -120,7 +120,7 @@ async def on_route_thread_id_input(
     update_system_notification_route: FromDishka[UpdateSystemNotificationRoute],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     notification_type = dialog_manager.dialog_data["notification_type"]
 
     thread_id = parse_int(message.text)

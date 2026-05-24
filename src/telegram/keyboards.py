@@ -268,9 +268,12 @@ def get_remnashop_update_keyboard() -> InlineKeyboardMarkup:
 
 
 def get_user_keyboard(
-    telegram_id: int,
+    telegram_id: Optional[int],
     referrer_telegram_id: Optional[int] = None,
-) -> InlineKeyboardMarkup:
+) -> Optional[InlineKeyboardMarkup]:
+    if telegram_id is None:
+        return None
+
     builder = InlineKeyboardBuilder()
 
     builder.row(

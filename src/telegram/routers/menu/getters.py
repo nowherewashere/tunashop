@@ -5,10 +5,9 @@ from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 from loguru import logger
 
-from src.application.common import Remnawave, TranslatorRunner
+from src.application.common import BotService, Remnawave, TranslatorRunner
 from src.application.common.dao import ReferralDao, SettingsDao, SubscriptionDao
-from src.application.dto import UserDto
-from src.application.services import BotService
+from src.application.dto import TelegramUserDto
 from src.application.use_cases.misc.queries.menu import GetMenuData
 from src.core.config import AppConfig
 from src.core.exceptions import MenuRenderError
@@ -24,7 +23,7 @@ from src.core.utils.time import get_traffic_reset_delta
 async def menu_getter(
     dialog_manager: DialogManager,
     config: AppConfig,
-    user: UserDto,
+    user: TelegramUserDto,
     bot_service: FromDishka[BotService],
     i18n: FromDishka[TranslatorRunner],
     get_menu_data: FromDishka[GetMenuData],
@@ -42,6 +41,7 @@ async def menu_getter(
         data: dict[str, Any] = {
             # user
             "telegram_id": user.telegram_id,
+            "email": user.email,
             "name": user.name,
             "personal_discount": personal_discount,
             "show_personal_discount": show_personal_discount,
@@ -51,6 +51,7 @@ async def menu_getter(
             "is_mini_app": config.bot.is_mini_app,
             "support_url": support_url,
             "web_enabled": config.web_enabled,
+            "web_cabinet_url": config.web_cabinet_url.strip(),
             # referral
             "referral_enabled": menu_data.is_referral_enabled,
             # defaults
@@ -73,7 +74,7 @@ async def menu_getter(
         }
 
         if not menu_data.current_subscription:
-            logger.debug(f"User {user.telegram_id} has no active subscription")
+            logger.debug(f"User {user.remna_name} has no active subscription")
             data["trial_available"] = menu_data.is_trial_available and menu_data.available_trial
             return data
 
@@ -106,7 +107,7 @@ async def menu_getter(
                 else subscription.url,
             }
         )
-        logger.debug(f"Menu data for user {user.telegram_id}: {data}")
+        logger.debug(f"Menu data for user {user.remna_name}: {data}")
         return data
 
     except Exception as e:
@@ -132,13 +133,13 @@ def get_platform_icon(platform: str | None) -> str:
 @inject
 async def devices_getter(
     dialog_manager: DialogManager,
-    user: UserDto,
+    user: TelegramUserDto,
     i18n: FromDishka[TranslatorRunner],
     subscription_dao: FromDishka[SubscriptionDao],
     remnawave: FromDishka[Remnawave],
     **kwargs: Any,
 ) -> dict[str, Any]:
-    current_subscription = await subscription_dao.get_current(user.telegram_id)
+    current_subscription = await subscription_dao.get_current(user.id)
 
     if not current_subscription:
         raise ValueError(f"Current subscription for user '{user.telegram_id}' not found")
@@ -179,7 +180,7 @@ async def devices_getter(
 @inject
 async def device_confirm_delete_getter(
     dialog_manager: DialogManager,
-    user: UserDto,
+    user: TelegramUserDto,
     **kwargs: Any,
 ) -> dict[str, Any]:
     return {
@@ -193,7 +194,7 @@ async def device_confirm_delete_getter(
 @inject
 async def invite_getter(
     dialog_manager: DialogManager,
-    user: UserDto,
+    user: TelegramUserDto,
     bot_service: FromDishka[BotService],
     i18n: FromDishka[TranslatorRunner],
     settings_dao: FromDishka[SettingsDao],

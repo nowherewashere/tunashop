@@ -22,6 +22,7 @@ from src.telegram.widgets.kbd import (
     SwitchInlineQueryChosenChatButton,
     SwitchTo,
     Url,
+    WebApp,
 )
 from src.telegram.window import Window
 
@@ -35,7 +36,6 @@ from .getters import (
 from .handlers import (
     on_device_delete_all_confirm,
     on_device_delete_confirm,
-    on_generate_web_credentials,
     on_device_delete_request,
     on_get_trial,
     on_invite,
@@ -110,11 +110,9 @@ menu = Window(
         ),
     ),
     Row(
-        Button(
+        WebApp(
             text=I18nFormat("btn-menu.web-cabinet"),
-            id="web_cabinet",
-            on_click=on_generate_web_credentials,
-            style=Style(ButtonStyle.PRIMARY),
+            url=Format("{web_cabinet_url}"),
         ),
         when=F["web_enabled"],
     ),

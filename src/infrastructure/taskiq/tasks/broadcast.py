@@ -49,18 +49,23 @@ async def send_broadcast_task(
         GetBroadcastAudienceUsersDto(broadcast.audience, plan_id)
     )
 
+    # Broadcast is Telegram-only; exclude web-only users without a telegram_id
+    users = [u for u in users if u.telegram_id is not None]
+
     if not users:
         logger.warning(f"No users found for broadcast '{task_id}'")
         await finish_broadcast.system(FinishBroadcastDto(task_id, BroadcastStatus.COMPLETED))
         return
 
-    messages = [
-        BroadcastMessageDto(
-            user_telegram_id=user.telegram_id,
-            status=BroadcastMessageStatus.PENDING,
+    messages = []
+    for user in users:
+        messages.append(
+            BroadcastMessageDto(
+                user_id=user.id,
+                user_telegram_id=user.telegram_id,
+                status=BroadcastMessageStatus.PENDING,
+            )
         )
-        for user in users
-    ]
 
     messages = await initialize_broadcast_messages.system(
         InitializeBroadcastMessagesDto(task_id, messages)
@@ -89,17 +94,17 @@ async def send_broadcast_task(
                     status = BroadcastMessageStatus.SENT
                     msg_id = tg_message.message_id
 
-                return user.telegram_id, status, msg_id, retry_time_for_user
+                return user.id, user.telegram_id, status, msg_id, retry_time_for_user
 
             except TelegramRetryAfter as error:
                 wait_time = error.retry_after + BATCH_DELAY
-                logger.warning(f"Flood wait {error.retry_after}s for user '{user.telegram_id}'")
+                logger.warning(f"Flood wait {error.retry_after}s for user '{user.remna_name}'")
                 await asyncio.sleep(wait_time)
                 retry_time_for_user += wait_time
                 total_retry_time += wait_time
             except Exception:
-                logger.exception(f"Failed to send to '{user.telegram_id}'")
-                return user.telegram_id, status, msg_id, retry_time_for_user
+                logger.exception(f"Failed to send to '{user.remna_name}'")
+                return user.id, user.telegram_id, status, msg_id, retry_time_for_user
 
     for i, batch in enumerate(chunked(users, BATCH_SIZE_20), start=1):
         if i % 5 == 0:
@@ -115,20 +120,23 @@ async def send_broadcast_task(
             task_id=task_id,
             messages=[
                 BroadcastMessageDto(
-                    id=next(m.id for m in messages if m.user_telegram_id == tg_id),
+                    id=next(m.id for m in messages if m.user_id == uid),
+                    user_id=uid,
                     user_telegram_id=tg_id,
                     status=status,
                     message_id=msg_id,
                 )
-                for tg_id, status, msg_id, _ in results
+                for uid, tg_id, status, msg_id, _ in results
             ],
         )
 
         await update_broadcast_message_status.system(updates)
 
-        sent_count = sum(1 for _, status, _, _ in results if status == BroadcastMessageStatus.SENT)
+        sent_count = sum(
+            1 for _, _, status, _, _ in results if status == BroadcastMessageStatus.SENT
+        )
         failed_count = len(results) - sent_count
-        batch_retry_time = sum(r[3] for r in results)
+        batch_retry_time = sum(r[4] for r in results)
 
         logger.info(
             f"Batch {i}: sent={sent_count}, failed={failed_count}, "
@@ -173,14 +181,16 @@ async def delete_broadcast_task(
         if (
             message.status not in (BroadcastMessageStatus.SENT, BroadcastMessageStatus.EDITED)
             or not message.message_id
+            or not message.user_telegram_id
         ):
             return message, retry_time_for_msg
 
+        user_telegram_id: int = message.user_telegram_id
         while True:
             try:
                 async with semaphore:
                     if await bot.delete_message(
-                        chat_id=message.user_telegram_id, message_id=message.message_id
+                        chat_id=user_telegram_id, message_id=message.message_id
                     ):
                         message.status = BroadcastMessageStatus.DELETED
 

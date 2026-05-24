@@ -1,11 +1,10 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-from src.application.common import Interactor, TranslatorRunner
+from src.application.common import BotService, Interactor, TranslatorRunner
 from src.application.common.dao import PlanDao, SettingsDao, SubscriptionDao
 from src.application.common.policy import Permission
 from src.application.dto import MenuButtonDto, PlanDto, SubscriptionDto, UserDto
-from src.application.services import BotService
 from src.application.use_cases.user.queries.plans import GetAvailableTrial
 from src.core.enums import Role
 

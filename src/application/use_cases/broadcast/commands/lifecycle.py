@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 from loguru import logger
 
-from src.application.common import Interactor
+from src.application.common import BroadcastDispatcher, Interactor
 from src.application.common.dao import BroadcastDao
 from src.application.common.policy import Permission
 from src.application.common.uow import UnitOfWork
@@ -31,14 +31,14 @@ class StartBroadcast(Interactor[StartBroadcastDto, UUID]):
         uow: UnitOfWork,
         broadcast_dao: BroadcastDao,
         get_broadcast_audience_count: GetBroadcastAudienceCount,
+        broadcast_dispatcher: BroadcastDispatcher,
     ) -> None:
         self.uow = uow
         self.broadcast_dao = broadcast_dao
         self.get_broadcast_audience_count = get_broadcast_audience_count
+        self.broadcast_dispatcher = broadcast_dispatcher
 
     async def _execute(self, actor: UserDto, data: StartBroadcastDto) -> UUID:
-        from src.infrastructure.taskiq.tasks.broadcast import send_broadcast_task  # noqa: PLC0415
-
         total_count = await self.get_broadcast_audience_count.system(
             GetBroadcastAudienceCountDto(data.audience, data.plan_id)
         )
@@ -55,14 +55,7 @@ class StartBroadcast(Interactor[StartBroadcastDto, UUID]):
             await self.broadcast_dao.create(broadcast)
             await self.uow.commit()
 
-            await (
-                send_broadcast_task.kicker()
-                .with_task_id(str(task_id))
-                .kiq(
-                    broadcast,
-                    data.plan_id,
-                )  # type: ignore[call-overload]
-            )
+            await self.broadcast_dispatcher.start(broadcast, data.plan_id)
 
         logger.info(f"{actor.log} Scheduled broadcast initialization '{task_id}'")
         return task_id
@@ -82,13 +75,13 @@ class DeleteBroadcast(Interactor[UUID, DeleteBroadcastResultDto]):
         self,
         uow: UnitOfWork,
         broadcast_dao: BroadcastDao,
+        broadcast_dispatcher: BroadcastDispatcher,
     ) -> None:
         self.uow = uow
         self.broadcast_dao = broadcast_dao
+        self.broadcast_dispatcher = broadcast_dispatcher
 
     async def _execute(self, actor: UserDto, data: UUID) -> DeleteBroadcastResultDto:
-        from src.infrastructure.taskiq.tasks.broadcast import delete_broadcast_task  # noqa: PLC0415
-
         async with self.uow:
             broadcast = await self.broadcast_dao.get_by_task_id(data)
 
@@ -105,9 +98,7 @@ class DeleteBroadcast(Interactor[UUID, DeleteBroadcastResultDto]):
 
         logger.info(f"{actor.log} Initiated deletion for broadcast '{data}'")
 
-        task = await delete_broadcast_task.kiq(broadcast)  # type: ignore[call-overload]
-        result = await task.wait_result()
-        counts = result.return_value
+        counts = await self.broadcast_dispatcher.delete(broadcast)
 
         logger.info(
             f"{actor.log} Finished deletion for '{data}' "

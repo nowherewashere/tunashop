@@ -181,4 +181,8 @@ async def referrals_getter(
     **kwargs: Any,
 ) -> dict[str, Any]:
     data = await get_referral_statistics.system()
-    return asdict(data)
+    result = asdict(data)
+    result["top_referrer_telegram_id"] = data.top_referrer_telegram_id or 0
+    result["top_referrer_email"] = data.top_referrer_email or 0
+    result["top_referrer_username"] = data.top_referrer_username or 0
+    return result

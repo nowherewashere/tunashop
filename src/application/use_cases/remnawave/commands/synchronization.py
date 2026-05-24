@@ -43,53 +43,54 @@ class SyncRemnaUser(Interactor[SyncRemnaUserDto, bool]):
     async def _execute(self, actor: UserDto, data: SyncRemnaUserDto) -> bool:
         remna_user = data.remna_user
 
-        if not remna_user.telegram_id:
-            logger.warning(f"Skipping sync for '{remna_user.username}': missing 'telegram_id'")
-            return False
-
         async with self.uow:
-            user = await self.user_dao.get_by_telegram_id(int(remna_user.telegram_id))
+            user = await self.user_dao.get_by_remna_uuid(remna_user.uuid)
 
             if not user and data.creating:
-                logger.debug(f"User '{remna_user.telegram_id}' not found in bot, creating new user")
-                user = await self.user_dao.create(self._create_user_dto(data.remna_user))
+                logger.debug(f"User '{remna_user.uuid}' not found in bot, creating new user")
+                referral_code = await self.cryptographer.generate_unique_code(
+                    self.user_dao.get_by_referral_code
+                )
+                user = await self.user_dao.create(
+                    self._create_user_dto(data.remna_user, referral_code)
+                )
 
             if not user:
                 logger.warning(
-                    f"Sync failed: user '{remna_user.telegram_id}' could not be found or created"
+                    f"Sync failed: user '{remna_user.uuid}' could not be found or created"
                 )
                 return False
 
-            subscription = await self.subscription_dao.get_current(user.telegram_id)
+            subscription = await self.subscription_dao.get_current(user.id)
             remna_subscription = RemnaSubscriptionDto.from_remna_user(remna_user)
 
             if not subscription:
                 logger.info(
-                    f"No subscription found for user '{user.telegram_id}', importing from panel"
+                    f"No subscription found for user '{user.remna_name}', importing from panel"
                 )
-                await self._import_subscription(user.telegram_id, remna_subscription)
+                await self._import_subscription(user.id, remna_subscription)
                 await self.uow.commit()
                 logger.info(f"Sync completed for user '{remna_user.telegram_id}'")
                 return False
             else:
-                logger.info(f"Synchronizing existing subscription for user '{user.telegram_id}'")
+                logger.info(f"Synchronizing existing subscription for user '{user.remna_name}'")
                 changed = await self._update_subscription(subscription, remna_subscription)
                 await self.uow.commit()
                 logger.info(f"Sync completed for user '{remna_user.telegram_id}'")
                 return changed
 
-    def _create_user_dto(self, data: RemnaUserDto) -> UserDto:
+    def _create_user_dto(self, data: RemnaUserDto, referral_code: str) -> UserDto:
         return UserDto(
-            telegram_id=data.telegram_id,  # type: ignore[arg-type]
-            referral_code=self.cryptographer.generate_short_code(data.telegram_id),
-            name=str(data.telegram_id),
+            telegram_id=data.telegram_id,
+            referral_code=referral_code,
+            name=str(data.telegram_id) if data.telegram_id else str(data.uuid),
             role=Role.USER,
             language=self.config.default_locale,
         )
 
     async def _import_subscription(
         self,
-        telegram_id: int,
+        user_id: int,
         remna_subscription: RemnaSubscriptionDto,
     ) -> None:
         plan = PlanSnapshotDto(
@@ -127,7 +128,7 @@ class SyncRemnaUser(Interactor[SyncRemnaUserDto, bool]):
             plan_snapshot=plan,
         )
 
-        subscription = await self.subscription_dao.create(subscription, telegram_id)
+        subscription = await self.subscription_dao.create(subscription, user_id)
 
     async def _update_subscription(
         self,
@@ -168,7 +169,7 @@ class SyncAllUsersFromBot(Interactor[None, dict[str, int]]):
 
         for user in bot_users:
             try:
-                subscription = await self.subscription_dao.get_current(user.telegram_id)
+                subscription = await self.subscription_dao.get_current(user.id)
 
                 if not subscription:
                     skipped += 1
@@ -198,9 +199,7 @@ class SyncAllUsersFromBot(Interactor[None, dict[str, int]]):
                     recreated += 1
 
             except Exception as exception:
-                logger.exception(
-                    f"Error reverse-syncing bot user '{user.telegram_id}': {exception}"
-                )
+                logger.exception(f"Error reverse-syncing bot user '{user.remna_name}': {exception}")
                 errors += 1
 
         result = {
@@ -258,21 +257,19 @@ class SyncAllUsersFromPanel(Interactor[None, dict[str, int]]):
         added_subscription = 0
         updated = 0
         errors = 0
-        missing_telegram = 0
 
         for remna_user in panel_users:
             try:
-                if not remna_user.telegram_id:
-                    missing_telegram += 1
-                    continue
-
-                user = bot_users_map.get(remna_user.telegram_id)
+                if remna_user.telegram_id:
+                    user = bot_users_map.get(remna_user.telegram_id)
+                else:
+                    user = await self.user_dao.get_by_remna_uuid(remna_user.uuid)
 
                 if not user:
                     await self.sync_remna_user.system(SyncRemnaUserDto(remna_user, True))
                     added_users += 1
                 else:
-                    current_subscription = await self.subscription_dao.get_current(user.telegram_id)
+                    current_subscription = await self.subscription_dao.get_current(user.id)
                     if not current_subscription:
                         await self.sync_remna_user.system(SyncRemnaUserDto(remna_user, True))
                         added_subscription += 1
@@ -285,7 +282,7 @@ class SyncAllUsersFromPanel(Interactor[None, dict[str, int]]):
 
             except Exception as exception:
                 logger.exception(
-                    f"Error syncing RemnaUser '{remna_user.telegram_id}' exception: {exception}"
+                    f"Error syncing RemnaUser '{remna_user.uuid}' exception: {exception}"
                 )
                 errors += 1
 
@@ -296,7 +293,6 @@ class SyncAllUsersFromPanel(Interactor[None, dict[str, int]]):
             "added_subscription": added_subscription,
             "updated": updated,
             "errors": errors,
-            "missing_telegram": missing_telegram,
         }
 
         logger.info(f"Sync users summary: '{result}'")

@@ -93,9 +93,9 @@ recent_registered = Window(
     I18nFormat("msg-users-recent-registered"),
     ScrollingGroup(
         Select(
-            text=Format("{item.telegram_id} ({item.name})"),
+            text=Format("{item.name}"),
             id="user",
-            item_id_getter=lambda item: item.telegram_id,
+            item_id_getter=lambda item: item.id,
             items="recent_registered_users",
             type_factory=int,
             on_click=on_user_select,
@@ -122,9 +122,9 @@ recent_activity = Window(
     I18nFormat("msg-users-recent-activity"),
     ScrollingGroup(
         Select(
-            text=Format("{item.telegram_id} ({item.name})"),
+            text=Format("{item.name}"),
             id="user",
-            item_id_getter=lambda item: item.telegram_id,
+            item_id_getter=lambda item: item.id,
             items="recent_activity_users",
             type_factory=int,
             on_click=on_user_select,
@@ -151,9 +151,9 @@ search_results = Window(
     I18nFormat("msg-users-search-results", count=F["count"]),
     ScrollingGroup(
         Select(
-            text=Format("{item.telegram_id} ({item.name})"),
+            text=Format("{item.name}"),
             id="user",
-            item_id_getter=lambda item: item.telegram_id,
+            item_id_getter=lambda item: item.id,
             items="found_users",
             type_factory=int,
             on_click=on_user_select,
@@ -218,9 +218,9 @@ blacklist_users = Window(
     I18nFormat("msg-users-blacklist-list"),
     ScrollingGroup(
         Select(
-            text=Format("{item.telegram_id} ({item.name})"),
+            text=Format("{item.name}"),
             id="user",
-            item_id_getter=lambda item: item.telegram_id,
+            item_id_getter=lambda item: item.id,
             items="blocked_users",
             type_factory=int,
             on_click=on_user_select,

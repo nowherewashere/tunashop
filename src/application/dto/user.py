@@ -4,8 +4,8 @@ from typing import Optional, Self
 
 from aiogram.types import User as AiogramUser
 
-from src.core.constants import REMNASHOP_PREFIX
-from src.core.enums import Locale, Role
+from src.core.constants import REMNASHOP_PREFIX, WEB_PREFIX
+from src.core.enums import AuthType, Locale, OAuthProvider, Role
 from src.core.utils.time import datetime_now
 
 from .base import BaseDto, TimestampMixin, TrackableMixin
@@ -17,6 +17,10 @@ class TempUserDto:
     name: str
     role: Role = Role.USER
     language: Locale = Locale.EN
+
+    @property
+    def remna_name(self) -> str:
+        return f"{REMNASHOP_PREFIX}{self.telegram_id}"
 
     @classmethod
     def from_aiogram(cls, aiogram_user: AiogramUser) -> Self:
@@ -32,9 +36,9 @@ class TempUserDto:
 
 @dataclass(kw_only=True)
 class UserDto(BaseDto, TrackableMixin, TimestampMixin):
-    telegram_id: int
+    telegram_id: Optional[int] = None
+    auth_type: AuthType = AuthType.TELEGRAM
 
-    login: Optional[str] = None
     email: Optional[str] = None
     password_hash: Optional[str] = None
     is_email_verified: bool = False
@@ -75,11 +79,13 @@ class UserDto(BaseDto, TrackableMixin, TimestampMixin):
 
     @property
     def log(self) -> str:
-        return f"[{self.role}:{self.telegram_id} ({self.name})]"
+        return f"[{self.role}:{self.remna_name} ({self.name})]"
 
     @property
     def remna_name(self) -> str:  # NOTE: DONT USE FOR GET USER!
-        return f"{REMNASHOP_PREFIX}{self.telegram_id}"
+        if self.telegram_id is not None:
+            return f"{REMNASHOP_PREFIX}{self.telegram_id}"
+        return f"{REMNASHOP_PREFIX}{WEB_PREFIX}{self.id}"
 
     @property
     def remna_description(self) -> str:
@@ -91,3 +97,15 @@ class UserDto(BaseDto, TrackableMixin, TimestampMixin):
             description += f"\nemail: {self.email}"
 
         return description
+
+
+@dataclass(kw_only=True)
+class UserOAuthProviderDto(BaseDto):
+    user_id: int
+    provider: OAuthProvider
+    provider_id: str
+
+
+@dataclass(kw_only=True)
+class TelegramUserDto(UserDto):
+    telegram_id: int

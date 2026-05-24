@@ -67,76 +67,6 @@ class RemnawaveImpl(Remnawave):
         logger.info(f"Successfully connected to Remnawave panel (version: {panel_version})")
         return panel_version
 
-    async def create_public_user(self, user: UserDto) -> UserResponseDto:
-        if not user.login:
-            raise ValueError("Web user login is required to create Remnawave user")
-
-        request_dto = CreateUserRequestDto(
-            username=user.login,
-            expire_at=datetime_now() + timedelta(days=3650),
-            email=user.email,
-            description=user.remna_description,
-            telegram_id=None,
-        )
-
-        try:
-            remna_user = await self.sdk.users.create_user(request_dto)
-            logger.info(
-                f"Public RemnaUser '{remna_user.username}' created successfully. "
-                f"UUID: '{remna_user.uuid}', email: '{remna_user.email}'"
-            )
-            return remna_user
-        except ConflictError:
-            logger.warning(
-                f"Public RemnaUser '{request_dto.username}' "
-                f"or email '{request_dto.email}' already exists in panel"
-            )
-            raise
-
-        if not isinstance(metadata, GetMetadataResponseDto):
-            logger.error(f"Invalid response from Remnawave panel: '{metadata}'")
-            raise ValueError(f"Invalid response from Remnawave panel: {metadata}")
-
-        panel_version = Version(metadata.version)
-        if panel_version < REMNAWAVE_MIN_VERSION:
-            logger.error(
-                f"Remnawave panel version '{panel_version}' is not compatible. "
-                f"Minimum required version: '{REMNAWAVE_MIN_VERSION}'"
-            )
-            raise ValueError(
-                f"Remnawave panel version '{panel_version}' is not compatible. "
-                f"Minimum required version: '{REMNAWAVE_MIN_VERSION}'"
-            )
-
-        logger.info(f"Successfully connected to Remnawave panel (version: {panel_version})")
-        return panel_version
-
-    async def create_public_user(self, user: UserDto) -> UserResponseDto:
-        if not user.login:
-            raise ValueError("Web user login is required to create Remnawave user")
-
-        request_dto = CreateUserRequestDto(
-            username=user.login,
-            expire_at=datetime_now() + timedelta(days=3650),
-            email=user.email,
-            description=user.remna_description,
-            telegram_id=None,
-        )
-
-        try:
-            remna_user = await self.sdk.users.create_user(request_dto)
-            logger.info(
-                f"Public RemnaUser '{remna_user.username}' created successfully. "
-                f"UUID: '{remna_user.uuid}', email: '{remna_user.email}'"
-            )
-            return remna_user
-        except ConflictError:
-            logger.warning(
-                f"Public RemnaUser '{request_dto.username}' "
-                f"or email '{request_dto.email}' already exists in panel"
-            )
-            raise
-
     async def create_user(
         self,
         user: UserDto,
@@ -298,14 +228,11 @@ class RemnawaveImpl(Remnawave):
         plan: Optional[PlanSnapshotDto],
         subscription: Optional[SubscriptionDto],
     ) -> CreateUserRequestDto:
-        username = self._resolve_username(user)
-        telegram_id = self._resolve_telegram_id(user)
-
         if subscription:
             return CreateUserRequestDto(
                 uuid=subscription.user_remna_id,
-                username=username,
-                telegram_id=telegram_id,
+                username=user.remna_name,
+                telegram_id=user.telegram_id,
                 expire_at=subscription.expire_at,
                 traffic_limit_strategy=subscription.traffic_limit_strategy,
                 traffic_limit_bytes=gb_to_bytes(subscription.traffic_limit),
@@ -319,8 +246,8 @@ class RemnawaveImpl(Remnawave):
 
         if plan:
             return CreateUserRequestDto(
-                username=username,
-                telegram_id=telegram_id,
+                username=user.remna_name,
+                telegram_id=user.telegram_id,
                 expire_at=days_to_datetime(plan.duration),
                 traffic_limit_strategy=plan.traffic_limit_strategy,
                 traffic_limit_bytes=gb_to_bytes(plan.traffic_limit),
@@ -332,7 +259,13 @@ class RemnawaveImpl(Remnawave):
                 external_squad_uuid=plan.external_squad,
             )
 
-        raise ValueError("Either 'plan' or 'subscription' must be provided")
+        return CreateUserRequestDto(
+            username=user.remna_name,
+            telegram_id=user.telegram_id,
+            expire_at=datetime_now() + timedelta(days=3650),
+            description=user.remna_description,
+            email=user.email,
+        )
 
     def _build_update_request(
         self,
@@ -341,12 +274,10 @@ class RemnawaveImpl(Remnawave):
         plan: Optional[PlanSnapshotDto],
         subscription: Optional[SubscriptionDto],
     ) -> UpdateUserRequestDto:
-        telegram_id = self._resolve_telegram_id(user)
-
         if subscription:
             return UpdateUserRequestDto(
                 uuid=uuid,
-                telegram_id=telegram_id,
+                telegram_id=user.telegram_id,
                 expire_at=subscription.expire_at,
                 status=(
                     SubscriptionStatus.DISABLED
@@ -366,7 +297,7 @@ class RemnawaveImpl(Remnawave):
         if plan:
             return UpdateUserRequestDto(
                 uuid=uuid,
-                telegram_id=telegram_id,
+                telegram_id=user.telegram_id,
                 expire_at=days_to_datetime(plan.duration),
                 status=SubscriptionStatus.ACTIVE,
                 traffic_limit_strategy=plan.traffic_limit_strategy,
@@ -380,13 +311,3 @@ class RemnawaveImpl(Remnawave):
             )
 
         raise ValueError("Either 'plan' or 'subscription' must be provided")
-
-    def _resolve_username(self, user: UserDto) -> str:
-        if user.telegram_id < 0 and user.login:
-            return user.login
-        return user.remna_name
-
-    def _resolve_telegram_id(self, user: UserDto) -> int | None:
-        if user.telegram_id < 0:
-            return None
-        return user.telegram_id

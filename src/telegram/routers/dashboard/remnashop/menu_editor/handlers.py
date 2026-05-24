@@ -11,7 +11,7 @@ from dishka.integrations.aiogram_dialog import inject
 from loguru import logger
 
 from src.application.common import Notifier
-from src.application.dto import MenuButtonDto, UserDto
+from src.application.dto import MenuButtonDto, TelegramUserDto
 from src.application.use_cases.misc.commands.menu_editor import (
     ConfirmMenuButtonChanges,
     UpdateMenuButtonColor,
@@ -48,7 +48,7 @@ async def on_active_toggle(
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     button = dialog_manager.dialog_data["button"]
     button = retort.load(button, MenuButtonDto)
 
@@ -69,7 +69,7 @@ async def on_subscribers_only_toggle(
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     button = dialog_manager.dialog_data["button"]
     button = retort.load(button, MenuButtonDto)
 
@@ -93,7 +93,7 @@ async def on_text_input(
     update_menu_button_text: FromDishka[UpdateMenuButtonText],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if message.text is None:
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
@@ -120,7 +120,7 @@ async def on_availability_select(
     selected_availability: int,
     retort: FromDishka[Retort],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     button = dialog_manager.dialog_data["button"]
     button = retort.load(button, MenuButtonDto)
 
@@ -144,7 +144,7 @@ async def on_type_select(
     selected_type: ButtonType,
     retort: FromDishka[Retort],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     button = dialog_manager.dialog_data["button"]
     button = retort.load(button, MenuButtonDto)
 
@@ -170,7 +170,7 @@ async def on_payload_input(  # noqa: C901
     update_menu_button_media: FromDishka[UpdateMenuButtonMedia],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     button = dialog_manager.dialog_data["button"]
     button = retort.load(button, MenuButtonDto)
@@ -185,6 +185,9 @@ async def on_payload_input(  # noqa: C901
         elif message.video:
             media_type = MediaType.VIDEO
             file_id = message.video.file_id
+        elif message.animation:
+            media_type = MediaType.GIF
+            file_id = message.animation.file_id
         elif message.document:
             media_type = MediaType.DOCUMENT
             file_id = message.document.file_id
@@ -243,7 +246,7 @@ async def on_color_select(
     retort: FromDishka[Retort],
     update_menu_button_color: FromDishka[UpdateMenuButtonColor],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     button = dialog_manager.dialog_data["button"]
     button = retort.load(button, MenuButtonDto)
 
@@ -267,7 +270,7 @@ async def on_confirm(
     notifier: FromDishka[Notifier],
     confirm_menu_button_changes: FromDishka[ConfirmMenuButtonChanges],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     button = dialog_manager.dialog_data["button"]
     button = retort.load(button, MenuButtonDto)
 

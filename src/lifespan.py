@@ -21,14 +21,19 @@ from src.application.events import (
     WebhookErrorEvent,
 )
 from src.application.events.system import RemnashopWelcomeEvent
-from src.application.services import BotService, CommandService, WebhookService
 from src.application.use_cases.gateways.commands.payment import CreateDefaultPaymentGateway
 from src.core.config import AppConfig
 from src.core.constants import REMNAWAVE_MAX_VERSION
 from src.core.utils.i18n_helpers import i18n_format_seconds
 from src.core.utils.time import get_uptime
 from src.infrastructure.redis.keys import WelcomedVersionKey
-from src.infrastructure.services import EventBusImpl
+from src.infrastructure.services import BotServiceImpl as BotService
+from src.infrastructure.services import (
+    CommandService,
+    EventBusImpl,
+    NotificationWorker,
+    WebhookService,
+)
 from src.web.endpoints import TelegramWebhookEndpoint
 
 
@@ -41,6 +46,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     event_bus = await container.get(EventBusImpl)
     event_bus.set_container_factory(lambda: container)
     event_bus.autodiscover()
+
+    notification_worker = await container.get(NotificationWorker)
+    notification_worker.set_container_factory(lambda: container)
 
     async with container(scope=Scope.REQUEST) as startup_container:
         config = await startup_container.get(AppConfig)
@@ -142,6 +150,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await asyncio.sleep(2)
 
     await event_bus.shutdown()
+    await notification_worker.shutdown()
     await telegram_webhook_endpoint.shutdown()
     await command_service.delete_commands()
     await webhook_service.delete_webhook()

@@ -18,7 +18,7 @@ from src.telegram.utils import require_permission
 from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
 from src.telegram.widgets.kbd import Button, Row, Start
 
-from .handlers import on_smart_search, show_dev_promocode
+from .handlers import on_smart_search, on_transactions_list, show_dev_promocode
 
 dashboard = Window(
     Banner(BannerName.DASHBOARD),
@@ -30,12 +30,20 @@ dashboard = Window(
             state=DashboardStatistics.MAIN,
             when=require_permission(Permission.VIEW_STATISTICS),
         ),
+    ),
+    Row(
         Start(
             text=I18nFormat("btn-dashboard.users"),
             id="users",
             state=DashboardUsers.MAIN,
             mode=StartMode.RESET_STACK,
             when=require_permission(Permission.VIEW_USERS),
+        ),
+        Button(
+            text=I18nFormat("btn-dashboard.transactions"),
+            id="transactions",
+            on_click=on_transactions_list,
+            when=require_permission(Permission.VIEW_STATISTICS),
         ),
     ),
     Row(

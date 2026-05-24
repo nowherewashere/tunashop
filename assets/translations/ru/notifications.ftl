@@ -20,16 +20,6 @@ ntf-common =
     .value-updated = ✅ <i>Параметр успешно обновлен.</i>
 
     .plan-not-found = ❌ <i>План не найден или недоступен.</i>
-    .web-cabinet-credentials =
-    ✅ <b>Доступ в веб ЛК сформирован</b>
-
-    <blockquote>
-    <b>Логин:</b> <code>{ $login }</code>
-    <b>Пароль:</b> <code>{ $password }</code>
-    </blockquote>
-
-    🌐 <a href="{ $url }">Перейти в веб ЛК</a>
-
     .connect-not-available =
     ⚠️ { $status ->
     [LIMITED]
@@ -71,6 +61,7 @@ ntf-user =
     .plans-empty = ❌ <i>Нет доступных планов.</i>
     .devices-empty = ❌ <i>Список устройств пуст.</i>
     .allowed-plans-empty = ❌ <i>Нет доступных планов для предоставления доступа.</i>
+    .referral-reset = ✅ <i>Реферальная ссылка успешно сброшена.</i>
     .message-success = ✅ <i>Сообщение успешно отправлено.</i>
     .message-failed = ❌ <i>Не удалось отправить сообщение.</i>
 
@@ -93,19 +84,19 @@ ntf-access =
     .registration-disabled = ❌ <i>Регистрация новых пользователей отключена.</i>
     .registration-invite-only = ❌ <i>Регистрация доступна только по приглашению.</i>
     .payments-disabled = 🚧 <i>Платежи временно недоступны! Вы получите уведомление после восстановления.</i>
-    .payments-restored = ❇️ <i>Платежи восстановленны! Теперь вы можете купить или продлить подписку. Спасибо за ожидание.</i>
+    .payments-restored = ❇️ <i>Платежи восстановлены! Теперь вы можете купить или продлить подписку. Спасибо за ожидание.</i>
 
 ntf-plan =
     .not-file = ⚠️ <i>Отправьте планы в виде json файла.</i>
     .import-failed = ❌ <i>Не удалось импортировать.</i>
-    .import-success = ✅ <i>Успешно импотированно.</i>
+    .import-success = ✅ <i>Успешно импортировано.</i>
     .export-plans-not-selected = ❌ <i>Выберите хотя бы один план для экспорта.</i>
     .export-failed = ❌ <i>Не удалось экспортировать.</i>
     .export-success = ✅ <i>Выбранные планы экспортированы.</i>
     .trial-single-duration = ❌ <i>Пробный план может иметь только одну длительность.</i>
     .duration-already-exists = ❌ <i>Такая длительность уже существует.</i>
     .name-already-exists = ❌ <i>План с таким именем уже существует.</i>
-    .user-already-allowed = ❌ <i>Индентификтор пользователя уже добавлен.</i>
+    .user-already-allowed = ❌ <i>Идентификатор пользователя уже добавлен.</i>
 
     .updated = ✅ <i>План успешно обновлен.</i>
     .created = ✅ <i>План успешно создан.</i>

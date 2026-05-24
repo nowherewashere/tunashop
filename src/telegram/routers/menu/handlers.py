@@ -1,6 +1,3 @@
-import base64
-import hashlib
-import secrets
 from aiogram import F, Router
 from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, Message
@@ -10,11 +7,14 @@ from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 from loguru import logger
 
-from src.application.common import Notifier, TranslatorRunner
-from src.application.common.dao import SettingsDao, SubscriptionDao, UserDao
-from src.application.common.uow import UnitOfWork
-from src.application.dto import MediaDescriptorDto, MessagePayloadDto, PlanSnapshotDto, UserDto
-from src.application.services import BotService
+from src.application.common import BotService, Notifier, Redirect, TranslatorRunner
+from src.application.common.dao import SettingsDao, SubscriptionDao
+from src.application.dto import (
+    MediaDescriptorDto,
+    MessagePayloadDto,
+    PlanSnapshotDto,
+    TelegramUserDto,
+)
 from src.application.use_cases.referral.queries.code import GenerateReferralQr
 from src.application.use_cases.remnawave.commands.management import (
     DeleteUserAllDevices,
@@ -27,8 +27,7 @@ from src.application.use_cases.subscription.commands.purchase import (
     ActivateTrialSubscriptionDto,
 )
 from src.application.use_cases.user.queries.plans import GetAvailableTrial
-from src.core.config import AppConfig
-from src.core.constants import USER_KEY, PASSWORD_SCRYPT_DKLEN, PASSWORD_SCRYPT_N, PASSWORD_SCRYPT_P, PASSWORD_SCRYPT_R, WEB_PASSWORD_ALPHABET, WEB_PASSWORD_LEN
+from src.core.constants import USER_KEY
 from src.core.enums import MediaType
 from src.core.utils.i18n_helpers import i18n_format_expire_time
 from src.core.utils.time import get_traffic_reset_delta
@@ -38,31 +37,7 @@ from src.telegram.states import MainMenu
 router = Router(name=__name__)
 
 
-def _b64url_encode(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
-
-
-def _hash_password(password: str, key: str) -> str:
-    salt = secrets.token_bytes(16)
-    digest = hashlib.scrypt(
-        password=f"{password}:{key}".encode("utf-8"),
-        salt=salt,
-        n=PASSWORD_SCRYPT_N,
-        r=PASSWORD_SCRYPT_R,
-        p=PASSWORD_SCRYPT_P,
-        dklen=PASSWORD_SCRYPT_DKLEN,
-    )
-    return (
-        f"scrypt${PASSWORD_SCRYPT_N}${PASSWORD_SCRYPT_R}${PASSWORD_SCRYPT_P}"
-        f"${_b64url_encode(salt)}${_b64url_encode(digest)}"
-    )
-
-
-def _generate_web_password() -> str:
-    return "".join(secrets.choice(WEB_PASSWORD_ALPHABET) for _ in range(WEB_PASSWORD_LEN))
-
-
-async def on_start_dialog(user: UserDto, dialog_manager: DialogManager) -> None:
+async def on_start_dialog(user: TelegramUserDto, dialog_manager: DialogManager) -> None:
     logger.info(f"{user.log} Started dialog")
     await dialog_manager.start(
         state=MainMenu.MAIN,
@@ -72,14 +47,16 @@ async def on_start_dialog(user: UserDto, dialog_manager: DialogManager) -> None:
 
 
 @router.message(CommandStart(ignore_case=True))
-async def on_start_command(message: Message, user: UserDto, dialog_manager: DialogManager) -> None:
+async def on_start_command(
+    message: Message, user: TelegramUserDto, dialog_manager: DialogManager
+) -> None:
     await on_start_dialog(user, dialog_manager)
 
 
 @router.callback_query(F.data == CALLBACK_RULES_ACCEPT)
 async def on_rules_accept(
     callback: CallbackQuery,
-    user: UserDto,
+    user: TelegramUserDto,
     dialog_manager: DialogManager,
 ) -> None:
     await on_start_dialog(user, dialog_manager)
@@ -88,7 +65,7 @@ async def on_rules_accept(
 @router.callback_query(F.data == CALLBACK_CHANNEL_CONFIRM)
 async def on_channel_confirm(
     callback: CallbackQuery,
-    user: UserDto,
+    user: TelegramUserDto,
     dialog_manager: DialogManager,
 ) -> None:
     await on_start_dialog(user, dialog_manager)
@@ -100,10 +77,11 @@ async def on_get_trial(
     widget: Button,
     dialog_manager: DialogManager,
     notifier: FromDishka[Notifier],
+    redirect: FromDishka[Redirect],
     get_available_trial: FromDishka[GetAvailableTrial],
     activate_trial_subscription: FromDishka[ActivateTrialSubscription],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     plan = await get_available_trial.system(user)
 
     if not plan:
@@ -111,7 +89,17 @@ async def on_get_trial(
         raise ValueError("Trial plan not exist")
 
     trial = PlanSnapshotDto.from_plan(plan, plan.durations[0].days)
-    await activate_trial_subscription.system(ActivateTrialSubscriptionDto(user, trial))
+
+    try:
+        await activate_trial_subscription.system(ActivateTrialSubscriptionDto(user, trial))
+    except Exception:
+        logger.exception(f"{user.log} Trial activation failed")
+        if user.telegram_id is not None:
+            await redirect.to_failed_payment(user.telegram_id)
+        return
+
+    if user.telegram_id is not None:
+        await redirect.to_success_trial(user.telegram_id)
 
 
 @inject
@@ -143,7 +131,7 @@ async def on_device_delete_confirm(
     delete_user_device: FromDishka[DeleteUserDevice],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     selected_short_hwid = dialog_manager.dialog_data.get("selected_short_hwid")
     hwid_map = dialog_manager.dialog_data.get("hwid_map", [])
 
@@ -154,9 +142,7 @@ async def on_device_delete_confirm(
     if not full_hwid:
         raise ValueError(f"Full HWID not found for '{selected_short_hwid}'")
 
-    await delete_user_device(
-        user, DeleteUserDeviceDto(telegram_id=user.telegram_id, hwid=full_hwid)
-    )
+    await delete_user_device(user, DeleteUserDeviceDto(user_id=user.id, hwid=full_hwid))
     await notifier.notify_user(user=user, i18n_key="ntf-devices.deleted")
     await dialog_manager.switch_to(state=MainMenu.DEVICES)
 
@@ -169,7 +155,7 @@ async def on_device_delete_all_confirm(
     delete_user_all_devices: FromDishka[DeleteUserAllDevices],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await delete_user_all_devices(user)
     await notifier.notify_user(user=user, i18n_key="ntf-devices.all-deleted")
     await dialog_manager.switch_to(state=MainMenu.DEVICES)
@@ -183,7 +169,7 @@ async def on_reissue_subscription_confirm(
     reissue_subscription: FromDishka[ReissueSubscription],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await reissue_subscription(user)
     await notifier.notify_user(user=user, i18n_key="ntf-devices.reissued")
     await dialog_manager.switch_to(state=MainMenu.DEVICES)
@@ -197,8 +183,8 @@ async def show_reason(
     i18n: FromDishka[TranslatorRunner],
     subscription_dao: FromDishka[SubscriptionDao],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    subscription = await subscription_dao.get_current(user.telegram_id)
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    subscription = await subscription_dao.get_current(user.id)
 
     if subscription:
         kwargs = {
@@ -230,7 +216,7 @@ async def on_show_qr(
     generate_referral_qr: FromDishka[GenerateReferralQr],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     referral_url = await bot_service.get_referral_url(user.referral_code)
     referral_qr = await generate_referral_qr.system(referral_url)
@@ -255,7 +241,7 @@ async def on_text_button_click(
     settings_dao: FromDishka[SettingsDao],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     button_index = int(dialog_manager.item_id)  # type: ignore[attr-defined]
     settings = await settings_dao.get()
     button = next((b for b in settings.menu.buttons if b.index == button_index), None)
@@ -285,7 +271,7 @@ async def on_withdraw_points(
     dialog_manager: DialogManager,
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await notifier.notify_user(user=user, i18n_key="ntf-common.withdraw-points")
 
 
@@ -300,50 +286,3 @@ async def on_invite(
     if settings.referral.enable:
         await dialog_manager.switch_to(state=MainMenu.INVITE)
     return
-
-
-@inject
-async def on_generate_web_credentials(
-    callback: CallbackQuery,
-    widget: Button,
-    dialog_manager: DialogManager,
-    config: FromDishka[AppConfig],
-    uow: FromDishka[UnitOfWork],
-    user_dao: FromDishka[UserDao],
-    notifier: FromDishka[Notifier],
-) -> None:
-    if not config.web_enabled:
-        raise ValueError("WEB_ENABLED is disabled")
-
-    web_cabinet_url = config.web_cabinet_url.strip()
-    if not web_cabinet_url:
-        raise ValueError("WEB_CABINET_URL is not configured")
-
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    db_user = await user_dao.get_by_telegram_id(user.telegram_id)
-    if not db_user:
-        raise ValueError(f"User '{user.telegram_id}' not found")
-
-    plain_password = _generate_web_password()
-    db_user.login = db_user.remna_name
-    db_user.password_hash = _hash_password(plain_password, config.crypt_key.get_secret_value())
-
-    async with uow:
-        updated = await user_dao.update(db_user)
-        if not updated:
-            raise ValueError(f"Failed to update user '{user.telegram_id}'")
-        await uow.commit()
-
-    await notifier.notify_user(
-        user=updated,
-        payload=MessagePayloadDto(
-            i18n_key="ntf-common.web-cabinet-credentials",
-            i18n_kwargs={
-                "login": updated.login,
-                "password": plain_password,
-                "url": web_cabinet_url,
-            },
-            delete_after=None,
-            disable_default_markup=False,
-        ),
-    )

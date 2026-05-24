@@ -14,10 +14,12 @@ class GetReferralStatistics(Interactor[None, ReferralStatisticsDto]):
     async def _execute(self, actor: UserDto, data: None) -> ReferralStatisticsDto:
         stats = await self.referral_dao.get_stats()
 
-        if stats.top_referrer_telegram_id:
-            referrer = await self.user_dao.get_by_telegram_id(stats.top_referrer_telegram_id)
+        if stats.top_referrer_id:
+            referrer = await self.user_dao.get_by_id(stats.top_referrer_id)
 
             if referrer:
+                stats.top_referrer_telegram_id = referrer.telegram_id
+                stats.top_referrer_email = referrer.email
                 stats.top_referrer_username = referrer.username
 
         return stats

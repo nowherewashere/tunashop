@@ -32,15 +32,18 @@ class PlanDaoImpl(PlanDao):
 
     async def create(self, plan: PlanDto) -> PlanDto:
         plan_data = self.retort.dump(plan)
+        plan_data.pop("id", None)
         durations_data = plan_data.pop("durations", [])
 
         db_plan = Plan(**plan_data)
 
         for duration_data in durations_data:
+            duration_data.pop("id", None)
             prices_data = duration_data.pop("prices", [])
             db_duration = PlanDuration(**duration_data)
 
             for price_data in prices_data:
+                price_data.pop("id", None)
                 db_duration.prices.append(PlanPrice(**price_data))
 
             db_plan.durations.append(db_duration)

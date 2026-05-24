@@ -26,8 +26,7 @@ async def remnawave_webhook(
 ) -> Response:
     try:
         raw_body = await request.body()
-        data = await request.json()
-        logger.debug(f"Received Remnawave webhook payload: '{data}'")
+        logger.debug(f"Received Remnawave webhook raw body: '{raw_body.decode('utf-8')[:500]}'")
         payload = WebhookUtility.parse_webhook(
             body=raw_body.decode("utf-8"),
             headers=dict(request.headers),

@@ -4,7 +4,7 @@ from typing import Optional
 from sqlalchemy import BigInteger, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.core.enums import Locale, Role
+from src.core.enums import AuthType, Locale, Role
 
 from .base import BaseSql
 from .timestamp import TimestampMixin
@@ -14,9 +14,11 @@ class User(BaseSql, TimestampMixin):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    telegram_id: Mapped[int] = mapped_column(BigInteger, index=True, unique=True)
+    telegram_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, index=True, unique=True, nullable=True
+    )
+    auth_type: Mapped[AuthType] = mapped_column(String(20), default=AuthType.TELEGRAM)
 
-    login: Mapped[Optional[str]] = mapped_column(String(64), index=True, unique=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), index=True, unique=True)
     password_hash: Mapped[Optional[str]] = mapped_column(String(512))
     is_email_verified: Mapped[bool] = mapped_column(default=False)

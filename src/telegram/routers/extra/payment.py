@@ -5,7 +5,7 @@ from aiogram.types import Message, PreCheckoutQuery
 from dishka import FromDishka
 from loguru import logger
 
-from src.application.dto import UserDto
+from src.application.dto import TelegramUserDto
 from src.application.use_cases.gateways.commands.payment import ProcessPayment, ProcessPaymentDto
 from src.core.enums import TransactionStatus
 
@@ -13,7 +13,7 @@ router = Router(name=__name__)
 
 
 @router.pre_checkout_query()
-async def on_pre_checkout(pre_checkout_query: PreCheckoutQuery, user: UserDto) -> None:
+async def on_pre_checkout(pre_checkout_query: PreCheckoutQuery, user: TelegramUserDto) -> None:
     logger.info(f"{user.log} Initiated a pre-checkout query")
     if pre_checkout_query.invoice_payload:
         await pre_checkout_query.answer(ok=True)
@@ -25,7 +25,7 @@ async def on_pre_checkout(pre_checkout_query: PreCheckoutQuery, user: UserDto) -
 @router.message(F.successful_payment)
 async def on_successful_payment(
     message: Message,
-    user: UserDto,
+    user: TelegramUserDto,
     bot: Bot,
     process_payment: FromDishka[ProcessPayment],
 ) -> None:

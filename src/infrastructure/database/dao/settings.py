@@ -34,6 +34,7 @@ class SettingsDaoImpl(SettingsDao, BaseDaoImpl):
 
     async def create_default(self) -> SettingsDto:
         settings_data = self.retort.dump(SettingsDto())
+        settings_data.pop("id", None)
         db_settings = Settings(**settings_data)
         self.session.add(db_settings)
 

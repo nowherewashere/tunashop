@@ -12,7 +12,7 @@ from loguru import logger
 from src.application.common import Notifier
 from src.application.common.dao import SettingsDao, UserDao
 from src.application.common.policy import Permission, PermissionPolicy
-from src.application.dto import MessagePayloadDto, UserDto
+from src.application.dto import MessagePayloadDto, TelegramUserDto, UserDto
 from src.application.use_cases.blacklist.commands.sources import (
     AddBlacklistSource,
     AddBlacklistSourceDto,
@@ -44,7 +44,7 @@ async def on_user_search(
     search_users: FromDishka[SearchUsers],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if not PermissionPolicy.has_permission(user, Permission.USER_SEARCH):
         return
@@ -64,7 +64,7 @@ async def on_user_search(
     elif len(found_users) == 1:
         target_user = found_users[0]
         logger.info(f"{user.log} Searched user -> {target_user.log}")
-        await start_user_window(manager=dialog_manager, target_telegram_id=target_user.telegram_id)
+        await start_user_window(manager=dialog_manager, target_user_id=target_user.id)
 
     else:
         await dialog_manager.start(
@@ -79,9 +79,9 @@ async def on_user_select(
     dialog_manager: DialogManager,
     selected_user: int,
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     logger.info(f"{user.log} User id '{selected_user}' selected")
-    await start_user_window(manager=dialog_manager, target_telegram_id=selected_user)
+    await start_user_window(manager=dialog_manager, target_user_id=selected_user)
 
 
 @inject
@@ -92,7 +92,7 @@ async def on_unblock_all(
     notifier: FromDishka[Notifier],
     unblock_all_users: FromDishka[UnblockAllUsers],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if is_double_click(dialog_manager, key="unblock_all_confirm", cooldown=5):
         await unblock_all_users(user)
@@ -111,7 +111,7 @@ async def on_blacklist_view(
     user_dao: FromDishka[UserDao],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     count = await user_dao.count_blocked()
 
     if not count:
@@ -132,7 +132,7 @@ async def on_block_input(
     parse_blacklist_ids: FromDishka[ParseBlacklistIds],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     raw = (message.text or "").strip()
     if raw and is_valid_url(raw):
@@ -171,7 +171,7 @@ async def on_source_delete(
     notifier: FromDishka[Notifier],
     remove_blacklist_source: FromDishka[RemoveBlacklistSource],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     source_id = int(dialog_manager.item_id)  # type: ignore[attr-defined]
 
     if is_double_click(dialog_manager, key=f"del_source_{source_id}", cooldown=5):
@@ -190,7 +190,7 @@ async def on_source_sync(
     notifier: FromDishka[Notifier],
     sync_blacklist_sources: FromDishka[SyncBlacklistSources],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     result = await sync_blacklist_sources(user)
     await notifier.notify_user(
         user,
@@ -219,7 +219,7 @@ async def on_source_add_input(
     fetch_blacklist_ids: FromDishka[FetchBlacklistIds],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     raw = (message.text or "").strip()
     if not is_valid_url(raw):
@@ -258,7 +258,7 @@ async def on_clear_blocked_ids(
     clear_blocked_ids: FromDishka[ClearBlockedIds],
     settings_dao: FromDishka[SettingsDao],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     settings = await settings_dao.get()
 
     if not settings.blacklist.blocked_ids:

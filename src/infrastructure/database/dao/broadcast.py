@@ -39,6 +39,7 @@ class BroadcastDaoImpl(BroadcastDao):
 
     async def create(self, broadcast: BroadcastDto) -> BroadcastDto:
         broadcast_data = self.retort.dump(broadcast)
+        broadcast_data.pop("id", None)
         db_broadcast = Broadcast(**broadcast_data)
 
         self.session.add(db_broadcast)
@@ -81,9 +82,11 @@ class BroadcastDaoImpl(BroadcastDao):
             logger.error(f"Failed to add messages: broadcast task '{task_id}' not found")
             return []
 
-        db_messages = [
-            BroadcastMessage(**self.retort.dump(msg), broadcast_id=broadcast_id) for msg in messages
-        ]
+        db_messages = []
+        for msg in messages:
+            msg_data = self.retort.dump(msg)
+            msg_data.pop("id", None)
+            db_messages.append(BroadcastMessage(**msg_data, broadcast_id=broadcast_id))
         self.session.add_all(db_messages)
         await self.session.flush()
 
@@ -93,7 +96,7 @@ class BroadcastDaoImpl(BroadcastDao):
     async def update_message_status(
         self,
         task_id: UUID,
-        telegram_id: int,
+        user_id: int,
         status: BroadcastMessageStatus,
         message_id: Optional[int] = None,
     ) -> None:
@@ -105,13 +108,13 @@ class BroadcastDaoImpl(BroadcastDao):
             update(BroadcastMessage)
             .where(
                 BroadcastMessage.broadcast_id == broadcast_id_stmt,
-                BroadcastMessage.user_telegram_id == telegram_id,
+                BroadcastMessage.user_id == user_id,
             )
             .values(status=status, message_id=message_id)
         )
         await self.session.execute(stmt)
         logger.debug(
-            f"Message status for user '{telegram_id}' in task '{task_id}' updated to '{status}'"
+            f"Message status for user_id '{user_id}' in task '{task_id}' updated to '{status}'"
         )
 
     async def update_stats(self, task_id: UUID, success_count: int, failed_count: int) -> None:

@@ -1,8 +1,9 @@
-btn-back = 
+btn-back =
     .general = ⬅️ Назад
     .menu = ↩️ Главное меню
     .menu-return = ↩️ Вернуться в главное меню
     .dashboard = ↩️ Вернуться в панель управления
+    .referrals = 👪 К списку рефералов
 
 btn-common =
     .notification-close = ❌ Закрыть
@@ -90,6 +91,7 @@ btn-dashboard =
     .access = 🔓 Режим доступа
     .remnawave = 🌊 RemnaWave
     .remnashop = 🛍 RemnaShop
+    .transactions = 🧾 Транзакции
     .importer = 📥 Импорт пользователей
 
 btn-statistics =
@@ -160,6 +162,7 @@ btn-user =
     .subscription-reissue = ♻️ Перевыпустить
     .message-preview = 👀 Предпросмотр
     .message-confirm = ✅ Отправить
+    .referral-reset = 🔄 Сбросить реф. ссылку
     .sync = 🌀 Синхронизировать
     .sync-remnawave = 🌊 Использовать данные Remnawave
     .sync-remnashop = 🛍 Использовать данные Remnashop
@@ -278,6 +281,16 @@ btn-remnashop =
     .logs = 📄 Логи
     .menu-editor = 🎛 Редактор главного меню
     .backup = 💾 Бэкап
+    .transactions = 🧾 Транзакции
+
+btn-remnashop-transaction = { $status ->
+    [PENDING] 🕓
+    [COMPLETED] ✅
+    [CANCELED] ❌
+    [REFUNDED] 💸
+    [FAILED] ⚠️
+    *[OTHER] { $status }
+    } #{ $user_id } · { gateway-type } · { $created_at }
 
 btn-menu-editor =
     .text = 🏷️ Текст
@@ -302,8 +315,8 @@ btn-menu-editor =
     }
 
     .subscribers-only-toggle = { $subscribers_only ->
-        [1] 🔒 Только подписчики
-        *[0] 👥 Все пользователи
+        [1] 💳 С подпиской
+        *[0] 👥 Всем
     }
 
 btn-gateway =

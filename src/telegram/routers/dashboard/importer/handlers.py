@@ -1,5 +1,4 @@
 from adaptix import Retort
-from aiogram import Bot
 from aiogram.types import CallbackQuery, Message
 from aiogram_dialog import DialogManager, ShowMode
 from aiogram_dialog.widgets.input import MessageInput
@@ -11,8 +10,11 @@ from redis.asyncio import Redis
 from remnapy import RemnawaveSDK
 
 from src.application.common import Notifier
-from src.application.dto import MessagePayloadDto, UserDto
-from src.application.use_cases.importer.commands.processing import ProcessImportFile
+from src.application.dto import MessagePayloadDto, TelegramUserDto
+from src.application.use_cases.importer.commands.processing import (
+    ProcessImportFile,
+    ProcessImportFileDto,
+)
 from src.core.constants import USER_KEY
 from src.infrastructure.redis.keys import ImportRunningKey, SyncBotRunningKey, SyncPanelRunningKey
 from src.infrastructure.taskiq.tasks.importer import (
@@ -28,12 +30,11 @@ async def on_database_input(
     message: Message,
     widget: MessageInput,
     dialog_manager: DialogManager,
-    bot: FromDishka[Bot],
     notifier: FromDishka[Notifier],
     process_import_file: FromDishka[ProcessImportFile],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     logger.debug(f"{user.log} Processing database upload")
 
     document = message.document
@@ -42,7 +43,13 @@ async def on_database_input(
         return
 
     try:
-        result = await process_import_file(user, document)
+        result = await process_import_file(
+            user,
+            ProcessImportFileDto(
+                file_id=document.file_id,
+                file_name=document.file_name or document.file_id,
+            ),
+        )
     except Exception as exception:
         logger.exception(f"Failed to process database: {exception}")
         await notifier.notify_user(user, i18n_key="ntf-importer.db-failed")
@@ -69,7 +76,7 @@ async def on_squads(
     remnawave_sdk: FromDishka[RemnawaveSDK],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     result = await remnawave_sdk.internal_squads.get_internal_squads()
 
     if not result.internal_squads:
@@ -86,7 +93,7 @@ async def on_squad_select(
     dialog_manager: DialogManager,
     selected_squad: str,
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     selected_squads: list = dialog_manager.dialog_data.get("selected_squads", [])
 
     if selected_squad in selected_squads:
@@ -106,7 +113,7 @@ async def on_import_all_xui(
     dialog_manager: DialogManager,
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     users = dialog_manager.dialog_data["users"]
     selected_squads = dialog_manager.dialog_data.get("selected_squads", [])
 
@@ -146,7 +153,7 @@ async def on_import_active_xui(
     redis: FromDishka[Redis],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     users = dialog_manager.dialog_data["users"]
     selected_squads = dialog_manager.dialog_data.get("selected_squads", [])
 
@@ -195,7 +202,7 @@ async def on_sync_from_panel(
     redis: FromDishka[Redis],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     # TODO: before check squads subscription_dao.get_all_active_internal_squads()
     key = retort.dump(SyncPanelRunningKey())
@@ -236,7 +243,7 @@ async def on_sync_from_bot(
     redis: FromDishka[Redis],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     key = retort.dump(SyncBotRunningKey())
 

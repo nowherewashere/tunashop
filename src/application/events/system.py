@@ -37,12 +37,9 @@ class RemnashopWelcomeEvent(BaseEvent):
         return "event-remnashop-welcome"
 
     def as_payload(self) -> "MessagePayloadDto":
-        from src.telegram.keyboards import get_remnashop_keyboard  # noqa: PLC0415
-
         return MessagePayloadDto(
             i18n_key=self.event_key,
             i18n_kwargs={**asdict(self)},
-            reply_markup=get_remnashop_keyboard(),
             disable_default_markup=False,
             delete_after=None,
         )
@@ -242,12 +239,9 @@ class BotUpdateEvent(SystemEvent):
     remote_version: str
 
     def as_payload(self) -> "MessagePayloadDto":
-        from src.telegram.keyboards import get_remnashop_update_keyboard  # noqa: PLC0415
-
         return MessagePayloadDto(
             i18n_key=self.event_key,
             i18n_kwargs={**asdict(self)},
-            reply_markup=get_remnashop_update_keyboard(),
             disable_default_markup=False,
             delete_after=None,
         )
@@ -259,8 +253,10 @@ class BotUpdateEvent(SystemEvent):
 
 @dataclass(frozen=True, kw_only=True)
 class UserEvent(SystemEvent):
-    telegram_id: int
+    user_id: int = field(default=0)
+    telegram_id: Optional[int] = field(default=None)
     username: Optional[str] = field(default=None)
+    email: Optional[str] = field(default=None)
     name: str
 
 
@@ -271,17 +267,16 @@ class UserRegisteredEvent(UserEvent):
         init=False,
     )
 
+    referrer_user_id: Optional[int] = field(default=None)
     referrer_telegram_id: Optional[int] = field(default=None)
+    referrer_email: Optional[str] = field(default=None)
     referrer_username: Optional[str] = field(default=None)
     referrer_name: Optional[str] = field(default=None)
 
     def as_payload(self) -> "MessagePayloadDto":
-        from src.telegram.keyboards import get_user_keyboard  # noqa: PLC0415
-
         return MessagePayloadDto(
             i18n_key=self.event_key,
             i18n_kwargs={**asdict(self)},
-            reply_markup=get_user_keyboard(self.telegram_id, self.referrer_telegram_id),
             disable_default_markup=False,
             delete_after=None,
         )
@@ -311,12 +306,9 @@ class UserFirstConnectionEvent(UserEvent):
         return "event-user.first-connected"
 
     def as_payload(self) -> "MessagePayloadDto":
-        from src.telegram.keyboards import get_user_keyboard  # noqa: PLC0415
-
         return MessagePayloadDto(
             i18n_key=self.event_key,
             i18n_kwargs={**asdict(self)},
-            reply_markup=get_user_keyboard(self.telegram_id),
             disable_default_markup=False,
             delete_after=None,
         )
@@ -336,12 +328,9 @@ class UserDevicesUpdatedEvent(UserEvent):
     user_agent: Optional[str]
 
     def as_payload(self) -> "MessagePayloadDto":
-        from src.telegram.keyboards import get_user_keyboard  # noqa: PLC0415
-
         return MessagePayloadDto(
             i18n_key=self.event_key,
             i18n_kwargs={**asdict(self)},
-            reply_markup=get_user_keyboard(self.telegram_id),
             disable_default_markup=False,
             delete_after=None,
         )
@@ -439,12 +428,9 @@ class UserPurchaseEvent(UserEvent):
     previous_plan_duration: Any = None
 
     def as_payload(self) -> "MessagePayloadDto":
-        from src.telegram.keyboards import get_user_keyboard  # noqa: PLC0415
-
         return MessagePayloadDto(
             i18n_key=self.event_key,
             i18n_kwargs={**asdict(self)},
-            reply_markup=get_user_keyboard(self.telegram_id),
             disable_default_markup=False,
             delete_after=None,
         )
@@ -475,12 +461,9 @@ class TrialActivatedEvent(UserEvent):
     plan_duration: Any
 
     def as_payload(self) -> "MessagePayloadDto":
-        from src.telegram.keyboards import get_user_keyboard  # noqa: PLC0415
-
         return MessagePayloadDto(
             i18n_key=self.event_key,
             i18n_kwargs={**asdict(self)},
-            reply_markup=get_user_keyboard(self.telegram_id),
             disable_default_markup=False,
             delete_after=None,
         )
@@ -506,12 +489,9 @@ class SubscriptionRevokedEvent(UserEvent):
     expire_time: Any
 
     def as_payload(self) -> "MessagePayloadDto":
-        from src.telegram.keyboards import get_user_keyboard  # noqa: PLC0415
-
         return MessagePayloadDto(
             i18n_key=self.event_key,
             i18n_kwargs={**asdict(self)},
-            reply_markup=get_user_keyboard(self.telegram_id),
             disable_default_markup=False,
             delete_after=None,
         )

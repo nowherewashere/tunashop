@@ -1,7 +1,4 @@
-import aiohttp
-from loguru import logger
-
-from src.application.common import Interactor
+from src.application.common import HttpClient, Interactor
 from src.application.dto import UserDto
 from src.core.utils.validators import parse_int
 
@@ -9,18 +6,13 @@ from src.core.utils.validators import parse_int
 class FetchBlacklistIds(Interactor[str, list[int]]):
     required_permission = None
 
-    async def _execute(self, actor: UserDto, url: str) -> list[int]:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-                    if resp.status != 200:
-                        logger.error(f"Failed to fetch blacklist '{url}': HTTP {resp.status}")
-                        return []
-                    text = await resp.text()
-        except Exception as exc:
-            logger.error(f"Failed to fetch blacklist '{url}': {exc}")
-            return []
+    def __init__(self, http_client: HttpClient) -> None:
+        self.http_client = http_client
 
+    async def _execute(self, actor: UserDto, url: str) -> list[int]:
+        text = await self.http_client.get_text(url)
+        if text is None:
+            return []
         return _parse_ids(text)
 
 

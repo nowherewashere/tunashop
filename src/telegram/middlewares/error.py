@@ -13,16 +13,15 @@ from aiogram_dialog.api.exceptions import (
 from dishka import AsyncContainer
 from loguru import logger
 
-from src.application.common import EventPublisher, Notifier
+from src.application.common import BotService, EventPublisher, Notifier
 from src.application.common.dao import UserDao
 from src.application.dto import MessagePayloadDto, TempUserDto
 from src.application.events import ErrorEvent
-from src.application.services import BotService
 from src.application.use_cases.misc.commands.navigation import RedirectMenu
 from src.core.config import AppConfig
 from src.core.constants import CONFIG_KEY, CONTAINER_KEY
 from src.core.enums import Command, MiddlewareEventType
-from src.core.exceptions import MenuRenderError, PermissionDeniedError, PurchaseError, TrialError
+from src.core.exceptions import MenuRenderError, PermissionDeniedError
 from src.telegram.keyboards import get_contact_support_keyboard
 
 from .base import EventTypedMiddleware
@@ -87,7 +86,7 @@ class ErrorMiddleware(EventTypedMiddleware):
                 )
                 return
 
-            if not isinstance(event.exception, (MenuRenderError, PurchaseError, TrialError)):
+            if not isinstance(event.exception, MenuRenderError):
                 is_start_command = (
                     event.update.message is not None
                     and event.update.message.text == f"/{Command.START.value.command}"

@@ -37,7 +37,9 @@ class UpdatePlanName(Interactor[UpdatePlanNameDto, PlanDto]):
             raise ValueError()
 
         data.plan.name = data.input_name
-        data.plan.public_code = self.cryptographer.generate_short_code(data.plan.name, length=8)
+        data.plan.public_code = await self.cryptographer.generate_unique_code(
+            self.plan_dao.get_by_public_code, length=8
+        )
         logger.info(f"{actor.log} Updated plan name in memory to '{data.input_name}'")
         return data.plan
 

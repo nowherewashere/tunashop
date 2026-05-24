@@ -18,7 +18,7 @@ class ReferralDto(BaseDto, TrackableMixin, TimestampMixin):
 
 @dataclass(kw_only=True)
 class ReferralRewardDto(BaseDto, TrackableMixin, TimestampMixin):
-    user_telegram_id: int
+    user_id: int
 
     type: ReferralRewardType
     amount: int

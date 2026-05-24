@@ -12,11 +12,12 @@ from .commands.blocking import (
 from .commands.messaging import SendMessageToUser
 from .commands.profile_edit import (
     ChangeUserPoints,
+    ResetUserReferralCode,
     SetUserPersonalDiscount,
     SetUserPurchaseDiscount,
     ToggleUserTrialAvailable,
 )
-from .commands.registration import GetOrCreateUser, UpdateUserFromTelegram
+from .commands.registration import GetOrCreateUser, UpdateUserProfile
 from .commands.roles import GetAdmins, RevokeRole, SetUserRole
 from .queries.plans import GetAvailablePlanByCode, GetAvailablePlans, GetAvailableTrial
 from .queries.profile import GetUserDevices, GetUserProfile, GetUserProfileSubscription
@@ -42,8 +43,9 @@ USER_USE_CASES: Final[tuple[type[Interactor], ...]] = (
     SetUserPurchaseDiscount,
     ToggleUserTrialAvailable,
     ChangeUserPoints,
+    ResetUserReferralCode,
     SendMessageToUser,
     GetAvailableTrial,
     GetAvailablePlanByCode,
-    UpdateUserFromTelegram,
+    UpdateUserProfile,
 )

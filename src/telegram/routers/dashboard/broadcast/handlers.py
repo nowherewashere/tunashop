@@ -13,10 +13,9 @@ from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 from loguru import logger
 
-from src.application.common import Notifier, TranslatorRunner
+from src.application.common import BotService, Notifier, TranslatorRunner
 from src.application.common.dao import BroadcastDao, SettingsDao
-from src.application.dto import MediaDescriptorDto, MessagePayloadDto, UserDto
-from src.application.services import BotService
+from src.application.dto import MediaDescriptorDto, MessagePayloadDto, TelegramUserDto
 from src.application.use_cases.broadcast.commands.lifecycle import (
     CancelBroadcast,
     DeleteBroadcast,
@@ -64,7 +63,7 @@ async def on_broadcast_list(
     broadcast_dao: FromDishka[BroadcastDao],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     broadcasts = await broadcast_dao.get_all()
 
     if not broadcasts:
@@ -93,7 +92,7 @@ async def on_audience_select(
     notifier: FromDishka[Notifier],
     get_broadcast_audience_count: FromDishka[GetBroadcastAudienceCount],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     if not callback.data:
         raise ValueError("Callback data is empty")
@@ -128,7 +127,7 @@ async def on_plan_select(
     notifier: FromDishka[Notifier],
     get_broadcast_audience_count: FromDishka[GetBroadcastAudienceCount],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     audience_count = await get_broadcast_audience_count(
         user,
@@ -153,7 +152,7 @@ async def on_content_input(
     notifier: FromDishka[Notifier],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
 
     media_type: Optional[MediaType] = None
     file_id: Optional[str] = None
@@ -164,6 +163,9 @@ async def on_content_input(
     elif message.video:
         media_type = MediaType.VIDEO
         file_id = message.video.file_id
+    elif message.animation:
+        media_type = MediaType.GIF
+        file_id = message.animation.file_id
     elif message.document:
         media_type = MediaType.DOCUMENT
         file_id = message.document.file_id
@@ -212,7 +214,7 @@ async def on_button_select(
     i18n: FromDishka[TranslatorRunner],
     settings_dao: FromDishka[SettingsDao],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     selected_id = int(dialog_manager.item_id)  # type: ignore[attr-defined]
 
     buttons: list[dict] = dialog_manager.dialog_data.get("buttons", [])
@@ -250,7 +252,7 @@ async def on_preview(
     retort: FromDishka[Retort],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     payload = dialog_manager.dialog_data.get("payload")
 
     if not payload or not payload["i18n_kwargs"].get("content") and not payload.get("media"):
@@ -269,7 +271,7 @@ async def on_send(
     notifier: FromDishka[Notifier],
     start_broadcast: FromDishka[StartBroadcast],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     audience: Optional[BroadcastAudience] = dialog_manager.dialog_data.get("audience_type")
     plan_id = dialog_manager.dialog_data.get("plan_id")
     payload = dialog_manager.dialog_data.get("payload")
@@ -301,7 +303,7 @@ async def on_cancel(
     notifier: FromDishka[Notifier],
     cancel_broadcast: FromDishka[CancelBroadcast],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     task_id = dialog_manager.dialog_data["task_id"]
 
     try:
@@ -319,7 +321,7 @@ async def on_delete(
     notifier: FromDishka[Notifier],
     delete_broadcast: FromDishka[DeleteBroadcast],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     task_id = dialog_manager.dialog_data["task_id"]
 
     try:

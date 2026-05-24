@@ -1,21 +1,40 @@
+from dataclasses import fields as dataclass_fields
 from typing import Any, Awaitable, Callable, Optional
 
-from aiogram.types import TelegramObject
+from aiogram.types import ChatMemberUpdated, Message, TelegramObject
 from aiogram.types import User as AiogramUser
 from aiogram_dialog.api.internal import FakeUser
 from dishka import AsyncContainer
 from loguru import logger
 
+from src.application.dto import TelegramUserDto
 from src.application.use_cases.user.commands.registration import (
     GetOrCreateUser,
     GetOrCreateUserDto,
-    UpdateUserFromTelegram,
-    UpdateUserFromTelegramDto,
+    UpdateUserProfile,
+    UpdateUserProfileDto,
 )
 from src.core.constants import CONTAINER_KEY, USER_KEY
-from src.core.enums import MiddlewareEventType
+from src.core.enums import Deeplink, MiddlewareEventType
 
 from .base import EventTypedMiddleware
+
+
+def _parse_referral_code(event: TelegramObject) -> Optional[str]:
+    if not isinstance(event, Message) or not event.text:
+        return None
+
+    parts = event.text.split()
+    if len(parts) <= 1:
+        return None
+
+    code = parts[1]
+    if code.startswith(Deeplink.REFERRAL.with_underscore):
+        raw = code[len(Deeplink.REFERRAL.with_underscore):]
+        logger.debug(f"Parsed referral code '{raw}' from deeplink")
+        return raw
+
+    return None
 
 
 class UserMiddleware(EventTypedMiddleware):
@@ -40,15 +59,42 @@ class UserMiddleware(EventTypedMiddleware):
             logger.warning("Terminating middleware: event from bot or missing user")
             return
 
+        is_chat_member_event = isinstance(event, ChatMemberUpdated)
+        referral_code = _parse_referral_code(event)
+
         container: AsyncContainer = data[CONTAINER_KEY]
         get_or_create_user = await container.get(GetOrCreateUser)
-        update_user_from_telegram = await container.get(UpdateUserFromTelegram)
-        user = await get_or_create_user.system(GetOrCreateUserDto.from_aiogram(aiogram_user, event))
+        update_user_profile = await container.get(UpdateUserProfile)
+
+        user = await get_or_create_user.system(
+            GetOrCreateUserDto(
+                telegram_id=aiogram_user.id,
+                username=aiogram_user.username,
+                full_name=aiogram_user.full_name,
+                language_code=aiogram_user.language_code,
+                is_chat_member_event=is_chat_member_event,
+                referral_code=referral_code,
+            )
+        )
 
         if user and not isinstance(aiogram_user, FakeUser):
-            user = await update_user_from_telegram.system(
-                UpdateUserFromTelegramDto(user, aiogram_user)
+            user = await update_user_profile.system(
+                UpdateUserProfileDto(
+                    user=user,
+                    username=aiogram_user.username,
+                    full_name=aiogram_user.full_name,
+                    language_code=aiogram_user.language_code,
+                    telegram_id=aiogram_user.id,
+                )
             )
 
+        if user is not None and not isinstance(user, TelegramUserDto):
+            user = TelegramUserDto(
+                **{
+                    f.name: getattr(user, f.name)
+                    for f in dataclass_fields(user)
+                    if not f.name.startswith("_")
+                }
+            )
         data[USER_KEY] = user
         return await handler(event, data)

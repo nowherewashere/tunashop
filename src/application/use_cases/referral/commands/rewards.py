@@ -24,7 +24,7 @@ from src.core.enums import PurchaseType, ReferralAccrualStrategy, ReferralLevel,
 
 @dataclass(frozen=True)
 class GiveReferrerRewardDto:
-    user_telegram_id: int
+    user_id: int
     reward: ReferralRewardDto
     referred_name: str
 
@@ -51,32 +51,30 @@ class GiveReferrerReward(Interactor[GiveReferrerRewardDto, None]):
     async def _execute(self, actor: UserDto, data: GiveReferrerRewardDto) -> None:
         reward = data.reward
 
-        user = await self.user_dao.get_by_telegram_id(data.user_telegram_id)
+        user = await self.user_dao.get_by_id(data.user_id)
         if not user:
-            logger.warning(
-                f"{actor.log} User '{data.user_telegram_id}' not found, unable to apply reward"
-            )
+            logger.warning(f"{actor.log} User '{data.user_id}' not found, unable to apply reward")
             return
 
         logger.info(
             f"{actor.log} Start applying reward of '{reward.amount}' "
-            f"'{reward.type}' to user '{user.telegram_id}'"
+            f"'{reward.type}' to user '{user.remna_name}'"
         )
         if reward.type == ReferralRewardType.POINTS:
             await self.change_user_points.system(
                 ChangeUserPointsDto(
-                    telegram_id=user.telegram_id,
+                    user_id=user.id,
                     amount=reward.amount,
                 )
             )
 
         elif reward.type == ReferralRewardType.EXTRA_DAYS:
-            subscription = await self.subscription_dao.get_current(user.telegram_id)  # only active
+            subscription = await self.subscription_dao.get_current(user.id)  # only active
 
             if not subscription or subscription.is_trial:
                 logger.warning(
                     f"{actor.log} Current subscription not found "
-                    f"for user '{user.telegram_id}', unable to add days"
+                    f"for user '{user.remna_name}', unable to add days"
                 )
 
                 event_failed = ReferralRewardFailedEvent(
@@ -90,21 +88,20 @@ class GiveReferrerReward(Interactor[GiveReferrerRewardDto, None]):
                 return
 
             logger.info(
-                f"{actor.log} Current subscription found for user '{user.telegram_id}', "
+                f"{actor.log} Current subscription found for user '{user.remna_name}', "
                 f"expire date '{subscription.expire_at}'"
             )
 
             await self.add_subscription_duration.system(
                 AddSubscriptionDurationDto(
-                    telegram_id=user.telegram_id,
+                    user_id=user.id,
                     days=reward.amount,
                 ),
             )
 
         else:
             raise ValueError(
-                f"Failed to apply reward: unknown type '{reward.type}' "
-                f"for user '{user.telegram_id}'"
+                f"Failed to apply reward: unknown type '{reward.type}' for user '{user.remna_name}'"
             )
 
         event_reward = ReferralRewardReceivedEvent(
@@ -116,8 +113,8 @@ class GiveReferrerReward(Interactor[GiveReferrerRewardDto, None]):
 
         await self.event_publisher.publish(event_reward)
 
-        await self.referral_dao.mark_reward_as_issued(reward.id)  # type: ignore[arg-type]
-        logger.info(f"{actor.log} Finished applying reward to user '{user.telegram_id}'")
+        await self.referral_dao.mark_reward_as_issued(reward.id)
+        logger.info(f"{actor.log} Finished applying reward to user '{user.remna_name}'")
 
 
 @dataclass(frozen=True)
@@ -162,10 +159,10 @@ class AssignReferralRewards(Interactor[AssignReferralRewardsDto, None]):
             )
             return
 
-        referral, parent = await self.referral_dao.get_referral_chain(data.user.telegram_id)
+        referral, parent = await self.referral_dao.get_referral_chain(data.user.id)
 
         if not referral:
-            logger.info(f"User '{data.user.telegram_id}' not referred; reward assignment skipped")
+            logger.info(f"User '{data.user.remna_name}' not referred; reward assignment skipped")
             return
 
         reward_type = settings.referral.reward.type
@@ -193,27 +190,26 @@ class AssignReferralRewards(Interactor[AssignReferralRewardsDto, None]):
 
             if not reward_amount or reward_amount <= 0:
                 logger.warning(
-                    f"Reward amount <= 0 for referrer '{referrer.telegram_id}', "
-                    f"level '{level.name}'"
+                    f"Reward amount <= 0 for referrer '{referrer.remna_name}', level '{level.name}'"
                 )
                 continue
 
             async with self.uow:
                 reward = await self.referral_dao.create_reward(
                     reward=ReferralRewardDto(
-                        user_telegram_id=referrer.telegram_id,
+                        user_id=referrer.id,
                         type=reward_type,
                         amount=reward_amount,
                         is_issued=False,
                     ),
-                    referral_id=referral.id,  # type: ignore[arg-type]
+                    referral_id=referral.id,
                 )
 
                 await self.uow.commit()
 
                 await self.give_referrer_reward.system(
                     GiveReferrerRewardDto(
-                        user_telegram_id=referrer.telegram_id,
+                        user_id=referrer.id,
                         reward=reward,
                         referred_name=data.user.name,
                     )
@@ -223,5 +219,5 @@ class AssignReferralRewards(Interactor[AssignReferralRewardsDto, None]):
 
             logger.info(
                 f"Issued '{reward_type}' reward '{reward_amount}' for referrer "
-                f"'{referrer.telegram_id}' (level '{level.name}')"
+                f"'{referrer.remna_name}' (level '{level.name}')"
             )

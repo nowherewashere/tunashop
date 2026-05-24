@@ -18,6 +18,7 @@ class UserStatisticsDto:
     payment_amounts: list[UserPaymentStatsDto]
     registered_at: datetime
     referrer_telegram_id: Optional[int]
+    referrer_email: Optional[str]
     referrer_username: Optional[str]
     referrals_level_1: int
     referrals_level_2: int
@@ -35,8 +36,10 @@ class ReferralStatisticsDto:
     total_points_issued: int
     total_days_issued: int
     top_referrer_referrals_count: int
-    top_referrer_username: Optional[str] = None
+    top_referrer_id: Optional[int] = None
     top_referrer_telegram_id: Optional[int] = None
+    top_referrer_username: Optional[str] = None
+    top_referrer_email: Optional[str] = None
 
 
 @dataclass(frozen=True)

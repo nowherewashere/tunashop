@@ -32,7 +32,7 @@ class PlanSnapshotDto:
     @classmethod
     def from_plan(cls, plan: "PlanDto", duration: int) -> Self:
         return cls(
-            id=plan.id,  # type: ignore[arg-type]
+            id=plan.id,
             name=plan.name,
             tag=plan.tag,
             type=plan.type,
@@ -75,7 +75,8 @@ class PlanDto(BaseDto, TrackableMixin, TimestampMixin):
     traffic_limit: int = 100
     device_limit: int = 1
 
-    allowed_user_ids: list[int] = field(default_factory=list)
+    allowed_telegram_ids: list[int] = field(default_factory=list)
+    allowed_emails: list[str] = field(default_factory=list)
     internal_squads: list[UUID] = field(default_factory=list)
     external_squad: Optional[UUID] = None
 

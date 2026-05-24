@@ -8,11 +8,9 @@ class PermissionDeniedError(Exception): ...
 
 
 class UserNotFoundError(Exception):
-    def __init__(self, user_telegram_id: Union[int, str, None] = None) -> None:
-        self.user_telegram_id = user_telegram_id
-        super().__init__(
-            f"User with id '{user_telegram_id}' not found" if user_telegram_id else "User not found"
-        )
+    def __init__(self, user_id: Union[int, str, None] = None) -> None:
+        self.user_id = user_id
+        super().__init__(f"User with id '{user_id}' not found" if user_id else "User not found")
 
 
 class FileNotFoundError(Exception): ...
@@ -47,7 +45,7 @@ class GatewayNotConfiguredError(Exception): ...
 class PurchaseError(Exception): ...
 
 
-class TrialError(Exception): ...
+class TrialNotAvailableError(Exception): ...
 
 
 class MenuEditorInvalidPayloadError(Exception): ...

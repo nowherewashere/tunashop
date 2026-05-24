@@ -9,7 +9,7 @@ from aiogram_dialog.widgets.common import Whenable
 from aiogram_dialog.widgets.media import StaticMedia
 from loguru import logger
 
-from src.application.dto import UserDto
+from src.application.dto import TelegramUserDto
 from src.core.config import AppConfig
 from src.core.constants import CONFIG_KEY, USER_KEY
 from src.core.enums import BannerFormat, BannerName, Locale
@@ -59,7 +59,7 @@ class Banner(StaticMedia):
         return config.bot.use_banners
 
     async def _render_media(self, data: dict, manager: DialogManager) -> Optional[MediaAttachment]:
-        user: UserDto = manager.middleware_data[USER_KEY]
+        user: TelegramUserDto = manager.middleware_data[USER_KEY]
         config: AppConfig = manager.middleware_data[CONFIG_KEY]
 
         try:

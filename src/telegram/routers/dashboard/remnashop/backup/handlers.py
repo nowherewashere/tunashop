@@ -6,7 +6,7 @@ from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 
 from src.application.common import Notifier
-from src.application.dto import UserDto
+from src.application.dto import TelegramUserDto
 from src.application.use_cases.backup.commands import BackupAssets, BackupDatabase
 from src.application.use_cases.settings.commands.backup import (
     ToggleBackupEnabled,
@@ -25,7 +25,7 @@ async def on_active_toggle(
     dialog_manager: DialogManager,
     toggle_backup_enabled: FromDishka[ToggleBackupEnabled],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await toggle_backup_enabled(user)
 
 
@@ -36,7 +36,7 @@ async def on_toggle_send_to_chat(
     dialog_manager: DialogManager,
     toggle_backup_send_to_chat: FromDishka[ToggleBackupSendToChat],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await toggle_backup_send_to_chat(user)
 
 
@@ -49,7 +49,7 @@ async def on_interval_input(
     update_backup_interval: FromDishka[UpdateBackupInterval],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     input_interval_hours = message.text
 
     try:
@@ -73,7 +73,7 @@ async def on_max_files_input(
     update_backup_max_files: FromDishka[UpdateBackupMaxFiles],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     input_max_files = message.text
 
     try:
@@ -95,7 +95,7 @@ async def on_backup_assets(
     dialog_manager: DialogManager,
     backup_assets: FromDishka[BackupAssets],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await backup_assets(user)
 
 
@@ -106,5 +106,5 @@ async def on_backup_database(
     dialog_manager: DialogManager,
     backup_database: FromDishka[BackupDatabase],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await backup_database(user)

@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 from uuid import UUID
 
 from adaptix import Retort
@@ -10,9 +10,9 @@ from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 from loguru import logger
 
-from src.application.common import Notifier, Redirect
+from src.application.common import BotService, Notifier, Redirect, TranslatorRunner
 from src.application.common.dao import PlanDao, SubscriptionDao, TransactionDao, UserDao
-from src.application.dto import MessagePayloadDto, UserDto
+from src.application.dto import MessagePayloadDto, TelegramUserDto
 from src.application.use_cases.plan.commands.access import (
     ToggleUserPlanAccess,
     ToggleUserPlanAccessDto,
@@ -54,6 +54,7 @@ from src.application.use_cases.user.commands.messaging import (
 from src.application.use_cases.user.commands.profile_edit import (
     ChangeUserPoints,
     ChangeUserPointsDto,
+    ResetUserReferralCode,
     SetUserPersonalDiscount,
     SetUserPersonalDiscountDto,
     SetUserPurchaseDiscount,
@@ -63,33 +64,38 @@ from src.application.use_cases.user.commands.profile_edit import (
 from src.application.use_cases.user.commands.roles import SetUserRole, SetUserRoleDto
 from src.application.use_cases.user.queries.plans import GetAvailablePlans
 from src.application.use_cases.user.queries.profile import GetUserDevices
-from src.core.constants import TARGET_TELEGRAM_ID, USER_KEY
+from src.core.constants import FROM_REFERRAL_USER_ID, TARGET_TELEGRAM_ID, TARGET_USER_ID, USER_KEY
 from src.core.enums import Role
 from src.core.utils.validators import is_positive_int, parse_int
+from src.telegram.keyboards import get_contact_support_keyboard
 from src.telegram.states import DashboardUser
 from src.telegram.utils import is_double_click
 
 
 async def start_user_window(
     manager: Union[DialogManager, DialogManager],
-    target_telegram_id: int,
+    target_user_id: int,
+    from_referral_user_id: Optional[int] = None,
 ) -> None:
+    data: dict = {TARGET_USER_ID: target_user_id}
+    if from_referral_user_id is not None:
+        data[FROM_REFERRAL_USER_ID] = from_referral_user_id
     await manager.start(
         state=DashboardUser.MAIN,
-        data={TARGET_TELEGRAM_ID: target_telegram_id},
+        data=data,
         mode=StartMode.RESET_STACK,
     )
 
 
 async def start_user_transaction_window(
     manager: DialogManager,
-    target_telegram_id: int,
+    target_user_id: int,
     selected_transaction: UUID,
 ) -> None:
     await manager.start(
         state=DashboardUser.TRANSACTION,
         data={
-            TARGET_TELEGRAM_ID: target_telegram_id,
+            TARGET_USER_ID: target_user_id,
             "selected_transaction": str(selected_transaction),
         },
         mode=StartMode.RESET_STACK,
@@ -102,9 +108,27 @@ async def on_user_select(
     dialog_manager: DialogManager,
     selected_user: int,
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     logger.info(f"{user.log} User id '{selected_user}' selected")
-    await start_user_window(manager=dialog_manager, target_telegram_id=selected_user)
+    parent_user_id: int = dialog_manager.dialog_data[TARGET_USER_ID]
+    await start_user_window(
+        manager=dialog_manager,
+        target_user_id=selected_user,
+        from_referral_user_id=parent_user_id,
+    )
+
+
+async def on_back_to_referrals(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+) -> None:
+    from_referral_user_id: int = dialog_manager.dialog_data[FROM_REFERRAL_USER_ID]
+    await dialog_manager.start(
+        state=DashboardUser.REFERRALS,
+        data={TARGET_USER_ID: from_referral_user_id},
+        mode=StartMode.RESET_STACK,
+    )
 
 
 @inject
@@ -115,10 +139,12 @@ async def on_block_toggle(
     toggle_user_blocked_status: FromDishka[ToggleUserBlockedStatus],
     redirect: FromDishka[Redirect],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    await toggle_user_blocked_status(user, target_telegram_id)
-    await redirect.to_main_menu(target_telegram_id)
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    target_telegram_id = dialog_manager.dialog_data.get(TARGET_TELEGRAM_ID)
+    await toggle_user_blocked_status(user, target_user_id)
+    if target_telegram_id:
+        await redirect.to_main_menu(target_telegram_id)
 
 
 @inject
@@ -128,9 +154,23 @@ async def on_trial_toggle(
     dialog_manager: DialogManager,
     toggle_user_trial_available: FromDishka[ToggleUserTrialAvailable],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    await toggle_user_trial_available(user, target_telegram_id)
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    await toggle_user_trial_available(user, target_user_id)
+
+
+@inject
+async def on_referral_reset(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    reset_user_referral_code: FromDishka[ResetUserReferralCode],
+    notifier: FromDishka[Notifier],
+) -> None:
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    await reset_user_referral_code(user, target_user_id)
+    await notifier.notify_user(user, i18n_key="ntf-user.referral-reset")
 
 
 @inject
@@ -142,10 +182,12 @@ async def on_role_select(
     set_user_role: FromDishka[SetUserRole],
     redirect: FromDishka[Redirect],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    await set_user_role(user, SetUserRoleDto(target_telegram_id, Role(selected_role)))
-    await redirect.to_main_menu(target_telegram_id)
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    target_telegram_id = dialog_manager.dialog_data.get(TARGET_TELEGRAM_ID)
+    await set_user_role(user, SetUserRoleDto(target_user_id, Role(selected_role)))
+    if target_telegram_id:
+        await redirect.to_main_menu(target_telegram_id)
 
 
 @inject
@@ -156,9 +198,10 @@ async def on_current_subscription(
     notifier: FromDishka[Notifier],
     subscription_dao: FromDishka[SubscriptionDao],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    subscription = await subscription_dao.get_current(target_telegram_id)
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+
+    subscription = await subscription_dao.get_current(target_user_id)
 
     if not subscription:
         await notifier.notify_user(user, i18n_key="ntf-user.subscription-empty")
@@ -174,9 +217,9 @@ async def on_active_toggle(
     dialog_manager: DialogManager,
     toggle_subscription_status: FromDishka[ToggleSubscriptionStatus],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    await toggle_subscription_status(user, target_telegram_id)
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    await toggle_subscription_status(user, target_user_id)
 
 
 @inject
@@ -187,11 +230,11 @@ async def on_subscription_delete(
     notifier: FromDishka[Notifier],
     delete_subscription: FromDishka[DeleteSubscription],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
 
     if is_double_click(dialog_manager, key="subscription_delete_confirm", cooldown=10):
-        await delete_subscription(user, target_telegram_id)
+        await delete_subscription(user, target_user_id)
 
         await notifier.notify_user(user, i18n_key="ntf-user.subscription-deleted")
         await dialog_manager.switch_to(state=DashboardUser.MAIN)
@@ -199,7 +242,7 @@ async def on_subscription_delete(
 
     await notifier.notify_user(user, i18n_key="ntf-common.double-click-confirm")
     logger.debug(
-        f"{user.log} Waiting for confirmation to delete subscription for '{target_telegram_id}'"
+        f"{user.log} Waiting for confirmation to delete subscription for user '{target_user_id}'"
     )
 
 
@@ -211,9 +254,9 @@ async def on_devices(
     notifier: FromDishka[Notifier],
     get_user_devices: FromDishka[GetUserDevices],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    user_devices = await get_user_devices(user, target_telegram_id)
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    user_devices = await get_user_devices(user, target_user_id)
 
     if not user_devices.current_count:
         await notifier.notify_user(user, i18n_key="ntf-user.devices-empty")
@@ -237,9 +280,9 @@ async def on_device_delete(
     if not full_hwid:
         raise ValueError(f"Full HWID not found for '{selected_short_hwid}'")
 
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    has_devices = await delete_user_device(user, DeleteUserDeviceDto(target_telegram_id, full_hwid))
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    has_devices = await delete_user_device(user, DeleteUserDeviceDto(target_user_id, full_hwid))
 
     if not has_devices:
         await dialog_manager.switch_to(state=DashboardUser.SUBSCRIPTION)
@@ -252,9 +295,9 @@ async def on_reset_traffic(
     dialog_manager: DialogManager,
     reset_user_traffic: FromDishka[ResetUserTraffic],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    await reset_user_traffic(user, target_telegram_id)
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    await reset_user_traffic(user, target_user_id)
 
 
 @inject
@@ -265,11 +308,11 @@ async def on_reissue_subscription(
     notifier: FromDishka[Notifier],
     reissue_user_subscription: FromDishka[ReissueUserSubscription],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
 
     if is_double_click(dialog_manager, key="reissue_subscription_confirm", cooldown=10):
-        await reissue_user_subscription(user, target_telegram_id)
+        await reissue_user_subscription(user, target_user_id)
         await notifier.notify_user(user, i18n_key="ntf-devices.reissued")
         return
 
@@ -284,12 +327,12 @@ async def on_personal_discount_select(
     selected_discount: int,
     set_user_personal_discount: FromDishka[SetUserPersonalDiscount],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
 
     await set_user_personal_discount(
         user,
-        SetUserPersonalDiscountDto(target_telegram_id, selected_discount),
+        SetUserPersonalDiscountDto(target_user_id, selected_discount),
     )
 
     await dialog_manager.switch_to(state=DashboardUser.DISCOUNT)
@@ -304,8 +347,8 @@ async def on_personal_discount_input(
     set_user_personal_discount: FromDishka[SetUserPersonalDiscount],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
 
     number = parse_int(message.text)
     if number is None:
@@ -315,7 +358,7 @@ async def on_personal_discount_input(
     try:
         await set_user_personal_discount(
             user,
-            SetUserPersonalDiscountDto(target_telegram_id, discount=number),
+            SetUserPersonalDiscountDto(target_user_id, discount=number),
         )
         await dialog_manager.switch_to(state=DashboardUser.DISCOUNT)
     except ValueError:
@@ -330,12 +373,12 @@ async def on_purchase_discount_select(
     selected_discount: int,
     set_user_purchase_discount: FromDishka[SetUserPurchaseDiscount],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
 
     await set_user_purchase_discount(
         user,
-        SetUserPurchaseDiscountDto(target_telegram_id, selected_discount),
+        SetUserPurchaseDiscountDto(target_user_id, selected_discount),
     )
 
     await dialog_manager.switch_to(state=DashboardUser.DISCOUNT)
@@ -350,8 +393,8 @@ async def on_purchase_discount_input(
     set_user_purchase_discount: FromDishka[SetUserPurchaseDiscount],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
 
     number = parse_int(message.text)
     if number is None:
@@ -361,7 +404,7 @@ async def on_purchase_discount_input(
     try:
         await set_user_purchase_discount(
             user,
-            SetUserPurchaseDiscountDto(target_telegram_id, discount=number),
+            SetUserPurchaseDiscountDto(target_user_id, discount=number),
         )
         await dialog_manager.switch_to(state=DashboardUser.DISCOUNT)
     except ValueError:
@@ -377,8 +420,8 @@ async def on_points_input(
     change_user_points: FromDishka[ChangeUserPoints],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
     number = parse_int(message.text)
 
     if number is None:
@@ -386,7 +429,7 @@ async def on_points_input(
         return
 
     try:
-        await change_user_points(user, ChangeUserPointsDto(target_telegram_id, number))
+        await change_user_points(user, ChangeUserPointsDto(user_id=target_user_id, amount=number))
     except ValueError:
         await notifier.notify_user(
             user=user,
@@ -406,12 +449,14 @@ async def on_points_select(
     notifier: FromDishka[Notifier],
     change_user_points: FromDishka[ChangeUserPoints],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     logger.info(f"{user.log} Selected points '{selected_points}'")
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
 
     try:
-        await change_user_points(user, ChangeUserPointsDto(target_telegram_id, selected_points))
+        await change_user_points(
+            user, ChangeUserPointsDto(user_id=target_user_id, amount=selected_points)
+        )
     except ValueError:
         await notifier.notify_user(
             user=user,
@@ -430,9 +475,9 @@ async def on_traffic_limit_select(
     selected_traffic: int,
     update_traffic_limit: FromDishka[UpdateTrafficLimit],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    await update_traffic_limit(user, UpdateTrafficLimitDto(target_telegram_id, selected_traffic))
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    await update_traffic_limit(user, UpdateTrafficLimitDto(target_user_id, selected_traffic))
     await dialog_manager.switch_to(state=DashboardUser.SUBSCRIPTION)
 
 
@@ -445,14 +490,14 @@ async def on_traffic_limit_input(
     update_traffic_limit: FromDishka[UpdateTrafficLimit],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
 
     if not is_positive_int(message.text):
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
         return
 
-    await update_traffic_limit(user, UpdateTrafficLimitDto(target_telegram_id, int(message.text)))  # type: ignore[arg-type]
+    await update_traffic_limit(user, UpdateTrafficLimitDto(target_user_id, int(message.text)))  # type: ignore[arg-type]
     await dialog_manager.switch_to(state=DashboardUser.SUBSCRIPTION)
 
 
@@ -464,9 +509,9 @@ async def on_device_limit_select(
     selected_device: int,
     update_device_limit: FromDishka[UpdateDeviceLimit],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    await update_device_limit(user, UpdateDeviceLimitDto(target_telegram_id, selected_device))
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    await update_device_limit(user, UpdateDeviceLimitDto(target_user_id, selected_device))
     await dialog_manager.switch_to(state=DashboardUser.SUBSCRIPTION)
 
 
@@ -479,14 +524,14 @@ async def on_device_limit_input(
     update_device_limit: FromDishka[UpdateDeviceLimit],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
 
     if not is_positive_int(message.text):
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
         return
 
-    await update_device_limit(user, UpdateDeviceLimitDto(target_telegram_id, int(message.text)))  # type: ignore[arg-type]
+    await update_device_limit(user, UpdateDeviceLimitDto(target_user_id, int(message.text)))  # type: ignore[arg-type]
     await dialog_manager.switch_to(state=DashboardUser.SUBSCRIPTION)
 
 
@@ -498,9 +543,9 @@ async def on_internal_squad_select(
     selected_squad: UUID,
     toggle_internal_squad: FromDishka[ToggleInternalSquad],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    await toggle_internal_squad(user, ToggleInternalSquadDto(target_telegram_id, selected_squad))
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    await toggle_internal_squad(user, ToggleInternalSquadDto(target_user_id, selected_squad))
 
 
 @inject
@@ -511,9 +556,9 @@ async def on_external_squad_select(
     selected_squad: UUID,
     toggle_external_squad: FromDishka[ToggleExternalSquad],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    await toggle_external_squad(user, ToggleExternalSquadDto(target_telegram_id, selected_squad))
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    await toggle_external_squad(user, ToggleExternalSquadDto(target_user_id, selected_squad))
 
 
 @inject
@@ -524,9 +569,9 @@ async def on_transactions(
     transaction_dao: FromDishka[TransactionDao],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    transactions = await transaction_dao.get_by_user(target_telegram_id)
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    transactions = await transaction_dao.get_by_user(target_user_id)
 
     if not transactions:
         await notifier.notify_user(user, i18n_key="ntf-user.transactions-empty")
@@ -553,7 +598,7 @@ async def on_give_access(
     plan_dao: FromDishka[PlanDao],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     plans = await plan_dao.get_active_allowed_plans()
 
     if not plans:
@@ -571,11 +616,11 @@ async def on_plan_select(
     selected_plan_id: int,
     toggle_access: FromDishka[ToggleUserPlanAccess],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     logger.info(f"{user.log} Selected plan '{selected_plan_id}'")
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
     await toggle_access(
-        user, ToggleUserPlanAccessDto(plan_id=selected_plan_id, telegram_id=target_telegram_id)
+        user, ToggleUserPlanAccessDto(plan_id=selected_plan_id, user_id=target_user_id)
     )
 
 
@@ -588,13 +633,13 @@ async def on_duration_select(
     notifier: FromDishka[Notifier],
     add_subscription_duration: FromDishka[AddSubscriptionDuration],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
 
     try:
         await add_subscription_duration(
             user,
-            AddSubscriptionDurationDto(target_telegram_id, selected_duration),
+            AddSubscriptionDurationDto(user_id=target_user_id, days=selected_duration),
         )
     except ValueError:
         await notifier.notify_user(
@@ -615,8 +660,8 @@ async def on_duration_input(
     add_subscription_duration: FromDishka[AddSubscriptionDuration],
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
 
     number = parse_int(message.text)
     if number is None:
@@ -626,7 +671,7 @@ async def on_duration_input(
     try:
         await add_subscription_duration(
             user,
-            AddSubscriptionDurationDto(target_telegram_id, number),
+            AddSubscriptionDurationDto(user_id=target_user_id, days=number),
         )
     except ValueError:
         await notifier.notify_user(
@@ -646,9 +691,11 @@ async def on_send(
     retort: FromDishka[Retort],
     notifier: FromDishka[Notifier],
     send_message_to_user: FromDishka[SendMessageToUser],
+    bot_service: FromDishka[BotService],
+    i18n: FromDishka[TranslatorRunner],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
     payload = dialog_manager.dialog_data.get("payload")
 
     if not payload:
@@ -656,11 +703,13 @@ async def on_send(
         return
 
     payload = retort.load(payload, MessagePayloadDto)
+    support_url = bot_service.get_support_url(text=i18n.get("message.help"))
+    payload.reply_markup = get_contact_support_keyboard(support_url)
 
     if is_double_click(dialog_manager, key="message_confirm", cooldown=5):
         success = await send_message_to_user(
             user,
-            SendMessageToUserDto(target_telegram_id, payload),
+            SendMessageToUserDto(target_user_id, payload),
         )
 
         await dialog_manager.switch_to(state=DashboardUser.MAIN)
@@ -681,11 +730,11 @@ async def on_sync(
     notifier: FromDishka[Notifier],
     check_subscription_sync_state: FromDishka[CheckSubscriptionSyncState],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
 
     try:
-        needs_sync = await check_subscription_sync_state(user, target_telegram_id)
+        needs_sync = await check_subscription_sync_state(user, target_user_id)
 
         if not needs_sync:
             await notifier.notify_user(user, i18n_key="ntf-user.sync-already")
@@ -705,9 +754,9 @@ async def on_sync_from_remnawave(
     notifier: FromDishka[Notifier],
     sync_subscription_from_remnawave: FromDishka[SyncSubscriptionFromRemnawave],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    await sync_subscription_from_remnawave(user, target_telegram_id)
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    await sync_subscription_from_remnawave(user, target_user_id)
     await notifier.notify_user(user, i18n_key="ntf-user.sync-success")
     await dialog_manager.switch_to(state=DashboardUser.MAIN)
 
@@ -720,9 +769,9 @@ async def on_sync_from_remnashop(
     notifier: FromDishka[Notifier],
     sync_subscription_from_remnashop: FromDishka[SyncSubscriptionFromRemnashop],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    await sync_subscription_from_remnashop(user, target_telegram_id)
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    await sync_subscription_from_remnashop(user, target_user_id)
     await notifier.notify_user(user, i18n_key="ntf-user.sync-success")
     await dialog_manager.switch_to(state=DashboardUser.MAIN)
 
@@ -736,12 +785,12 @@ async def on_give_subscription(
     get_available_plans: FromDishka[GetAvailablePlans],
     notifier: FromDishka[Notifier],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
-    target_user = await user_dao.get_by_telegram_id(target_telegram_id)
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+    target_user = await user_dao.get_by_id(target_user_id)
 
     if not target_user:
-        raise ValueError(f"User '{target_telegram_id}' not found")
+        raise ValueError(f"User '{target_user_id}' not found")
 
     plans = await get_available_plans.system(target_user)
 
@@ -771,11 +820,11 @@ async def on_subscription_duration_select(
     selected_duration: int,
     set_user_subscription: FromDishka[SetUserSubscription],
 ) -> None:
-    user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    target_telegram_id = dialog_manager.dialog_data[TARGET_TELEGRAM_ID]
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
     plan_id = dialog_manager.dialog_data["selected_plan_id"]
     await set_user_subscription(
         user,
-        SetUserSubscriptionDto(target_telegram_id, plan_id, selected_duration),
+        SetUserSubscriptionDto(target_user_id, plan_id, selected_duration),
     )
     await dialog_manager.switch_to(state=DashboardUser.MAIN)

@@ -52,5 +52,8 @@ async def payments_webhook(
         await event_publisher.publish(error_event)
 
     if gateway is not None:
-        return await gateway.build_webhook_response(request)
+        try:
+            return await gateway.build_webhook_response(request)
+        except Exception:
+            logger.exception(f"Failed to build webhook response for '{gateway_type}'")
     return Response(status_code=status.HTTP_200_OK)

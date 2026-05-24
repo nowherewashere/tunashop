@@ -1,4 +1,5 @@
 from .broadcast import BroadcastDaoImpl
+from .oauth_provider import UserOAuthProviderDaoImpl
 from .payment_gateway import PaymentGatewayDaoImpl
 from .plan import PlanDaoImpl
 from .referral import ReferralDaoImpl
@@ -11,6 +12,7 @@ from .webhook import WebhookDaoImpl
 
 __all__ = [
     "BroadcastDaoImpl",
+    "UserOAuthProviderDaoImpl",
     "PaymentGatewayDaoImpl",
     "PlanDaoImpl",
     "ReferralDaoImpl",

@@ -6,10 +6,9 @@ from src.application.common.dao import SettingsDao
 from src.application.common.policy import Permission
 from src.application.common.uow import UnitOfWork
 from src.application.dto import SettingsDto, UserDto
-from src.core.constants import T_ME
 from src.core.enums import AccessRequirements
 from src.core.utils.converters import normalize_channel_id
-from src.core.utils.validators import is_valid_url, is_valid_username
+from src.core.utils.validators import is_invite_link, is_valid_url, is_valid_username
 
 
 class ToggleConditionRequirement(Interactor[AccessRequirements, None]):
@@ -84,7 +83,7 @@ class UpdateChannelRequirement(Interactor[str, None]):
             if input_text.isdigit() or (input_text.startswith("-") and input_text[1:].isdigit()):
                 await self._handle_id_input(input_text, settings)
                 await self.notifier.notify_user(actor, i18n_key="ntf-common.value-updated")
-            elif is_valid_username(input_text) or input_text.startswith(T_ME):
+            elif is_valid_username(input_text) or is_invite_link(input_text):
                 settings.requirements.channel_link = SecretStr(input_text)
                 await self.notifier.notify_user(actor, i18n_key="ntf-common.value-updated")
             else:

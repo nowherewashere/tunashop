@@ -24,7 +24,7 @@ class BroadcastDao(Protocol):
     async def update_message_status(
         self,
         task_id: UUID,
-        telegram_id: int,
+        user_id: int,
         status: BroadcastMessageStatus,
         message_id: Optional[int] = None,
     ) -> None: ...

@@ -36,7 +36,7 @@ from .statistics import (
 )
 from .subscription import RemnaSubscriptionDto, SubscriptionDto
 from .transaction import PriceDetailsDto, TransactionDto
-from .user import TempUserDto, UserDto
+from .user import TelegramUserDto, TempUserDto, UserDto, UserOAuthProviderDto
 
 __all__ = [
     "BaseDto",
@@ -81,6 +81,8 @@ __all__ = [
     "SubscriptionDto",
     "PriceDetailsDto",
     "TransactionDto",
+    "TelegramUserDto",
     "TempUserDto",
     "UserDto",
+    "UserOAuthProviderDto",
 ]

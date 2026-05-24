@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional, cast
+from uuid import UUID
 
 from adaptix import Retort
 from adaptix.conversion import ConversionRetort
@@ -35,13 +36,24 @@ class UserDaoImpl(UserDao):
     # @invalidate_cache(key_builder=UserCacheKey)
     async def create(self, user: UserDto) -> UserDto:
         user_data = self.retort.dump(user)
+        user_data.pop("id", None)
         db_user = User(**user_data)
 
         self.session.add(db_user)
         await self.session.flush()
 
-        logger.debug(f"New user '{user.telegram_id}' created in database")
+        logger.debug(f"New user '{user.remna_name}' created in database")
         return self._convert_to_dto(db_user)
+
+    async def get_by_id(self, user_id: int) -> Optional[UserDto]:
+        stmt = select(User).where(User.id == user_id)
+        db_user = await self.session.scalar(stmt)
+
+        if db_user:
+            return self._convert_to_dto(db_user)
+
+        logger.debug(f"User id='{user_id}' not found")
+        return None
 
     # @provide_cache(ttl=TTL_1H, key_builder=UserCacheKey)
     async def get_by_telegram_id(self, telegram_id: int) -> Optional[UserDto]:
@@ -55,15 +67,19 @@ class UserDaoImpl(UserDao):
         logger.debug(f"User '{telegram_id}' not found")
         return None
 
-    async def get_by_login(self, login: str) -> Optional[UserDto]:
-        stmt = select(User).where(User.login == login)
+    async def get_by_remna_uuid(self, remna_uuid: UUID) -> Optional[UserDto]:
+        stmt = (
+            select(User)
+            .join(Subscription, User.current_subscription_id == Subscription.id)
+            .where(Subscription.user_remna_id == remna_uuid)
+        )
         db_user = await self.session.scalar(stmt)
 
         if db_user:
-            logger.debug(f"User with login '{login}' found in database")
+            logger.debug(f"User with remna_uuid '{remna_uuid}' found in database")
             return self._convert_to_dto(db_user)
 
-        logger.debug(f"User with login '{login}' not found")
+        logger.debug(f"User with remna_uuid '{remna_uuid}' not found")
         return None
 
     async def get_by_email(self, email: str) -> Optional[UserDto]:
@@ -129,45 +145,38 @@ class UserDaoImpl(UserDao):
     # @invalidate_cache(key_builder=UserCacheKey)
     async def update(self, user: UserDto) -> Optional[UserDto]:
         if not user.changed_data:
-            logger.debug(f"No changes detected for user '{user.telegram_id}', skipping update")
-            return await self.get_by_telegram_id(user.telegram_id)
+            logger.debug(f"No changes detected for user '{user.id}', skipping update")
+            return await self.get_by_id(user.id)
 
-        stmt = (
-            update(User)
-            .where(User.telegram_id == user.telegram_id)
-            .values(**user.changed_data)
-            .returning(User)
-        )
+        stmt = update(User).where(User.id == user.id).values(**user.changed_data).returning(User)
         db_user = await self.session.scalar(stmt)
 
         if db_user:
-            logger.debug(
-                f"User '{user.telegram_id}' updated successfully with data '{user.changed_data}'"
-            )
+            logger.debug(f"User '{user.id}' updated successfully with data '{user.changed_data}'")
             return self._convert_to_dto(db_user)
 
-        logger.warning(f"Failed to update user '{user.telegram_id}'")
+        logger.warning(f"Failed to update user '{user.id}'")
         return None
 
     # @invalidate_cache(key_builder=[USER_COUNT_PREFIX, USER_LIST_PREFIX])
     # @invalidate_cache(key_builder=UserCacheKey)
-    async def delete(self, telegram_id: int) -> bool:
-        stmt = delete(User).where(User.telegram_id == telegram_id).returning(User.id)
+    async def delete(self, user_id: int) -> bool:
+        stmt = delete(User).where(User.id == user_id).returning(User.id)
         result = await self.session.execute(stmt)
         deleted_id = result.scalar_one_or_none()
 
         if deleted_id:
-            logger.debug(f"User '{telegram_id}' deleted from database")
+            logger.debug(f"User id='{user_id}' deleted from database")
             return True
 
-        logger.debug(f"User '{telegram_id}' not found for deletion")
+        logger.debug(f"User id='{user_id}' not found for deletion")
         return False
 
-    async def exists(self, telegram_id: int) -> bool:
-        stmt = select(select(User).where(User.telegram_id == telegram_id).exists())
+    async def exists(self, user_id: int) -> bool:
+        stmt = select(select(User).where(User.id == user_id).exists())
         is_exists = await self.session.scalar(stmt) or False
 
-        logger.debug(f"User '{telegram_id}' existence status is '{is_exists}'")
+        logger.debug(f"User id='{user_id}' existence status is '{is_exists}'")
         return is_exists
 
     # @provide_cache(prefix=USER_COUNT_PREFIX, ttl=TTL_6H)
@@ -195,45 +204,33 @@ class UserDaoImpl(UserDao):
 
     # @invalidate_cache(key_builder=[USER_COUNT_PREFIX, USER_LIST_PREFIX])
     # @invalidate_cache(key_builder=UserCacheKey)
-    async def set_trial_available(self, telegram_id: int, is_trial_available: bool) -> None:
-        stmt = (
-            update(User)
-            .where(User.telegram_id == telegram_id)
-            .values(is_trial_available=is_trial_available)
-        )
+    async def set_trial_available(self, user_id: int, is_trial_available: bool) -> None:
+        stmt = update(User).where(User.id == user_id).values(is_trial_available=is_trial_available)
         await self.session.execute(stmt)
         logger.debug(
-            f"Trial available status for user '{telegram_id}' set to '{is_trial_available}'"
+            f"Trial available status for user_id '{user_id}' set to '{is_trial_available}'"
         )
 
     # @invalidate_cache(key_builder=[USER_COUNT_PREFIX, USER_LIST_PREFIX])
     # @invalidate_cache(key_builder=UserCacheKey)
-    async def set_bot_blocked_status(self, telegram_id: int, is_bot_blocked: bool) -> None:
-        stmt = (
-            update(User)
-            .where(User.telegram_id == telegram_id)
-            .values(is_bot_blocked=is_bot_blocked)
-        )
+    async def set_bot_blocked_status(self, user_id: int, is_bot_blocked: bool) -> None:
+        stmt = update(User).where(User.id == user_id).values(is_bot_blocked=is_bot_blocked)
         await self.session.execute(stmt)
-        logger.debug(f"Bot blocked status for user '{telegram_id}' set to '{is_bot_blocked}'")
+        logger.debug(f"Bot blocked status for user_id='{user_id}' set to '{is_bot_blocked}'")
 
-    async def set_current_subscription(self, telegram_id: int, subscription_id: int) -> None:
+    async def set_current_subscription_by_id(self, user_id: int, subscription_id: int) -> None:
         stmt = (
-            update(User)
-            .where(User.telegram_id == telegram_id)
-            .values(current_subscription_id=subscription_id)
+            update(User).where(User.id == user_id).values(current_subscription_id=subscription_id)
         )
         await self.session.execute(stmt)
-        logger.debug(f"Current subscription for user '{telegram_id}' set to '{subscription_id}'")
+        logger.debug(f"Current subscription for user_id='{user_id}' set to '{subscription_id}'")
 
     # @invalidate_cache(key_builder=[USER_COUNT_PREFIX, USER_LIST_PREFIX])
     # @invalidate_cache(key_builder=UserCacheKey)
-    async def clear_current_subscription(self, telegram_id: int) -> None:
-        stmt = (
-            update(User).where(User.telegram_id == telegram_id).values(current_subscription_id=None)
-        )
+    async def clear_current_subscription(self, user_id: int) -> None:
+        stmt = update(User).where(User.id == user_id).values(current_subscription_id=None)
         await self.session.execute(stmt)
-        logger.debug(f"Current subscription cleared for user '{telegram_id}'")
+        logger.debug(f"Current subscription cleared for user_id '{user_id}'")
 
     async def get_blocked_users(self) -> list[UserDto]:
         stmt = select(User).where(User.is_blocked.is_(True)).order_by(User.id.desc())
@@ -251,7 +248,7 @@ class UserDaoImpl(UserDao):
         stmt = select(User)
 
         if excluded_ids:
-            stmt = stmt.where(User.telegram_id.not_in(excluded_ids))
+            stmt = stmt.where(User.id.not_in(excluded_ids))
 
         stmt = stmt.order_by(User.updated_at.desc().nulls_last()).limit(RECENT_ACTIVITY_MAX_COUNT)
         result = await self.session.execute(stmt)
@@ -296,12 +293,8 @@ class UserDaoImpl(UserDao):
         logger.debug(f"Bulk-blocked '{blocked}' users from external blacklist")
         return blocked
 
-    async def has_any_subscription(self, telegram_id: int, *, include_trial: bool = True) -> bool:
-        stmt = (
-            select(func.count())
-            .select_from(Subscription)
-            .where(Subscription.user_telegram_id == telegram_id)
-        )
+    async def has_any_subscription(self, user_id: int, *, include_trial: bool = True) -> bool:
+        stmt = select(func.count()).select_from(Subscription).where(Subscription.user_id == user_id)
 
         if not include_trial:
             stmt = stmt.where(Subscription.is_trial.is_(False))
@@ -310,24 +303,20 @@ class UserDaoImpl(UserDao):
         count = result.scalar() or 0
         return count > 0
 
-    async def is_invited_user(self, telegram_id: int) -> bool:
-        stmt = (
-            select(func.count())
-            .select_from(Referral)
-            .where(Referral.referred_telegram_id == telegram_id)
-        )
+    async def is_invited_user(self, user_id: int) -> bool:
+        stmt = select(func.count()).select_from(Referral).where(Referral.referred_id == user_id)
 
         result = await self.session.execute(stmt)
         count = result.scalar() or 0
 
         is_invited = count > 0
-        logger.debug(f"Checked invite status for user '{telegram_id}', result '{is_invited}'")
+        logger.debug(f"Checked invite status for user_id='{user_id}', result '{is_invited}'")
         return is_invited
 
-    async def toggle_blocked_status(self, telegram_id: int) -> None:
+    async def toggle_blocked_status(self, user_id: int) -> None:
         stmt = (
             update(User)
-            .where(User.telegram_id == telegram_id)
+            .where(User.id == user_id)
             .values(is_blocked=~User.is_blocked)
             .returning(User.is_blocked)
         )
@@ -336,7 +325,7 @@ class UserDaoImpl(UserDao):
         new_status = result.scalar()
 
         logger.debug(
-            f"Toggled blocked status for user '{telegram_id}', new status is '{new_status}'"
+            f"Toggled blocked status for user_id='{user_id}', new status is '{new_status}'"
         )
 
     async def count_active_non_blocked(self) -> int:

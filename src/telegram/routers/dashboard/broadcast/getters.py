@@ -5,10 +5,9 @@ from aiogram_dialog import DialogManager
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 
-from src.application.common import TranslatorRunner
+from src.application.common import BotService, TranslatorRunner
 from src.application.common.dao import BroadcastDao, PlanDao, SettingsDao
 from src.application.dto import PlanDto
-from src.application.services import BotService
 from src.core.constants import DATETIME_VIEW_FORMAT
 from src.telegram.keyboards import CLOSE_BUTTON_ID, get_broadcast_buttons
 

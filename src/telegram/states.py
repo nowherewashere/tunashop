@@ -114,6 +114,7 @@ class DashboardRemnashop(StatesGroup):
     MAIN = State()
     ADMINS = State()
     ADVERTISING = State()
+    TRANSACTIONS = State()
 
 
 class RemnashopBackup(StatesGroup):

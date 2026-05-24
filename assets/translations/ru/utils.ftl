@@ -33,26 +33,29 @@ command =
     .rules = Условия использования
     .help = Помощь
 
-hdr-user = <b>👤 Пользователь:</b>
-hdr-user-profile = <b>👤 Профиль:</b>
-hdr-payment = <b>💰 Платеж:</b>
-hdr-error = <b>⚠️ Ошибка:</b>
-hdr-node = <b>🖥 Нода:</b>
-hdr-hwid = <b>📱 Устройство:</b>
+hdr-user = <b>👤 Пользователь</b>:
+hdr-user-profile = <b>👤 Профиль</b>:
+hdr-payment = <b>💰 Платеж</b>:
+hdr-error = <b>⚠️ Ошибка</b>:
+hdr-node = <b>🖥 Нода</b>:
+hdr-hwid = <b>📱 Устройство</b>:
 
 hdr-subscription = { $is_trial ->
-    [1] <b>🎁 Пробная подписка:</b>
-    *[0] <b>💳 Подписка:</b>
+    [1] <b>🎁 Пробная подписка</b>:
+    *[0] <b>💳 Подписка</b>:
 }
 
 hdr-plan = { $is_trial_plan ->
-    [1] <b>🎁 Пробный план:</b>
-    *[0] <b>📦 План:</b>
+    [1] <b>🎁 Пробный план</b>:
+    *[0] <b>📦 План</b>:
 }
 
 frg-user =
     <blockquote>
-    • <b>ID</b>: <code>{ NUMBER($telegram_id, useGrouping: 0) }</code>
+    { $telegram_id ->
+        [0] • <b>Почта</b>: <code>{ $email }</code>
+        *[HAS] • <b>ID</b>: <code>{ NUMBER($telegram_id, useGrouping: 0) }</code>
+    }
     • <b>Имя</b>: { $name }
     { $show_personal_discount ->
     [1] • <b>Персональная скидка</b>: { $personal_discount }%
@@ -66,8 +69,11 @@ frg-user =
 
 frg-user-info =
     <blockquote>
-    • <b>ID</b>: <code>{ NUMBER($telegram_id, useGrouping: 0) }</code> 
-    • <b>Имя</b>: { $name } { $username -> 
+    { $telegram_id ->
+        [0] • <b>Почта</b>: <code>{ $email }</code>
+        *[HAS] • <b>ID</b>: <code>{ NUMBER($telegram_id, useGrouping: 0) }</code>
+    }
+    • <b>Имя</b>: { $name } { $username ->
         [0] { empty }
         *[HAS] (<a href="tg://user?id={ $telegram_id }">@{ $username }</a>)
     }
@@ -75,8 +81,11 @@ frg-user-info =
 
 frg-user-details =
     <blockquote>
-    • <b>ID</b>: <code>{ NUMBER($telegram_id, useGrouping: 0) }</code>
-    • <b>Имя</b>: { $name } { $username -> 
+    { $telegram_id ->
+        [0] • <b>Почта</b>: <code>{ $email }</code>
+        *[HAS] • <b>ID</b>: <code>{ NUMBER($telegram_id, useGrouping: 0) }</code>
+    }
+    • <b>Имя</b>: { $name } { $username ->
         [0] { space }
         *[HAS] (<a href="tg://user?id={ $telegram_id }">@{ $username }</a>)
     }
@@ -195,7 +204,7 @@ frg-build-info =
     { $has_build ->
     [0] { space }
     *[HAS]
-    <b>🏗️ Информация о сборке:</b>
+    <b>🏗️ Информация о сборке</b>:
     <blockquote>
     Время сборки: { $time }
     Ветка: { $branch } ({ $tag })

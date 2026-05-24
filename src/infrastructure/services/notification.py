@@ -37,14 +37,38 @@ from src.application.dto import (
     UserDto,
 )
 from src.application.events import ErrorEvent, NotificationErrorEvent, SystemEvent
-from src.application.events.base import UserEvent
-from src.application.events.system import RemnashopWelcomeEvent
+from src.application.events.base import BaseEvent, UserEvent
+from src.application.events.system import (
+    BotUpdateEvent,
+    RemnashopWelcomeEvent,
+    SubscriptionRevokedEvent,
+    TrialActivatedEvent,
+    UserDevicesUpdatedEvent,
+    UserFirstConnectionEvent,
+    UserPurchaseEvent,
+    UserRegisteredEvent,
+)
+from src.application.events.user import (
+    SubscriptionExpiredAgoEvent,
+    SubscriptionExpiredEvent,
+    SubscriptionExpiresEvent,
+    SubscriptionLimitedEvent,
+    UserNotConnectedEvent,
+)
 from src.core.config import AppConfig
 from src.core.enums import Locale, Role
 from src.core.types import AnyKeyboard, NotificationType
-from src.infrastructure.services import NotificationQueue
 from src.infrastructure.services.event_bus import on_event
-from src.telegram.keyboards import get_close_notification_button
+from src.infrastructure.services.notification_queue import NotificationWorker
+from src.telegram.keyboards import (
+    get_buy_keyboard,
+    get_close_notification_button,
+    get_contact_support_keyboard,
+    get_remnashop_keyboard,
+    get_remnashop_update_keyboard,
+    get_renew_keyboard,
+    get_user_keyboard,
+)
 
 
 class NotificationService(Notifier):
@@ -55,7 +79,7 @@ class NotificationService(Notifier):
         translator_hub: TranslatorHub,
         user_dao: UserDao,
         settings_dao: SettingsDao,
-        queue: NotificationQueue,
+        worker: NotificationWorker,
         event_publisher: EventPublisher,
     ) -> None:
         self.bot = bot
@@ -63,9 +87,8 @@ class NotificationService(Notifier):
         self.translator_hub = translator_hub
         self.user_dao = user_dao
         self.settings_dao = settings_dao
-        self.queue = queue
+        self.worker = worker
         self.event_publisher = event_publisher
-        self.queue.start(self._process_task)
 
     async def notify_user(
         self,
@@ -88,12 +111,46 @@ class NotificationService(Notifier):
         payload: MessagePayloadDto,
         roles: list[Role] = [Role.OWNER, Role.DEV, Role.ADMIN],
     ) -> None:
-        await self.queue.enqueue(NotificationTaskDto(payload=payload, roles=roles))
+        await self.worker.enqueue(NotificationTaskDto(payload=payload, roles=roles))
+
+    def _resolve_keyboard(self, event: "BaseEvent") -> "Optional[AnyKeyboard]":
+        if isinstance(
+            event,
+            (
+                SubscriptionLimitedEvent,
+                SubscriptionExpiredEvent,
+                SubscriptionExpiredAgoEvent,
+                SubscriptionExpiresEvent,
+            ),
+        ):
+            return get_buy_keyboard() if event.is_trial else get_renew_keyboard()
+        if isinstance(event, UserNotConnectedEvent):
+            return get_contact_support_keyboard(event.support_url)
+        if isinstance(event, RemnashopWelcomeEvent):
+            return get_remnashop_keyboard()
+        if isinstance(event, BotUpdateEvent):
+            return get_remnashop_update_keyboard()
+        if isinstance(event, UserRegisteredEvent):
+            return get_user_keyboard(event.telegram_id, event.referrer_telegram_id)
+        if isinstance(
+            event,
+            (
+                UserFirstConnectionEvent,
+                UserDevicesUpdatedEvent,
+                UserPurchaseEvent,
+                TrialActivatedEvent,
+                SubscriptionRevokedEvent,
+            ),
+        ):
+            return get_user_keyboard(event.telegram_id)
+        return None
 
     @on_event(RemnashopWelcomeEvent)
     async def on_remnashop_welcome_event(self, event: RemnashopWelcomeEvent) -> None:
         logger.info(f"Received '{event.event_type}' event")
-        await self.notify_admins(event.as_payload(), roles=[Role.OWNER, Role.DEV])
+        payload = event.as_payload()
+        payload.reply_markup = self._resolve_keyboard(event)
+        await self.notify_admins(payload, roles=[Role.OWNER, Role.DEV])
 
     @on_event(NotificationErrorEvent)
     async def on_notification_error_event(self, event: NotificationErrorEvent) -> None:
@@ -109,7 +166,9 @@ class NotificationService(Notifier):
             logger.info(f"Notification for '{event.notification_type}' is disabled, skipping")
             return
 
-        await self.notify_user(event.user, event.as_payload())
+        payload = event.as_payload()
+        payload.reply_markup = self._resolve_keyboard(event)
+        await self.notify_user(event.user, payload)
 
     @on_event(SystemEvent)
     async def on_system_event(self, event: SystemEvent) -> None:
@@ -123,7 +182,9 @@ class NotificationService(Notifier):
             logger.info(f"Notification for '{event.notification_type}' is disabled, skipping")
             return
 
-        await self._notify_system(event.as_payload(), notification_type=event.notification_type)
+        payload = event.as_payload()
+        payload.reply_markup = self._resolve_keyboard(event)
+        await self._notify_system(payload, notification_type=event.notification_type)
 
     @on_event(ErrorEvent)
     async def on_error_event(self, event: ErrorEvent) -> None:
@@ -264,13 +325,17 @@ class NotificationService(Notifier):
 
         for user, result in zip(users, results):
             if isinstance(result, Exception):
-                logger.error(f"Broadcast failed for user '{user.telegram_id}': {result}")
+                logger.error(f"Broadcast failed for user '{user.remna_name}': {result}")
 
     async def _send_message(
         self,
         user: Union[TempUserDto, UserDto],
         payload: MessagePayloadDto,
     ) -> Optional[Message]:
+        if user.telegram_id is None:
+            logger.debug(f"Skipping notification for web-only user '{user.remna_name}'")
+            return None
+
         render_kwargs = payload.i18n_kwargs.copy()
 
         if isinstance(user, UserDto) and payload.i18n_key == "raw-message":
@@ -315,7 +380,7 @@ class NotificationService(Notifier):
 
                 message = await method(user.telegram_id, media, caption=text, **kwargs)
             else:
-                logger.error(f"Payload must contain text or media for user '{user.telegram_id}'")
+                logger.error(f"Payload must contain text or media for user '{user.remna_name}'")
                 return None
 
             if message and payload.delete_after:
@@ -330,10 +395,10 @@ class NotificationService(Notifier):
             return message
 
         except TelegramForbiddenError:
-            logger.warning(f"Bot was blocked by user '{user.telegram_id}'")
+            logger.warning(f"Bot was blocked by user '{user.remna_name}'")
             return None
         except Exception as e:
-            logger.exception(f"Failed to send notification to '{user.telegram_id}': {e}")
+            logger.exception(f"Failed to send notification to '{user.remna_name}': {e}")
             raise
 
     def _get_media_method(self, payload: MessagePayloadDto) -> Optional[Callable[..., Any]]:
@@ -345,6 +410,9 @@ class NotificationService(Notifier):
 
         if payload.is_document:
             return self.bot.send_document
+
+        if payload.is_animation:
+            return self.bot.send_animation
 
         return None
 

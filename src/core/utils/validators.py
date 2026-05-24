@@ -1,6 +1,12 @@
 from typing import Optional
 
-from src.core.constants import DOMAIN_REGEX, TAG_REGEX, URL_PATTERN, USERNAME_PATTERN
+from src.core.constants import (
+    DOMAIN_REGEX,
+    INVITE_LINK_PATTERN,
+    TAG_REGEX,
+    URL_PATTERN,
+    USERNAME_PATTERN,
+)
 
 
 def is_valid_url(text: str) -> bool:
@@ -13,6 +19,10 @@ def is_valid_username(text: str) -> bool:
 
 def is_valid_domain(text: str) -> bool:
     return bool(DOMAIN_REGEX.match(text))
+
+
+def is_invite_link(text: str) -> bool:
+    return bool(INVITE_LINK_PATTERN.match(text))
 
 
 def is_valid_tag(text: str) -> bool:
