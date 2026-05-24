@@ -93,6 +93,7 @@ class PaymentGatewayType(UpperStrEnum):
     ROBOKASSA = auto()
     URLPAY = auto()
     WATA = auto()
+    VALUTIX = auto()
 
 
 class PurchaseType(UpperStrEnum):
@@ -186,6 +187,21 @@ class MediaType(UpperStrEnum):
     PHOTO = auto()
     VIDEO = auto()
     DOCUMENT = auto()
+    GIF = auto()
+
+
+class OAuthProvider(StrEnum):
+    GOOGLE = auto()
+    YANDEX = auto()
+    VK = auto()
+
+
+class AuthType(StrEnum):
+    TELEGRAM = auto()
+    EMAIL = auto()
+    GOOGLE = auto()
+    YANDEX = auto()
+    VK = auto()
 
 
 class Role(IntEnum):
@@ -233,6 +249,7 @@ class UserNotificationType(UpperStrEnum):
     EXPIRED = auto()
     EXPIRED_1_DAY_AGO = auto()
     LIMITED = auto()
+    NOT_CONNECTED = auto()
     #
     REFERRAL_ATTACHED = auto()
     REFERRAL_REWARD_RECEIVED = auto()
@@ -283,6 +300,7 @@ class Currency(UpperStrEnum):
             PaymentGatewayType.ROBOKASSA: cls.RUB,
             PaymentGatewayType.URLPAY: cls.RUB,
             PaymentGatewayType.WATA: cls.RUB,
+            PaymentGatewayType.VALUTIX: cls.RUB,
         }
 
         try:

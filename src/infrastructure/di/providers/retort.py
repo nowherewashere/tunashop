@@ -41,6 +41,7 @@ from src.application.dto.payment_gateway import (
     PlategaGatewaySettingsDto,
     RoboKassaGatewaySettingsDto,
     UrlPayGatewaySettingsDto,
+    ValutixGatewaySettingsDto,
     WataGatewaySettingsDto,
     YooKassaGatewaySettingsDto,
     YooMoneyGatewaySettingsDto,
@@ -108,6 +109,7 @@ class RetortProvider(Provider):
                 PaymentGatewayType.PLATEGA: PlategaGatewaySettingsDto,
                 PaymentGatewayType.ROBOKASSA: RoboKassaGatewaySettingsDto,
                 PaymentGatewayType.URLPAY: UrlPayGatewaySettingsDto,
+                PaymentGatewayType.VALUTIX: ValutixGatewaySettingsDto,
                 PaymentGatewayType.WATA: WataGatewaySettingsDto,
             }
 
@@ -159,6 +161,7 @@ class RetortProvider(Provider):
                         PlategaGatewaySettingsDto,
                         RoboKassaGatewaySettingsDto,
                         UrlPayGatewaySettingsDto,
+                        ValutixGatewaySettingsDto,
                         WataGatewaySettingsDto,
                     ]
                 ],

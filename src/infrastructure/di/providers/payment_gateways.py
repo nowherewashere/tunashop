@@ -22,6 +22,7 @@ from src.infrastructure.payment_gateways import (
     RobokassaGateway,
     TelegramStarsGateway,
     UrlPayGateway,
+    ValutixGateway,
     WataGateway,
     YookassaGateway,
     YoomoneyGateway,
@@ -40,6 +41,7 @@ GATEWAY_MAP: dict[PaymentGatewayType, Type[BasePaymentGateway]] = {
     PaymentGatewayType.PLATEGA: PlategaGateway,
     PaymentGatewayType.ROBOKASSA: RobokassaGateway,
     PaymentGatewayType.URLPAY: UrlPayGateway,
+    PaymentGatewayType.VALUTIX: ValutixGateway,
     PaymentGatewayType.WATA: WataGateway,
 }
 

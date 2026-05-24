@@ -148,6 +148,12 @@ class WataGatewaySettingsDto(GatewaySettingsDto):
     api_key: Optional[SecretStr] = None
 
 
+@dataclass(kw_only=True)
+class ValutixGatewaySettingsDto(GatewaySettingsDto):
+    type: Literal[PaymentGatewayType.VALUTIX] = PaymentGatewayType.VALUTIX
+    api_key: Optional[SecretStr] = None
+
+
 AnyGatewaySettingsDto = Union[
     YooKassaGatewaySettingsDto,
     YooMoneyGatewaySettingsDto,
@@ -161,4 +167,5 @@ AnyGatewaySettingsDto = Union[
     RoboKassaGatewaySettingsDto,
     UrlPayGatewaySettingsDto,
     WataGatewaySettingsDto,
+    ValutixGatewaySettingsDto,
 ]
