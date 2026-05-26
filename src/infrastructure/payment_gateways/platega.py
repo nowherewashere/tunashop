@@ -86,6 +86,8 @@ class PlategaGateway(BasePaymentGateway):
                 transaction_status = TransactionStatus.COMPLETED
             case "CANCELED":
                 transaction_status = TransactionStatus.CANCELED
+            case "CHARGEBACKED":
+                transaction_status = TransactionStatus.REFUNDED
             case _:
                 raise ValueError(f"Unsupported status: {status}")
 

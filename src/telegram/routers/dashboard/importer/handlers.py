@@ -159,15 +159,15 @@ async def on_import_active_xui(
 
     key = retort.dump(ImportRunningKey())
 
+    if not selected_squads:
+        await notifier.notify_user(user, i18n_key="ntf-common.internal-squads-empty")
+        return
+
     if await redis.get(key):
         await notifier.notify_user(user, i18n_key="ntf-importer.already-running")
         return
 
     await redis.set(key, 1, ex=600)
-
-    if not selected_squads:
-        await notifier.notify_user(user, i18n_key="ntf-common.internal-squads-empty")
-        return
 
     dialog_manager.dialog_data["has_started"] = True
     notification = await notifier.notify_user(
@@ -223,6 +223,7 @@ async def on_sync_from_panel(
     result = result.return_value
 
     if not result:
+        await redis.delete(key)
         await notifier.notify_user(user, i18n_key="ntf-sync.users-not-found")
         return
 
@@ -263,6 +264,7 @@ async def on_sync_from_bot(
     result = result.return_value
 
     if not result:
+        await redis.delete(key)
         await notifier.notify_user(user, i18n_key="ntf-sync.users-not-found")
         return
 

@@ -53,7 +53,12 @@ class UpdateReferralLevel(Interactor[int, None]):
 
             for level_enum in ReferralLevel:
                 if level_enum.value <= new_level and level_enum not in new_config:
-                    prev_val = new_config.get(ReferralLevel(level_enum.value - 1), 0)
+                    prev_level_value = level_enum.value - 1
+                    prev_val = (
+                        new_config.get(ReferralLevel(prev_level_value), 0)
+                        if prev_level_value >= ReferralLevel.FIRST
+                        else 0
+                    )
                     new_config[level_enum] = prev_val
 
             settings.referral.reward.config = new_config

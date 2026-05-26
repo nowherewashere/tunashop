@@ -1,4 +1,6 @@
-from typing import Optional, Protocol
+from typing import Optional, Protocol, Union
+
+from aiogram.utils.chat_member import ChatMemberUnion
 
 
 class BotService(Protocol):
@@ -15,3 +17,9 @@ class BotService(Protocol):
     async def get_ad_link_url(self, code: str) -> str: ...
 
     def get_support_url(self, text: Optional[str] = None) -> str: ...
+
+    async def get_chat_member(
+        self,
+        chat_id: Union[str, int],
+        user_id: int,
+    ) -> ChatMemberUnion: ...

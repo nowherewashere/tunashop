@@ -1,4 +1,3 @@
-import re
 from dataclasses import dataclass
 from typing import Optional
 
@@ -29,6 +28,9 @@ class UpdateMenuButtonText(Interactor[UpdateMenuButtonTextDto, MenuButtonDto]):
         button = data.button
         new_text = data.input_text.strip()
 
+        if not new_text:
+            raise ValueError("Menu button text cannot be empty")
+
         if len(new_text) > 32:
             raise ValueError(f"Menu button text '{new_text}' exceeds 32 characters")
 
@@ -57,14 +59,14 @@ class UpdateMenuButtonPayload(Interactor[UpdateMenuButtonPayloadDto, MenuButtonD
         new_payload = data.input_payload.strip()
 
         if button.type in [ButtonType.URL, ButtonType.WEB_APP]:
-            if not re.compile(r"^https://.*$").match(new_payload):
+            if not is_valid_url(new_payload):
                 raise ValueError(f"Invalid URL format for payload '{new_payload}'")
 
         if button.type == ButtonType.WEB_APP and T_ME in new_payload:
             raise ValueError(f"Telegram links are not allowed for WebApp buttons: '{new_payload}'")
 
         if button.type == ButtonType.TEXT:
-            max_length = TEXT_MAX_LENGTH if button.media_file_id else TEXT_MEDIA_MAX_LENGTH
+            max_length = TEXT_MEDIA_MAX_LENGTH if button.media_file_id else TEXT_MAX_LENGTH
             if len(new_payload) > max_length:
                 raise ValueError(f"Text message exceeds {max_length} characters")
 
@@ -99,7 +101,7 @@ class ConfirmMenuButtonChanges(Interactor[MenuButtonDto, None]):
             )
 
         if button.type == ButtonType.TEXT and button.payload:
-            max_length = TEXT_MAX_LENGTH if button.media_file_id else TEXT_MEDIA_MAX_LENGTH
+            max_length = TEXT_MEDIA_MAX_LENGTH if button.media_file_id else TEXT_MAX_LENGTH
             if len(button.payload) > max_length:
                 raise MenuEditorInvalidPayloadError(f"Text message exceeds {max_length} characters")
 

@@ -80,7 +80,7 @@ class BroadcastDaoImpl(BroadcastDao):
 
         if not broadcast_id:
             logger.error(f"Failed to add messages: broadcast task '{task_id}' not found")
-            return []
+            raise ValueError(f"Broadcast task '{task_id}' not found")
 
         db_messages = []
         for msg in messages:

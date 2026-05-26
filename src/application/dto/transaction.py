@@ -46,3 +46,11 @@ class TransactionDto(BaseDto, TrackableMixin, TimestampMixin):
     @property
     def is_completed(self) -> bool:
         return self.status == TransactionStatus.COMPLETED
+
+    @property
+    def is_terminal(self) -> bool:
+        return self.status in (
+            TransactionStatus.COMPLETED,
+            TransactionStatus.FAILED,
+            TransactionStatus.CANCELED,
+        )

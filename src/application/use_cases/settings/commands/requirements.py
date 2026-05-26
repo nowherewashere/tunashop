@@ -77,23 +77,25 @@ class UpdateChannelRequirement(Interactor[str, None]):
     async def _execute(self, actor: UserDto, input_text: str) -> None:
         input_text = input_text.strip()
 
-        async with self.uow:
-            settings = await self.settings_dao.get()
-
-            if input_text.isdigit() or (input_text.startswith("-") and input_text[1:].isdigit()):
+        if input_text.isdigit() or (input_text.startswith("-") and input_text[1:].isdigit()):
+            async with self.uow:
+                settings = await self.settings_dao.get()
                 await self._handle_id_input(input_text, settings)
-                await self.notifier.notify_user(actor, i18n_key="ntf-common.value-updated")
-            elif is_valid_username(input_text) or is_invite_link(input_text):
+                await self.settings_dao.update(settings)
+                await self.uow.commit()
+        elif is_valid_username(input_text) or is_invite_link(input_text):
+            async with self.uow:
+                settings = await self.settings_dao.get()
                 settings.requirements.channel_link = SecretStr(input_text)
-                await self.notifier.notify_user(actor, i18n_key="ntf-common.value-updated")
-            else:
-                logger.warning(f"{actor.log} Provided invalid channel format: '{input_text}'")
-                await self.notifier.notify_user(actor, i18n_key="ntf-common.invalid-value")
-
-            await self.settings_dao.update(settings)
-            await self.uow.commit()
+                await self.settings_dao.update(settings)
+                await self.uow.commit()
+        else:
+            logger.warning(f"{actor.log} Provided invalid channel format: '{input_text}'")
+            await self.notifier.notify_user(actor, i18n_key="ntf-common.invalid-value")
+            return
 
         logger.info(f"{actor.log} Updated channel requirement")
+        await self.notifier.notify_user(actor, i18n_key="ntf-common.value-updated")
 
     async def _handle_id_input(self, text: str, settings: SettingsDto) -> None:
         settings.requirements.channel_id = normalize_channel_id(text)

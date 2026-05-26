@@ -38,6 +38,7 @@ from src.application.dto.payment_gateway import (
     PlategaGatewaySettingsDto,
     RoboKassaGatewaySettingsDto,
     UrlPayGatewaySettingsDto,
+    ValutixGatewaySettingsDto,
     WataGatewaySettingsDto,
     YooKassaGatewaySettingsDto,
     YooMoneyGatewaySettingsDto,
@@ -88,6 +89,7 @@ class CreateDefaultPaymentGateway(Interactor[None, None]):
                     PaymentGatewayType.PLATEGA: PlategaGatewaySettingsDto,
                     PaymentGatewayType.ROBOKASSA: RoboKassaGatewaySettingsDto,
                     PaymentGatewayType.URLPAY: UrlPayGatewaySettingsDto,
+                    PaymentGatewayType.VALUTIX: ValutixGatewaySettingsDto,
                     PaymentGatewayType.WATA: WataGatewaySettingsDto,
                 }
                 dto_class = settings_map.get(gateway_type)
@@ -275,9 +277,10 @@ class ProcessPayment(Interactor[ProcessPaymentDto, None]):
                 logger.critical(f"User not found for transaction '{payment_id}'")
                 return
 
-            if transaction.is_completed:
+            if transaction.is_terminal:
                 logger.warning(
-                    f"Transaction '{payment_id}' for user '{user.remna_name}' already completed"
+                    f"Transaction '{payment_id}' for user '{user.remna_name}' "
+                    f"already in terminal state '{transaction.status}'"
                 )
                 return
 
@@ -343,8 +346,6 @@ class ProcessPayment(Interactor[ProcessPaymentDto, None]):
             previous_plan_duration=i18n_format_days(old_plan.duration) if old_plan else "N/A",
         )
 
-        await self.event_publisher.publish(event)
-
         try:
             await self.purchase_subscription.system(
                 PurchaseSubscriptionDto(user, transaction, subscription)
@@ -361,6 +362,8 @@ class ProcessPayment(Interactor[ProcessPaymentDto, None]):
             if user.telegram_id is not None:
                 await self.redirect.to_failed_payment(user.telegram_id)
             raise PurchaseError(e)
+
+        await self.event_publisher.publish(event)
 
         if not transaction.pricing.is_free:
             await self.assign_referral_rewards.system(AssignReferralRewardsDto(user, transaction))

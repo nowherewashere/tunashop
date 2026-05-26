@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from loguru import logger
 from redis.asyncio import Redis
 
-from src.application.common import Remnawave
+from src.application.common import BotService, Remnawave
 from src.application.common.dao import SettingsDao
 from src.application.events import (
     BotInlineModeDisabledEvent,
@@ -27,7 +27,6 @@ from src.core.constants import REMNAWAVE_MAX_VERSION
 from src.core.utils.i18n_helpers import i18n_format_seconds
 from src.core.utils.time import get_uptime
 from src.infrastructure.redis.keys import WelcomedVersionKey
-from src.application.common import BotService
 from src.infrastructure.services import (
     CommandService,
     EventBusImpl,

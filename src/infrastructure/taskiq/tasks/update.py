@@ -16,7 +16,7 @@ from src.infrastructure.taskiq.broker import broker
 GITHUB_RELEASE_URL: Final[str] = "https://api.github.com/repos/snoups/remnashop/releases/latest"
 
 
-@broker.task(schedule=[{"cron": "*/60 * * * *"}], retry_on_error=False)
+@broker.task(schedule=[{"cron": "0 * * * *"}], retry_on_error=False)
 @inject(patch_module=True)
 async def check_bot_update(
     config: FromDishka[AppConfig],

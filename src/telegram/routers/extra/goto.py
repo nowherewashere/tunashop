@@ -9,7 +9,7 @@ from loguru import logger
 from src.application.common import Notifier
 from src.application.dto import TelegramUserDto
 from src.application.use_cases.user.queries.plans import GetAvailablePlanByCode
-from src.core.constants import GOTO_PREFIX, PAYMENT_PREFIX, TARGET_TELEGRAM_ID, TARGET_USER_ID
+from src.core.constants import GOTO_PREFIX, PAYMENT_PREFIX, TARGET_USER_ID
 from src.core.enums import Deeplink
 from src.telegram.states import DashboardUser, MainMenu, Subscription, state_from_string
 
@@ -17,7 +17,9 @@ router = Router(name=__name__)
 
 
 @router.callback_query(F.data.startswith(GOTO_PREFIX))
-async def on_goto(callback: CallbackQuery, dialog_manager: DialogManager, user: TelegramUserDto) -> None:
+async def on_goto(
+    callback: CallbackQuery, dialog_manager: DialogManager, user: TelegramUserDto
+) -> None:
     logger.info(f"{user.log} Try go to '{callback.data}'")
     data = callback.data.removeprefix(GOTO_PREFIX)  # type: ignore[union-attr]
 
@@ -49,6 +51,8 @@ async def on_goto(callback: CallbackQuery, dialog_manager: DialogManager, user: 
             target_user_id = int(parts[2])
         except ValueError:
             logger.warning(f"{user.log} Invalid target_user_id in callback: {parts[2]}")
+            await callback.answer()
+            return
 
         await dialog_manager.bg(
             user_id=user.telegram_id,

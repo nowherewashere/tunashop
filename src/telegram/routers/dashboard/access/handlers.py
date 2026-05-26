@@ -63,7 +63,11 @@ async def on_condition_toggle(
     toggle_condition_requirement: FromDishka[ToggleConditionRequirement],
 ) -> None:
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
-    await toggle_condition_requirement(user, AccessRequirements(callback.data or ""))
+    try:
+        condition = AccessRequirements(callback.data or "")
+    except ValueError:
+        return
+    await toggle_condition_requirement(user, condition)
 
 
 @inject

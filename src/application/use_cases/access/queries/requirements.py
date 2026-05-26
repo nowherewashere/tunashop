@@ -1,12 +1,11 @@
 from dataclasses import dataclass
 from typing import Final, Optional, Union
 
-from aiogram import Bot
 from aiogram.enums import ChatMemberStatus
 from aiogram.exceptions import TelegramBadRequest
 from loguru import logger
 
-from src.application.common import EventPublisher, Interactor
+from src.application.common import BotService, EventPublisher, Interactor
 from src.application.common.dao import SettingsDao
 from src.application.common.policy import Permission
 from src.application.dto import UserDto
@@ -67,7 +66,7 @@ class CheckChannelSubscription(Interactor[None, CheckChannelSubscriptionResultDt
     def __init__(
         self,
         settings_dao: SettingsDao,
-        bot: Bot,
+        bot: BotService,
         event_publisher: EventPublisher,
     ) -> None:
         self.settings_dao = settings_dao
@@ -103,7 +102,7 @@ class CheckChannelSubscription(Interactor[None, CheckChannelSubscriptionResultDt
 
         assert actor.telegram_id is not None
         try:
-            member = await self.bot.get_chat_member(chat_id=chat_id, user_id=actor.telegram_id)
+            member = await self.bot.get_chat_member(chat_id, actor.telegram_id)
 
             is_subscribed = member.status in ALLOWED_STATUSES
             return CheckChannelSubscriptionResultDto(is_subscribed, member.status, channel_url)

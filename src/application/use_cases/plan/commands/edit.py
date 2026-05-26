@@ -9,6 +9,7 @@ from src.application.dto import PlanDto, UserDto
 from src.application.services import PricingService
 from src.core.constants import TEXT_MEDIA_MAX_LENGTH
 from src.core.enums import Currency, PlanType
+from src.core.exceptions import PlanNameAlreadyExistsError
 from src.core.utils.validators import is_positive_int, is_valid_tag
 
 
@@ -30,11 +31,11 @@ class UpdatePlanName(Interactor[UpdatePlanNameDto, PlanDto]):
 
         if existing_plan and existing_plan.id != data.plan.id:
             logger.warning(f"{actor.log} Tried to set duplicate plan name '{data.input_name}'")
-            raise ValueError()
+            raise PlanNameAlreadyExistsError()
 
         if len(data.input_name) > 32:
-            logger.warning(f"Plan name '{data.input_name}' exceeds 32 characters")
-            raise ValueError()
+            logger.warning(f"{actor.log} Plan name '{data.input_name}' exceeds 32 characters")
+            raise ValueError(f"Plan name must not exceed 32 characters, got {len(data.input_name)}")
 
         data.plan.name = data.input_name
         data.plan.public_code = await self.cryptographer.generate_unique_code(

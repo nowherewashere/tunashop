@@ -33,7 +33,7 @@ from src.infrastructure.taskiq.broker import broker
 
 @broker.task
 @inject(patch_module=True)
-async def send_broadcast_task(
+async def send_broadcast_task(  # noqa: C901
     broadcast: BroadcastDto,
     plan_id: Optional[int],
     broadcast_dao: FromDishka[BroadcastDao],
@@ -79,6 +79,8 @@ async def send_broadcast_task(
 
     logger.info(f"Started sending broadcast '{task_id}', total users: {total_users}")
 
+    was_canceled = False
+
     async def send_one(user: UserDto) -> tuple:
         nonlocal total_retry_time
         status = BroadcastMessageStatus.FAILED
@@ -111,6 +113,7 @@ async def send_broadcast_task(
             current = await broadcast_dao.get_by_task_id(task_id)
             if not current or current.status == BroadcastStatus.CANCELED:
                 logger.info(f"Broadcast '{task_id}' was canceled")
+                was_canceled = True
                 break
 
         tasks = [asyncio.create_task(send_one(user)) for user in batch]
@@ -144,7 +147,8 @@ async def send_broadcast_task(
         )
 
     total_elapsed = loop.time() - start_time
-    await finish_broadcast.system(FinishBroadcastDto(task_id, BroadcastStatus.COMPLETED))
+    final_status = BroadcastStatus.CANCELED if was_canceled else BroadcastStatus.COMPLETED
+    await finish_broadcast.system(FinishBroadcastDto(task_id, final_status))
     logger.success(
         f"Broadcast '{task_id}' finished in {total_elapsed:.2f}s "
         f"with total retry time {total_retry_time:.2f}s"

@@ -78,25 +78,32 @@ class AdLinkDaoImpl(AdLinkDao):
         return False
 
     async def get_stats(self, link_id: int) -> AdLinkStatsDto:
-        registrations = await self.session.scalar(
-            select(func.count(User.id)).where(User.ad_link_id == link_id)
-        ) or 0
+        registrations = (
+            await self.session.scalar(select(func.count(User.id)).where(User.ad_link_id == link_id))
+            or 0
+        )
 
-        conversions = await self.session.scalar(
-            select(func.count(distinct(User.id)))
-            .join(Transaction, Transaction.user_id == User.id)
-            .where(
-                User.ad_link_id == link_id,
-                Transaction.status == TransactionStatus.COMPLETED,
+        conversions = (
+            await self.session.scalar(
+                select(func.count(distinct(User.id)))
+                .join(Transaction, Transaction.user_id == User.id)
+                .where(
+                    User.ad_link_id == link_id,
+                    Transaction.status == TransactionStatus.COMPLETED,
+                )
             )
-        ) or 0
+            or 0
+        )
 
-        trials = await self.session.scalar(
-            select(func.count(User.id)).where(
-                User.ad_link_id == link_id,
-                User.is_trial_available.is_(False),
+        trials = (
+            await self.session.scalar(
+                select(func.count(User.id)).where(
+                    User.ad_link_id == link_id,
+                    User.is_trial_available.is_(False),
+                )
             )
-        ) or 0
+            or 0
+        )
 
         amounts_stmt = (
             select(

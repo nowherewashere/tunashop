@@ -12,7 +12,6 @@ from aiogram_dialog.widgets.kbd import Button, Select
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 from loguru import logger
-from remnapy import RemnawaveSDK
 from remnapy.enums.users import TrafficLimitStrategy
 
 from src.application.common import Notifier
@@ -52,6 +51,7 @@ from src.application.use_cases.plan.commands.order import (
     MovePlanUp,
 )
 from src.application.use_cases.plan.exchange import ExportPlans, ParsePlansImport
+from src.application.use_cases.plan.queries.squads import CheckSquadsAvailable
 from src.core.constants import USER_KEY
 from src.core.enums import Currency, MediaType, PlanAvailability, PlanType
 from src.core.exceptions import (
@@ -134,7 +134,7 @@ async def on_export_plan_select(
 @inject
 async def on_export(
     callback: CallbackQuery,
-    widget: Select,
+    widget: Button,
     dialog_manager: DialogManager,
     notifier: FromDishka[Notifier],
     export_plans: FromDishka[ExportPlans],
@@ -252,6 +252,8 @@ async def on_name_input(
         dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(updated_plan)
         await dialog_manager.switch_to(state=RemnashopPlans.CONFIGURATOR)
 
+    except PlanNameAlreadyExistsError:
+        await notifier.notify_user(user, i18n_key="ntf-plan.name-already-exists")
     except ValueError:
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
 
@@ -359,7 +361,7 @@ async def on_trial_toggle(
     plan.is_trial = not plan.is_trial
 
     dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(plan)
-    logger.info(f"{user.log} Removed tag for plan ID '{plan.id}'")
+    logger.info(f"{user.log} Toggled trial status for plan ID '{plan.id}'")
 
 
 @inject
@@ -702,13 +704,12 @@ async def on_squads(
     callback: CallbackQuery,
     widget: Button,
     dialog_manager: DialogManager,
-    remnawave_sdk: FromDishka[RemnawaveSDK],
     notifier: FromDishka[Notifier],
+    check_squads: FromDishka[CheckSquadsAvailable],
 ) -> None:
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
-    result = await remnawave_sdk.internal_squads.get_internal_squads()
 
-    if not result.internal_squads:
+    if not await check_squads(user):
         logger.warning(f"{user.log} Cancelled transition: squads list is empty")
         await notifier.notify_user(user, i18n_key="ntf-common.squads-empty")
         return

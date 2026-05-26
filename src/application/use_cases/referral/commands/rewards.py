@@ -34,6 +34,7 @@ class GiveReferrerReward(Interactor[GiveReferrerRewardDto, None]):
 
     def __init__(
         self,
+        uow: UnitOfWork,
         user_dao: UserDao,
         subscription_dao: SubscriptionDao,
         referral_dao: ReferralDao,
@@ -41,6 +42,7 @@ class GiveReferrerReward(Interactor[GiveReferrerRewardDto, None]):
         change_user_points: ChangeUserPoints,
         add_subscription_duration: AddSubscriptionDuration,
     ) -> None:
+        self.uow = uow
         self.user_dao = user_dao
         self.subscription_dao = subscription_dao
         self.referral_dao = referral_dao
@@ -113,7 +115,9 @@ class GiveReferrerReward(Interactor[GiveReferrerRewardDto, None]):
 
         await self.event_publisher.publish(event_reward)
 
-        await self.referral_dao.mark_reward_as_issued(reward.id)
+        async with self.uow:
+            await self.referral_dao.mark_reward_as_issued(reward.id)
+            await self.uow.commit()
         logger.info(f"{actor.log} Finished applying reward to user '{user.remna_name}'")
 
 
@@ -167,9 +171,11 @@ class AssignReferralRewards(Interactor[AssignReferralRewardsDto, None]):
 
         reward_type = settings.referral.reward.type
         reward_chain = {ReferralLevel.FIRST: referral.referrer}
+        referral_ids = {ReferralLevel.FIRST: referral.id}
 
         if parent:
             reward_chain[ReferralLevel.SECOND] = parent.referrer
+            referral_ids[ReferralLevel.SECOND] = parent.id
 
         for level, referrer in reward_chain.items():
             if level > settings.referral.level:
@@ -202,20 +208,17 @@ class AssignReferralRewards(Interactor[AssignReferralRewardsDto, None]):
                         amount=reward_amount,
                         is_issued=False,
                     ),
-                    referral_id=referral.id,
+                    referral_id=referral_ids[level],
                 )
-
                 await self.uow.commit()
 
-                await self.give_referrer_reward.system(
-                    GiveReferrerRewardDto(
-                        user_id=referrer.id,
-                        reward=reward,
-                        referred_name=data.user.name,
-                    )
+            await self.give_referrer_reward.system(
+                GiveReferrerRewardDto(
+                    user_id=referrer.id,
+                    reward=reward,
+                    referred_name=data.user.name,
                 )
-
-                await self.uow.commit()
+            )
 
             logger.info(
                 f"Issued '{reward_type}' reward '{reward_amount}' for referrer "

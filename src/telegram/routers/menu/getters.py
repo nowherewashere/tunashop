@@ -202,8 +202,8 @@ async def invite_getter(
     **kwargs: Any,
 ) -> dict[str, Any]:
     settings = await settings_dao.get()
-    referrals = await referral_dao.get_referrals_count(user.telegram_id)
-    payments = await referral_dao.get_referrals_with_payment_count(user.telegram_id)
+    referrals = await referral_dao.get_referrals_count(user.id)
+    payments = await referral_dao.get_referrals_with_payment_count(user.id)
     referral_url = await bot_service.get_referral_url(user.referral_code)
     support_url = bot_service.get_support_url(text=i18n.get("message.withdraw-points"))
 

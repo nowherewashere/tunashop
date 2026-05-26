@@ -149,7 +149,7 @@ class ReferralRewardReceivedEvent(ReferralRewardEvent):
 @dataclass(frozen=True, kw_only=True)
 class ReferralRewardFailedEvent(ReferralRewardEvent):
     notification_type: NotificationType = field(
-        default=UserNotificationType.REFERRAL_REWARD_RECEIVED,
+        default=UserNotificationType.REFERRAL_REWARD_FAILED,
         init=True,
     )
 

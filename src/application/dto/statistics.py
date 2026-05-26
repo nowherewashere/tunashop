@@ -26,7 +26,7 @@ class UserStatisticsDto:
     reward_days: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class ReferralStatisticsDto:
     total_referrals: int
     level_1_count: int

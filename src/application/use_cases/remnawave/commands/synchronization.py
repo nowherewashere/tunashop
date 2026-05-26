@@ -185,8 +185,9 @@ class SyncAllUsersFromBot(Interactor[None, dict[str, int]]):
                     )
                     if updated_user.subscription_url != subscription.url:
                         subscription.url = updated_user.subscription_url
-                        await self.subscription_dao.update(subscription)
-                        await self.uow.commit()
+                        async with self.uow:
+                            await self.subscription_dao.update(subscription)
+                            await self.uow.commit()
                     updated += 1
                 else:
                     created_user = await self.remnawave.create_user(

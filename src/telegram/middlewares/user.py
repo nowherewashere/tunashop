@@ -30,7 +30,7 @@ def _parse_referral_code(event: TelegramObject) -> Optional[str]:
 
     code = parts[1]
     if code.startswith(Deeplink.REFERRAL.with_underscore):
-        raw = code[len(Deeplink.REFERRAL.with_underscore):]
+        raw = code[len(Deeplink.REFERRAL.with_underscore) :]
         logger.debug(f"Parsed referral code '{raw}' from deeplink")
         return raw
 
@@ -47,7 +47,7 @@ def _parse_ad_link_code(event: TelegramObject) -> Optional[str]:
 
     code = parts[1]
     if code.startswith(Deeplink.ADVERTISING.with_underscore):
-        raw = code[len(Deeplink.ADVERTISING.with_underscore):]
+        raw = code[len(Deeplink.ADVERTISING.with_underscore) :]
         logger.debug(f"Parsed ad link code '{raw}' from deeplink in user middleware")
         return raw
 

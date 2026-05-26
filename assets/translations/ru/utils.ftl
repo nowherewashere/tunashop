@@ -101,12 +101,6 @@ frg-user-details =
     }
     </blockquote>
 
-frg-user-discounts-details =
-    <blockquote>
-    • <b>Персональная</b>: { $personal_discount }%
-    • <b>На следующую покупку</b>: { $purchase_discount }%
-    </blockquote>
-
 frg-subscription =
     <blockquote>
     • <b>Лимит трафика</b>: { $traffic_limit }
@@ -328,6 +322,7 @@ gateway-type = { $gateway_type ->
     [ROBOKASSA] RoboKassa
     [URLPAY] UrlPay
     [WATA] WATA
+    [VALUTIX] Valutix
     *[OTHER] { $gateway_type }
 }
 
@@ -427,6 +422,7 @@ notification-type = { $notification_type ->
     [LIMITED] Трафик исчерпан
     [REFERRAL_ATTACHED] Реферал закреплен
     [REFERRAL_REWARD_RECEIVED] Вознаграждение за реферала
+    [REFERRAL_REWARD_FAILED] Ошибка начисления вознаграждения
     [BOT_LIFECYCLE] Жизненный цикл бота
     [BOT_UPDATE] Обновления бота
     [USER_REGISTERED] Регистрация пользователя

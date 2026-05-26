@@ -255,6 +255,7 @@ class UserNotificationType(UpperStrEnum):
     #
     REFERRAL_ATTACHED = auto()
     REFERRAL_REWARD_RECEIVED = auto()
+    REFERRAL_REWARD_FAILED = auto()
 
 
 class AccessMode(UpperStrEnum):

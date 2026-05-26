@@ -120,6 +120,22 @@ class RemnawaveImpl(Remnawave):
 
         return remna_user
 
+    async def enable_user(self, uuid: UUID) -> None:
+        try:
+            await self.sdk.users.enable_user(uuid)
+            logger.info(f"RemnaUser '{uuid}' enabled successfully")
+        except NotFoundError:
+            logger.debug(f"RemnaUser '{uuid}' not found in panel")
+            raise
+
+    async def disable_user(self, uuid: UUID) -> None:
+        try:
+            await self.sdk.users.disable_user(uuid)
+            logger.info(f"RemnaUser '{uuid}' disabled successfully")
+        except NotFoundError:
+            logger.debug(f"RemnaUser '{uuid}' not found in panel")
+            raise
+
     async def delete_user(self, uuid: UUID) -> bool:
         try:
             response = await self.sdk.users.delete_user(uuid)
@@ -215,6 +231,10 @@ class RemnawaveImpl(Remnawave):
             logger.info(f"Subscription for RemnaUser '{uuid}' revoked successfully")
         except NotFoundError:
             logger.debug(f"RemnaUser '{uuid}' not found in panel")
+
+    async def get_squads_available(self) -> bool:
+        result = await self.sdk.internal_squads.get_internal_squads()
+        return bool(result.internal_squads)
 
     def apply_sync(self, target: T, source: Union[SubscriptionDto, RemnaSubscriptionDto]) -> T:
         if not is_dataclass(target) or not is_dataclass(source):

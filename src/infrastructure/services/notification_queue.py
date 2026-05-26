@@ -1,6 +1,6 @@
 import asyncio
 from collections import deque
-from typing import TYPE_CHECKING, Callable, Deque, Optional
+from typing import Callable, Deque, Optional
 
 from dishka import AsyncContainer
 from loguru import logger
@@ -8,9 +8,6 @@ from loguru import logger
 from src.application.dto import NotificationTaskDto
 from src.core.constants import BATCH_DELAY, BATCH_SIZE_10
 from src.core.utils.iterables import chunked
-
-if TYPE_CHECKING:
-    from src.infrastructure.services.notification import NotificationService
 
 
 class NotificationQueue:

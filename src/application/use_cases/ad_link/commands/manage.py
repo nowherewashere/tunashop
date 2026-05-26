@@ -36,9 +36,7 @@ class CreateAdLink(Interactor[CreateAdLinkDto, AdLinkDto]):
                 raise ValueError(f"Ad link with code '{data.code}' already exists")
             code = data.code
         else:
-            code = await self.cryptographer.generate_unique_code(
-                self.ad_link_dao.get_by_code
-            )
+            code = await self.cryptographer.generate_unique_code(self.ad_link_dao.get_by_code)
 
         link = AdLinkDto(name=data.name, code=code, is_active=True)
 

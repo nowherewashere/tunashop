@@ -49,7 +49,7 @@ class PlanDuration(BaseSql):
     __tablename__ = "plan_durations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id", ondelete="CASCADE"))
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id", ondelete="CASCADE"), index=True)
 
     days: Mapped[int]
     order_index: Mapped[int] = mapped_column(index=True)
@@ -68,10 +68,8 @@ class PlanPrice(BaseSql):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     plan_duration_id: Mapped[int] = mapped_column(
-        ForeignKey(
-            "plan_durations.id",
-            ondelete="CASCADE",
-        )
+        ForeignKey("plan_durations.id", ondelete="CASCADE"),
+        index=True,
     )
 
     currency: Mapped[Currency]

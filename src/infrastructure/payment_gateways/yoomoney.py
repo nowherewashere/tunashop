@@ -77,7 +77,7 @@ class YoomoneyGateway(BasePaymentGateway):
             raise ValueError("Test webhook cannot be processed")
 
         if not self._verify_webhook(webhook_data):
-            raise ValueError("YooMoney verification failed")
+            raise PermissionError("YooMoney webhook verification failed")
 
         payment_id_str = webhook_data.get("label")
 

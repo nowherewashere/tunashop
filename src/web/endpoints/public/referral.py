@@ -34,6 +34,12 @@ async def get_referral_program(
 
     settings = await settings_dao.get()
 
+    if not settings.referral.enable:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Referral program is disabled",
+        )
+
     invited_count = await referral_dao.get_referrals_count(user.id)
     invited_with_payment_count = await referral_dao.get_referrals_with_payment_count(user.id)
 

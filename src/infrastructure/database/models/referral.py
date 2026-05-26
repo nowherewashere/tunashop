@@ -45,7 +45,10 @@ class ReferralReward(BaseSql, TimestampMixin):
     __tablename__ = "referral_rewards"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    referral_id: Mapped[int] = mapped_column(ForeignKey("referrals.id"))
+    referral_id: Mapped[int] = mapped_column(
+        ForeignKey("referrals.id", ondelete="CASCADE"),
+        index=True,
+    )
     user_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),

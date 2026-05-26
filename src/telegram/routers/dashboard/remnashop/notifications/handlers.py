@@ -74,7 +74,7 @@ async def on_route_clear(
             thread_id=None,
         ),
     )
-    await dialog_manager.switch_to(RemnashopNotifications.SYSTEM_ROUTE)  #
+    await dialog_manager.switch_to(RemnashopNotifications.SYSTEM_ROUTE)
 
 
 @inject

@@ -37,6 +37,8 @@ async def on_button_selected(
 ) -> None:
     buttons = dialog_manager.dialog_data["buttons"]
     selected_button = next((b for b in buttons if b["index"] == selected_button_id), None)
+    if selected_button is None:
+        return
     dialog_manager.dialog_data["button"] = selected_button
     await dialog_manager.switch_to(RemnashopMenuEditor.BUTTON)
 
@@ -250,9 +252,12 @@ async def on_color_select(
     button = dialog_manager.dialog_data["button"]
     button = retort.load(button, MenuButtonDto)
 
+    if widget.widget_id not in _COLOR_MAP:
+        return
+
     try:
         button = await update_menu_button_color(
-            user, UpdateMenuButtonColorDto(button, _COLOR_MAP[widget.widget_id or ""])
+            user, UpdateMenuButtonColorDto(button, _COLOR_MAP[widget.widget_id])
         )
     except ValueError:
         return

@@ -1,5 +1,7 @@
 from typing import Optional
 
+from taskiq.exceptions import TaskiqResultTimeoutError
+
 from src.application.dto import BroadcastDto
 from src.infrastructure.taskiq.tasks.notifications import notify_payments_restored
 
@@ -23,6 +25,11 @@ class BroadcastDispatcherImpl:
         from src.infrastructure.taskiq.tasks.broadcast import delete_broadcast_task  # noqa: PLC0415
 
         task = await delete_broadcast_task.kiq(broadcast)  # type: ignore[call-overload]
-        result = await task.wait_result()
+        try:
+            result = await task.wait_result(timeout=600)
+        except TaskiqResultTimeoutError:
+            raise ValueError("Delete broadcast task timed out after 600 seconds")
+        if result.is_err:
+            raise ValueError("Delete broadcast task failed")
         counts = result.return_value
         return counts[0], counts[1], counts[2]

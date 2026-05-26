@@ -93,8 +93,7 @@ class ActivateTrialSubscription(Interactor[ActivateTrialSubscriptionDto, None]):
         )
         await self.event_publisher.publish(event)
         logger.info(
-            f"{actor.log} Trial subscription completed "
-            f"successfully for user '{user.remna_name}'"
+            f"{actor.log} Trial subscription completed successfully for user '{user.remna_name}'"
         )
 
 
@@ -152,9 +151,7 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
                     await self.user_dao.update(user)
                 await self.uow.commit()
 
-                logger.debug(
-                    f"{actor.log} Created new subscription for user '{user.remna_name}'"
-                )
+                logger.debug(f"{actor.log} Created new subscription for user '{user.remna_name}'")
 
             # 2. RENEW (NOT TRIAL)
             elif purchase_type == PurchaseType.RENEW and not has_trial:
@@ -230,9 +227,7 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
                     f"Unknown purchase type '{purchase_type}' for user '{user.remna_name}'"
                 )
 
-        logger.info(
-            f"{actor.log} Purchase subscription completed for user '{user.remna_name}'"
-        )
+        logger.info(f"{actor.log} Purchase subscription completed for user '{user.remna_name}'")
 
     def _build_subscription_dto(
         self,

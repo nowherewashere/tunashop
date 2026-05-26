@@ -55,7 +55,7 @@ class StartBroadcast(Interactor[StartBroadcastDto, UUID]):
             await self.broadcast_dao.create(broadcast)
             await self.uow.commit()
 
-            await self.broadcast_dispatcher.start(broadcast, data.plan_id)
+        await self.broadcast_dispatcher.start(broadcast, data.plan_id)
 
         logger.info(f"{actor.log} Scheduled broadcast initialization '{task_id}'")
         return task_id

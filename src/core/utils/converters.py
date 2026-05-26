@@ -51,7 +51,7 @@ def user_name_clean(name: Optional[str], telegram_id: int) -> str:
         return f"{telegram_id}"
 
     if len(cleaned) > 32:
-        cleaned = f"{cleaned[:31]}"
+        cleaned = cleaned[:32]
 
     return cleaned
 

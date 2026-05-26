@@ -17,6 +17,7 @@ class ThrottlingMiddleware(EventTypedMiddleware):
     __event_types__ = [MiddlewareEventType.MESSAGE, MiddlewareEventType.CALLBACK_QUERY]
 
     def __init__(self, ttl: float = 0.5) -> None:
+        super().__init__()
         self.cache: TTLCache[int, Any] = TTLCache(maxsize=10_000, ttl=ttl)
 
     async def middleware_logic(

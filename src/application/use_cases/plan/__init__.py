@@ -17,6 +17,7 @@ from .commands.edit import (
 from .commands.order import DeletePlan, MoveDurationUp, MovePlanUp
 from .exchange import ExportPlans, ParsePlansImport
 from .queries.match import MatchPlan
+from .queries.squads import CheckSquadsAvailable
 
 PLAN_USE_CASES: Final[tuple[type[Interactor], ...]] = (
     AddAllowedUserToPlan,
@@ -37,4 +38,5 @@ PLAN_USE_CASES: Final[tuple[type[Interactor], ...]] = (
     MatchPlan,
     ToggleUserPlanAccess,
     MoveDurationUp,
+    CheckSquadsAvailable,
 )

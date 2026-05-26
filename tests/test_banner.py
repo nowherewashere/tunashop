@@ -1,7 +1,9 @@
-import pytest
 from pathlib import Path
-from src.telegram.widgets.banner import get_banner
+
+import pytest
+
 from src.core.enums import BannerName, Locale
+from src.telegram.widgets.banner import get_banner
 
 
 def make_banner(directory: Path, name: str, fmt: str = "jpg") -> Path:

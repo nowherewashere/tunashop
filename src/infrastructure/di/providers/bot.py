@@ -42,6 +42,3 @@ class BotProvider(Provider):
             session=session,
         ) as bot:
             yield bot
-
-        logger.debug("Closing Bot session")
-        await bot.session.close()

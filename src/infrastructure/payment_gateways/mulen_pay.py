@@ -77,6 +77,7 @@ class MulenPayGateway(BasePaymentGateway):
 
         webhook_data = await self._get_webhook_data(request)
 
+        # MulenPay does not provide webhook signature verification
         # if not self._verify_webhook(webhook_data):
         #     raise PermissionError("Webhook verification failed")
 
@@ -146,7 +147,7 @@ class MulenPayGateway(BasePaymentGateway):
 
         shop_id = self.data.settings.shop_id  # type: ignore[union-attr]
         raw_amount = data.get("amount", "")
-        currency = data.get("currency", "rub")
+        currency = data.get("currency", "rub").lower()
 
         try:
             amount = f"{Decimal(str(raw_amount)):.2f}"

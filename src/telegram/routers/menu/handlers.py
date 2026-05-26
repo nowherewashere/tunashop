@@ -102,7 +102,6 @@ async def on_get_trial(
         await redirect.to_success_trial(user.telegram_id)
 
 
-@inject
 async def on_device_delete_request(
     callback: CallbackQuery,
     widget: Button,

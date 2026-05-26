@@ -46,10 +46,7 @@ class UserOAuthProviderDaoImpl(UserOAuthProviderDao):
         self.session.add(db_record)
         await self.session.flush()
 
-        logger.debug(
-            f"Created OAuth provider '{dto.provider}' "
-            f"for user_id '{dto.user_id}'"
-        )
+        logger.debug(f"Created OAuth provider '{dto.provider}' for user_id '{dto.user_id}'")
         return self._convert_to_dto(db_record)
 
     async def get_by_provider(
@@ -99,12 +96,8 @@ class UserOAuthProviderDaoImpl(UserOAuthProviderDao):
         deleted_id = result.scalar_one_or_none()
 
         if deleted_id:
-            logger.debug(
-                f"Deleted OAuth provider '{provider}' for user_id '{user_id}'"
-            )
+            logger.debug(f"Deleted OAuth provider '{provider}' for user_id '{user_id}'")
             return True
 
-        logger.debug(
-            f"OAuth provider '{provider}' not found for user_id '{user_id}'"
-        )
+        logger.debug(f"OAuth provider '{provider}' not found for user_id '{user_id}'")
         return False

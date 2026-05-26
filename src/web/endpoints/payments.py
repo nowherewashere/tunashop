@@ -9,6 +9,7 @@ from src.application.use_cases.gateways.queries.providers import GetPaymentGatew
 from src.core.config import AppConfig
 from src.core.constants import API_V1, PAYMENTS_WEBHOOK_PATH
 from src.core.enums import PaymentGatewayType
+from src.core.exceptions import GatewayNotConfiguredError
 from src.infrastructure.taskiq.tasks.payments import handle_payment_transaction_task
 
 router = APIRouter(prefix=API_V1 + PAYMENTS_WEBHOOK_PATH, include_in_schema=False)
@@ -32,20 +33,17 @@ async def payments_webhook(
     gateway = None
     try:
         gateway = await get_payment_gateway_instance.system(gateway_enum)
-
-        if not gateway.data.is_active:
-            logger.warning(f"Webhook received for disabled payment gateway '{gateway_enum}'")
-            return Response(status_code=status.HTTP_404_NOT_FOUND)
-
-        if not gateway.data.settings.is_configured:  # type: ignore[union-attr]
-            logger.warning(f"Webhook received for unconfigured payment gateway '{gateway_enum}'")
-            return Response(status_code=status.HTTP_404_NOT_FOUND)
-
         result = await gateway.handle_webhook(request)
         if result is not None:
             payment_id, payment_status = result
             await handle_payment_transaction_task.kiq(payment_id, payment_status)  # type: ignore[call-overload]
 
+    except GatewayNotConfiguredError:
+        logger.warning(f"Webhook received for inactive/unconfigured gateway '{gateway_enum}'")
+        return Response(status_code=status.HTTP_404_NOT_FOUND)
+    except PermissionError:
+        logger.warning(f"Webhook signature verification failed for '{gateway_enum}'")
+        return Response(status_code=status.HTTP_403_FORBIDDEN)
     except Exception as e:
         logger.exception(f"Error processing webhook for '{gateway_type}': {e}")
         error_event = ErrorEvent(**config.build.data, exception=e)

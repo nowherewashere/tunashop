@@ -78,7 +78,9 @@ class GetBroadcastAudienceUsers(Interactor[GetBroadcastAudienceUsersDto, list[Us
         audience = data.audience
         plan_id = data.plan_id
 
-        if audience == BroadcastAudience.PLAN and plan_id:
+        if audience == BroadcastAudience.PLAN:
+            if plan_id is None:
+                raise ValueError("plan_id is required for PLAN audience")
             users = await self.user_dao.get_active_by_plan(plan_id)
         elif audience == BroadcastAudience.ALL:
             users = await self.user_dao.get_active_non_blocked()

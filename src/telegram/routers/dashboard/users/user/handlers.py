@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional
 from uuid import UUID
 
 from adaptix import Retort
@@ -73,7 +73,7 @@ from src.telegram.utils import is_double_click
 
 
 async def start_user_window(
-    manager: Union[DialogManager, DialogManager],
+    manager: DialogManager,
     target_user_id: int,
     from_referral_user_id: Optional[int] = None,
 ) -> None:

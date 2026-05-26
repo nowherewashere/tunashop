@@ -1,10 +1,9 @@
-from asyncio import Protocol
 from types import TracebackType
-from typing import Optional, Self, Type
+from typing import Optional, Protocol, Self, Type
 
 
 class UnitOfWork(Protocol):
-    async def __aenter__(self) -> Self: ...  # type: ignore[empty-body]
+    async def __aenter__(self) -> Self: ...
 
     async def __aexit__(
         self,

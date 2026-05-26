@@ -50,10 +50,10 @@ class AutoBackupDatabase(Interactor[None, None]):
             dump_file = tmp_dir / f"db_backup_{timestamp}.sql"
             await self.create_database_dump.system(dump_file)
 
-            self._rotate(existing, backup_cfg.max_files)
-
             final_path = BACKUP_DIR / dump_file.name
             shutil.copy2(dump_file, final_path)
+
+            self._rotate(existing, backup_cfg.max_files)
             logger.info(f"Auto backup created: {final_path.name}")
 
             if backup_cfg.send_to_chat:

@@ -3,7 +3,6 @@ from datetime import timedelta
 from uuid import UUID
 
 from loguru import logger
-from remnapy import RemnawaveSDK
 
 from src.application.common import Interactor, Remnawave
 from src.application.common.dao import SubscriptionDao, UserDao
@@ -22,12 +21,12 @@ class ToggleSubscriptionStatus(Interactor[int, SubscriptionStatus]):
         uow: UnitOfWork,
         user_dao: UserDao,
         subscription_dao: SubscriptionDao,
-        remnawave_sdk: RemnawaveSDK,
+        remnawave: Remnawave,
     ) -> None:
         self.uow = uow
         self.user_dao = user_dao
         self.subscription_dao = subscription_dao
-        self.remnawave_sdk = remnawave_sdk
+        self.remnawave = remnawave
 
     async def _execute(self, actor: UserDto, user_id: int) -> SubscriptionStatus:
         target_user = await self.user_dao.get_by_id(user_id)
@@ -44,9 +43,9 @@ class ToggleSubscriptionStatus(Interactor[int, SubscriptionStatus]):
         async with self.uow:
             try:
                 if is_now_active:
-                    await self.remnawave_sdk.users.enable_user(subscription.user_remna_id)
+                    await self.remnawave.enable_user(subscription.user_remna_id)
                 else:
-                    await self.remnawave_sdk.users.disable_user(subscription.user_remna_id)
+                    await self.remnawave.disable_user(subscription.user_remna_id)
             except Exception as e:
                 logger.error(f"External API error for user '{user_id}' while toggling status: {e}")
                 raise
@@ -68,12 +67,12 @@ class DeleteSubscription(Interactor[int, None]):
         uow: UnitOfWork,
         user_dao: UserDao,
         subscription_dao: SubscriptionDao,
-        remnawave_sdk: RemnawaveSDK,
+        remnawave: Remnawave,
     ) -> None:
         self.uow = uow
         self.user_dao = user_dao
         self.subscription_dao = subscription_dao
-        self.remnawave_sdk = remnawave_sdk
+        self.remnawave = remnawave
 
     async def _execute(self, actor: UserDto, user_id: int) -> None:
         target_user = await self.user_dao.get_by_id(user_id)
@@ -87,7 +86,7 @@ class DeleteSubscription(Interactor[int, None]):
 
         async with self.uow:
             try:
-                await self.remnawave_sdk.users.delete_user(subscription.user_remna_id)
+                await self.remnawave.delete_user(subscription.user_remna_id)
             except Exception as e:
                 logger.error(f"Failed to delete user '{target_user.remna_name}' from remnapy: {e}")
                 raise
