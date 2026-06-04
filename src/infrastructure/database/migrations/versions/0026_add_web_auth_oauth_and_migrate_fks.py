@@ -1,3 +1,4 @@
+import logging
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -8,8 +9,52 @@ down_revision: Union[str, None] = "0025"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+log = logging.getLogger("alembic.runtime.migration")
+
+# Rows whose user_telegram_id has no matching users.telegram_id cannot be
+# backfilled to the new user_id FK and would abort the NOT NULL step below.
+# Drop these orphans up front so the migration runs cleanly on legacy data.
+_ORPHAN_CLEANUPS: tuple[tuple[str, str], ...] = (
+    (
+        "transactions",
+        "DELETE FROM transactions t WHERE NOT EXISTS "
+        "(SELECT 1 FROM users u WHERE u.telegram_id = t.user_telegram_id)",
+    ),
+    (
+        "subscriptions",
+        "DELETE FROM subscriptions s WHERE NOT EXISTS "
+        "(SELECT 1 FROM users u WHERE u.telegram_id = s.user_telegram_id)",
+    ),
+    (
+        "referrals",
+        "DELETE FROM referrals r WHERE "
+        "NOT EXISTS (SELECT 1 FROM users u WHERE u.telegram_id = r.referrer_telegram_id) "
+        "OR NOT EXISTS (SELECT 1 FROM users u WHERE u.telegram_id = r.referred_telegram_id)",
+    ),
+    (
+        "referral_rewards",
+        "DELETE FROM referral_rewards rr WHERE NOT EXISTS "
+        "(SELECT 1 FROM users u WHERE u.telegram_id = rr.user_telegram_id)",
+    ),
+    (
+        "broadcast_messages",
+        "DELETE FROM broadcast_messages bm WHERE NOT EXISTS "
+        "(SELECT 1 FROM users u WHERE u.telegram_id = bm.user_telegram_id)",
+    ),
+)
+
+
+def _cleanup_orphans() -> None:
+    bind = op.get_bind()
+    for table, stmt in _ORPHAN_CLEANUPS:
+        result = bind.execute(sa.text(stmt))
+        if result.rowcount:
+            log.warning("0026: deleted %s orphan row(s) from %s", result.rowcount, table)
+
 
 def upgrade() -> None:
+    _cleanup_orphans()
+
     # users: web auth fields
     op.add_column("users", sa.Column("email", sa.String(length=255), nullable=True))
     op.add_column("users", sa.Column("password_hash", sa.String(length=512), nullable=True))
