@@ -17,6 +17,7 @@ from src.core.constants import GOTO_PREFIX, PAYMENT_PREFIX, TARGET_USER_ID
 from src.core.enums import Deeplink
 from src.core.exceptions import (
     PromocodeAlreadyActivatedError,
+    PromocodeExpiredError,
     PromocodeNotAvailableError,
     PromocodeNotFoundError,
 )
@@ -161,6 +162,9 @@ async def on_goto_promocode(
         await validate_promocode(user, ValidatePromocodeDto(code=code, user=user))
     except PromocodeAlreadyActivatedError:
         await notifier.notify_user(user=user, i18n_key="ntf-promocode.already-activated")
+        return
+    except PromocodeExpiredError:
+        await notifier.notify_user(user=user, i18n_key="ntf-promocode.expired")
         return
     except (PromocodeNotFoundError, PromocodeNotAvailableError):
         await notifier.notify_user(user=user, i18n_key="ntf-promocode.not-found")

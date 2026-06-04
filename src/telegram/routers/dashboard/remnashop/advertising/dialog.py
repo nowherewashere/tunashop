@@ -15,7 +15,9 @@ from .getters import code_getter, configurator_getter, links_getter, name_getter
 from .handlers import (
     on_active_toggle,
     on_code_input,
+    on_code_regenerate,
     on_link_confirm,
+    on_link_create,
     on_link_delete,
     on_link_select,
     on_name_input,
@@ -25,10 +27,10 @@ links = Window(
     Banner(BannerName.DASHBOARD),
     I18nFormat("msg-ad-links-main"),
     Row(
-        SwitchTo(
-            I18nFormat("btn-ad-links.create"),
+        Button(
+            text=I18nFormat("btn-ad-links.create"),
             id="create",
-            state=RemnashopAdvertising.CONFIGURATOR,
+            on_click=on_link_create,
         ),
     ),
     ListGroup(
@@ -100,7 +102,7 @@ configurator = Window(
     ),
     Row(
         Button(
-            text=I18nFormat("btn-ad-links.create"),
+            text=I18nFormat("btn-ad-links.create-confirm"),
             id="create_confirm",
             on_click=on_link_confirm,
             style=Style(ButtonStyle.SUCCESS),
@@ -123,10 +125,11 @@ configurator = Window(
         when=F["is_edit"],
     ),
     Row(
-        SwitchTo(
+        Start(
             text=I18nFormat("btn-back.general"),
             id="back",
             state=RemnashopAdvertising.MAIN,
+            mode=StartMode.RESET_STACK,
         ),
     ),
     IgnoreUpdate(),
@@ -153,6 +156,13 @@ name = Window(
 code = Window(
     Banner(BannerName.DASHBOARD),
     I18nFormat("msg-ad-link-code"),
+    Row(
+        Button(
+            text=I18nFormat("btn-ad-links.regenerate"),
+            id="regenerate",
+            on_click=on_code_regenerate,
+        ),
+    ),
     Row(
         SwitchTo(
             text=I18nFormat("btn-back.general"),

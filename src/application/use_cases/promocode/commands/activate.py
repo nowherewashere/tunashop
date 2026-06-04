@@ -18,6 +18,7 @@ from src.application.use_cases.promocode.queries.validate import (
     ValidatePromocodeDto,
 )
 from src.core.enums import PromocodeRewardType, SubscriptionStatus
+from src.core.utils.converters import days_to_datetime
 from src.core.utils.time import datetime_now
 
 
@@ -29,12 +30,6 @@ class ActivatePromocodeDto:
 
 @dataclass(frozen=True)
 class _PendingReward:
-    """In-memory DB writes to apply after the Remnawave call succeeds.
-
-    All fields are optional; an instance with every field ``None`` represents
-    a no-op (no subscription / no reward) and persists nothing.
-    """
-
     subscription_update: Optional[SubscriptionDto] = None
     subscription_create: Optional[SubscriptionDto] = None
     user_update: Optional[UserDto] = None
@@ -99,6 +94,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
             promocode_code=promo.code,
             reward_type=promo.reward_type.value,
             reward=promo.reward,
+            plan_name=str(promo.plan_snapshot.get("name", "")) if promo.plan_snapshot else "",
         )
         await self.event_publisher.publish(event)
 
@@ -111,10 +107,6 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
         promo: PromocodeDto,
         subscription: Optional[SubscriptionDto],
     ) -> _PendingReward:
-        """Perform the Remnawave call and in-memory mutation (NO uow).
-
-        Returns the pending DB write to apply inside the transaction.
-        """
         match promo.reward_type:
             case PromocodeRewardType.DURATION:
                 return await self._apply_duration(actor, user, promo, subscription)
@@ -130,7 +122,6 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
                 return self._apply_purchase_discount(actor, user, promo)
 
     async def _persist_reward(self, user: UserDto, pending: _PendingReward) -> None:
-        """Apply the pending DB writes inside the active transaction."""
         if pending.subscription_update is not None:
             await self.subscription_dao.update(pending.subscription_update)
         if pending.subscription_create is not None:
@@ -157,15 +148,21 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
         promo: PromocodeDto,
         subscription: Optional[SubscriptionDto],
     ) -> _PendingReward:
-        if not subscription or not promo.reward:
+        if not subscription or promo.reward is None:
             return _PendingReward()
-        subscription.expire_at = subscription.expire_at + timedelta(days=promo.reward)
+        if promo.reward == 0:
+            # 0 days means a permanent (unlimited) subscription.
+            subscription.expire_at = days_to_datetime(0)
+            log_detail = "unlimited"
+        else:
+            subscription.expire_at = subscription.expire_at + timedelta(days=promo.reward)
+            log_detail = f"+{promo.reward} days"
         await self.remnawave.update_user(
             user=user,
             uuid=subscription.user_remna_id,
             subscription=subscription,
         )
-        logger.info(f"{actor.log} DURATION reward: +{promo.reward} days applied")
+        logger.info(f"{actor.log} DURATION reward: {log_detail} applied")
         return _PendingReward(subscription_update=subscription)
 
     async def _apply_traffic(
@@ -193,15 +190,21 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
         promo: PromocodeDto,
         subscription: Optional[SubscriptionDto],
     ) -> _PendingReward:
-        if not subscription or not promo.reward:
+        if not subscription or promo.reward is None:
             return _PendingReward()
-        subscription.device_limit = subscription.device_limit + promo.reward
+        if promo.reward == 0:
+            # 0 devices means an unlimited device limit.
+            subscription.device_limit = 0
+            log_detail = "unlimited"
+        else:
+            subscription.device_limit = subscription.device_limit + promo.reward
+            log_detail = f"+{promo.reward} devices"
         await self.remnawave.update_user(
             user=user,
             uuid=subscription.user_remna_id,
             subscription=subscription,
         )
-        logger.info(f"{actor.log} DEVICES reward: +{promo.reward} devices applied")
+        logger.info(f"{actor.log} DEVICES reward: {log_detail} applied")
         return _PendingReward(subscription_update=subscription)
 
     async def _apply_subscription(

@@ -16,7 +16,7 @@ class PromocodeDto(BaseDto, TrackableMixin, TimestampMixin):
     plan_snapshot: Optional[dict[str, Any]] = None
     availability: PromocodeAvailability = PromocodeAvailability.ALL
     allowed_telegram_ids: list[int] = field(default_factory=list)
-    lifetime: Optional[int] = None
+    expires_at: Optional[datetime] = None
     max_activations: Optional[int] = None
 
 

@@ -1,6 +1,6 @@
 from adaptix import Retort
 from aiogram.types import CallbackQuery, Message
-from aiogram_dialog import DialogManager, ShowMode
+from aiogram_dialog import DialogManager, ShowMode, StartMode
 from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Button
 from dishka import FromDishka
@@ -15,10 +15,26 @@ from src.application.use_cases.ad_link.commands.manage import (
     UpdateAdLink,
     UpdateAdLinkDto,
 )
+from src.application.use_cases.ad_link.queries.generate import GenerateAdLinkCode
 from src.application.use_cases.ad_link.queries.list import GetAdLinks
 from src.core.constants import USER_KEY
 from src.telegram.states import RemnashopAdvertising
 from src.telegram.utils import is_double_click
+
+
+@inject
+async def on_link_create(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    generate_code: FromDishka[GenerateAdLinkCode],
+) -> None:
+    user = dialog_manager.middleware_data[USER_KEY]
+    code = await generate_code(user)
+    link = AdLinkDto(name="", code=code)
+    dialog_manager.dialog_data[AdLinkDto.__name__] = retort.dump(link)
+    await dialog_manager.switch_to(RemnashopAdvertising.CONFIGURATOR)
 
 
 @inject
@@ -77,6 +93,21 @@ async def on_name_input(
 
 
 @inject
+async def on_code_regenerate(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    generate_code: FromDishka[GenerateAdLinkCode],
+) -> None:
+    user = dialog_manager.middleware_data[USER_KEY]
+    raw = dialog_manager.dialog_data.get(AdLinkDto.__name__)
+    link = retort.load(raw, AdLinkDto) if raw else AdLinkDto(name="", code="")
+    link.code = await generate_code(user)
+    dialog_manager.dialog_data[AdLinkDto.__name__] = retort.dump(link)
+
+
+@inject
 async def on_code_input(
     message: Message,
     widget: MessageInput,
@@ -87,21 +118,14 @@ async def on_code_input(
     dialog_manager.show_mode = ShowMode.EDIT
     user = dialog_manager.middleware_data[USER_KEY]
 
+    code = (message.text or "").strip()
+    if not code:
+        await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
+        return
+
     raw = dialog_manager.dialog_data.get(AdLinkDto.__name__)
     link = retort.load(raw, AdLinkDto) if raw else AdLinkDto(name="", code="")
-
-    if not message.text:
-        await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
-        return
-
-    if message.text.strip() == "-":
-        link.code = ""
-    elif message.text.strip():
-        link.code = message.text.strip()
-    else:
-        await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
-        return
-
+    link.code = code
     dialog_manager.dialog_data[AdLinkDto.__name__] = retort.dump(link)
     await dialog_manager.switch_to(RemnashopAdvertising.CONFIGURATOR)
 
@@ -116,9 +140,6 @@ async def on_link_confirm(
     create_ad_link: FromDishka[CreateAdLink],
     update_ad_link: FromDishka[UpdateAdLink],
 ) -> None:
-    if is_double_click(dialog_manager, key="ad_link_confirm"):
-        return
-
     user = dialog_manager.middleware_data[USER_KEY]
     raw = dialog_manager.dialog_data.get(AdLinkDto.__name__)
     if not raw:
@@ -129,19 +150,26 @@ async def on_link_confirm(
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
         return
 
+    if not is_double_click(dialog_manager, key=f"ad_link_confirm_{link.id}", cooldown=10):
+        await notifier.notify_user(user, i18n_key="ntf-common.double-click-confirm")
+        return
+
     try:
         if link.id:
             await update_ad_link(user, UpdateAdLinkDto(link=link))
+            i18n_key = "ntf-ad-link.updated"
         else:
             result = await create_ad_link(
                 user, CreateAdLinkDto(name=link.name, code=link.code or None)
             )
             dialog_manager.dialog_data[AdLinkDto.__name__] = retort.dump(result)
+            i18n_key = "ntf-ad-link.created"
     except ValueError:
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
         return
 
-    await dialog_manager.switch_to(RemnashopAdvertising.MAIN)
+    await notifier.notify_user(user, i18n_key=i18n_key)
+    await dialog_manager.start(state=RemnashopAdvertising.MAIN, mode=StartMode.RESET_STACK)
 
 
 @inject
@@ -150,17 +178,20 @@ async def on_link_delete(
     widget: Button,
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
+    notifier: FromDishka[Notifier],
     delete_ad_link: FromDishka[DeleteAdLink],
 ) -> None:
-    if is_double_click(dialog_manager, key="ad_link_delete"):
-        return
-
     user = dialog_manager.middleware_data[USER_KEY]
     raw = dialog_manager.dialog_data.get(AdLinkDto.__name__)
     if not raw:
         return
     link = retort.load(raw, AdLinkDto)
 
-    await delete_ad_link(user, link.id)
-    dialog_manager.dialog_data.pop(AdLinkDto.__name__, None)
-    await dialog_manager.switch_to(RemnashopAdvertising.MAIN)
+    if is_double_click(dialog_manager, key=f"ad_link_delete_{link.id}", cooldown=10):
+        await delete_ad_link(user, link.id)
+        dialog_manager.dialog_data.pop(AdLinkDto.__name__, None)
+        await notifier.notify_user(user, i18n_key="ntf-ad-link.deleted")
+        await dialog_manager.start(state=RemnashopAdvertising.MAIN, mode=StartMode.RESET_STACK)
+        return
+
+    await notifier.notify_user(user, i18n_key="ntf-common.double-click-confirm")

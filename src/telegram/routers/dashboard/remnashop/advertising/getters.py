@@ -25,7 +25,6 @@ async def links_getter(
             {"id": lnk.id, "name": lnk.name, "code": lnk.code, "is_active": int(lnk.is_active)}
             for lnk in links
         ],
-        "has_links": bool(links),
     }
 
 

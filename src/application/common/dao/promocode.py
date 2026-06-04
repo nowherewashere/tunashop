@@ -1,6 +1,10 @@
 from typing import Optional, Protocol, runtime_checkable
 
-from src.application.dto import PromocodeActivationDto, PromocodeDto
+from src.application.dto import (
+    PromocodeActivationDto,
+    PromocodeDto,
+    PromocodeStatisticsDto,
+)
 
 
 @runtime_checkable
@@ -20,6 +24,8 @@ class PromocodeDao(Protocol):
     async def get_count(self) -> int: ...
 
     async def get_activations_count(self, promocode_id: int) -> int: ...
+
+    async def get_statistics(self) -> PromocodeStatisticsDto: ...
 
     async def get_activation_by_user(
         self, promocode_id: int, user_id: int

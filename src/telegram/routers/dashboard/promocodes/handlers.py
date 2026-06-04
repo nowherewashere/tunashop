@@ -1,6 +1,9 @@
+from datetime import datetime, timedelta
+from typing import Optional
+
 from adaptix import Retort
 from aiogram.types import CallbackQuery, Message
-from aiogram_dialog import DialogManager, ShowMode
+from aiogram_dialog import DialogManager, ShowMode, StartMode
 from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Button
 from dishka import FromDishka
@@ -15,22 +18,24 @@ from src.application.use_cases.promocode.commands.manage import (
     DeletePromocode,
     UpdatePromocode,
 )
+from src.application.use_cases.promocode.queries.generate import GeneratePromocodeCode
 from src.application.use_cases.promocode.queries.get import GetPromocode
 from src.application.use_cases.user.queries.plans import GetAvailablePlans
-from src.core.constants import USER_KEY
+from src.core.constants import TIMEZONE, USER_KEY
 from src.core.enums import PromocodeAvailability, PromocodeRewardType
+from src.core.utils.time import datetime_now
 from src.telegram.states import DashboardPromocodes
 from src.telegram.utils import is_double_click
 
 PROMO_PLAN_ID_KEY = "promo_plan_id"
 
+_DISCOUNT_TYPES = {
+    PromocodeRewardType.PERSONAL_DISCOUNT,
+    PromocodeRewardType.PURCHASE_DISCOUNT,
+}
+
 
 def is_promo_complete(promo: PromocodeDto) -> bool:
-    """A draft promocode is ready to create/save when its reward is set.
-
-    SUBSCRIPTION rewards carry a ``plan_snapshot`` instead of a numeric ``reward``;
-    every other reward type requires a numeric ``reward``.
-    """
     if not promo.code:
         return False
     if promo.reward_type == PromocodeRewardType.SUBSCRIPTION:
@@ -75,8 +80,18 @@ async def on_create_promo(
     callback: CallbackQuery,
     widget: Button,
     dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    generate_code: FromDishka[GeneratePromocodeCode],
 ) -> None:
-    dialog_manager.dialog_data.pop(_PROMO_KEY, None)
+    user = dialog_manager.middleware_data[USER_KEY]
+    promo = PromocodeDto(
+        code=await generate_code(user),
+        is_active=True,
+        reward_type=PromocodeRewardType.DURATION,
+        reward=0,  # DURATION default: unlimited (permanent) subscription
+        availability=PromocodeAvailability.ALL,
+    )
+    _save(dialog_manager, retort, promo)
     dialog_manager.dialog_data["is_edit"] = False
     await dialog_manager.switch_to(DashboardPromocodes.CONFIGURATOR)
 
@@ -99,6 +114,10 @@ async def on_promo_confirm(
         await notifier.notify_user(user, i18n_key="ntf-promocode.fields-required")
         return
 
+    if not is_double_click(dialog_manager, key=f"promo_confirm_{promo.id}", cooldown=10):
+        await notifier.notify_user(user, i18n_key="ntf-common.double-click-confirm")
+        return
+
     if not is_edit:
         try:
             await create_promocode(
@@ -110,7 +129,7 @@ async def on_promo_confirm(
                     plan_snapshot=promo.plan_snapshot,
                     availability=promo.availability,
                     allowed_telegram_ids=promo.allowed_telegram_ids,
-                    lifetime=promo.lifetime,
+                    expires_at=promo.expires_at,
                     max_activations=promo.max_activations,
                 ),
             )
@@ -124,7 +143,7 @@ async def on_promo_confirm(
         logger.info(f"{user.log} Updated promocode '{promo.code}'")
         await notifier.notify_user(user, i18n_key="ntf-promocode.updated")
 
-    await dialog_manager.switch_to(DashboardPromocodes.MAIN)
+    await dialog_manager.start(state=DashboardPromocodes.MAIN, mode=StartMode.RESET_STACK)
 
 
 @inject
@@ -148,14 +167,31 @@ async def on_delete_promo(
     delete_promocode: FromDishka[DeletePromocode],
     notifier: FromDishka[Notifier],
 ) -> None:
-    if is_double_click(dialog_manager, key="promo_delete"):
-        return
     user = dialog_manager.middleware_data[USER_KEY]
     promo = _load(dialog_manager, retort)
-    await delete_promocode(user, promo.id)
-    dialog_manager.dialog_data.pop(_PROMO_KEY, None)
-    await notifier.notify_user(user, i18n_key="ntf-promocode.deleted")
-    await dialog_manager.switch_to(DashboardPromocodes.MAIN)
+
+    if is_double_click(dialog_manager, key=f"promo_delete_{promo.id}", cooldown=10):
+        await delete_promocode(user, promo.id)
+        dialog_manager.dialog_data.pop(_PROMO_KEY, None)
+        await notifier.notify_user(user, i18n_key="ntf-promocode.deleted")
+        await dialog_manager.start(state=DashboardPromocodes.MAIN, mode=StartMode.RESET_STACK)
+        return
+
+    await notifier.notify_user(user, i18n_key="ntf-common.double-click-confirm")
+
+
+@inject
+async def on_code_regenerate(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    generate_code: FromDishka[GeneratePromocodeCode],
+) -> None:
+    user = dialog_manager.middleware_data[USER_KEY]
+    promo = _load(dialog_manager, retort)
+    promo.code = await generate_code(user)
+    _save(dialog_manager, retort, promo)
 
 
 @inject
@@ -190,8 +226,14 @@ async def on_type_select(
     promo.reward_type = reward_type
     if reward_type == PromocodeRewardType.SUBSCRIPTION:
         promo.reward = None
-    else:
+    elif reward_type in (PromocodeRewardType.DURATION, PromocodeRewardType.DEVICES):
+        # DURATION/DEVICES default: 0 == unlimited (permanent subscription / unlimited devices).
         promo.plan_snapshot = None
+        promo.reward = 0
+    else:
+        # Reward is type-specific (GB / %), so reset on type change.
+        promo.plan_snapshot = None
+        promo.reward = None
     _save(dialog_manager, retort, promo)
     await dialog_manager.switch_to(DashboardPromocodes.CONFIGURATOR)
 
@@ -211,7 +253,11 @@ async def on_reward_input(
         await notifier.notify_user(user, i18n_key="ntf-promocode.reward-invalid")
         return
     promo = _load(dialog_manager, retort)
-    promo.reward = int(reward_text)
+    reward = int(reward_text)
+    if promo.reward_type in _DISCOUNT_TYPES and not 1 <= reward <= 100:
+        await notifier.notify_user(user, i18n_key="ntf-promocode.discount-out-of-range")
+        return
+    promo.reward = reward
     _save(dialog_manager, retort, promo)
     await dialog_manager.switch_to(DashboardPromocodes.CONFIGURATOR)
 
@@ -301,8 +347,28 @@ async def on_allowed_id_remove(
     _save(dialog_manager, retort, promo)
 
 
+def _parse_expires_at(text: str, created_at: Optional[datetime]) -> Optional[datetime]:
+    """Absolute deactivation moment from a date/time string or a day count.
+
+    Accepts ``DD.MM.YYYY HH:MM`` (exact), ``DD.MM.YYYY`` (end of that day), or a plain
+    integer N meaning N days from the promocode's creation (or now, for a draft).
+    Returns ``None`` when the input is not a recognised date or number.
+    """
+    if text.isdigit():
+        return (created_at or datetime_now()) + timedelta(days=int(text))
+    for fmt in ("%d.%m.%Y %H:%M", "%d.%m.%Y"):
+        try:
+            moment = datetime.strptime(text, fmt)  # noqa: DTZ007 (tz applied below)
+        except ValueError:
+            continue
+        if fmt == "%d.%m.%Y":
+            moment = moment.replace(hour=23, minute=59, second=59)
+        return moment.replace(tzinfo=TIMEZONE)
+    return None
+
+
 @inject
-async def on_lifetime_input(
+async def on_expires_input(
     message: Message,
     widget: MessageInput,
     dialog_manager: DialogManager,
@@ -311,25 +377,25 @@ async def on_lifetime_input(
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
     user = dialog_manager.middleware_data[USER_KEY]
-    text = (message.text or "").strip()
-    if not text.isdigit() or int(text) <= 0:
+    promo = _load(dialog_manager, retort)
+    expires = _parse_expires_at((message.text or "").strip(), promo.created_at)
+    if expires is None or expires <= datetime_now():
         await notifier.notify_user(user, i18n_key="ntf-promocode.reward-invalid")
         return
-    promo = _load(dialog_manager, retort)
-    promo.lifetime = int(text)
+    promo.expires_at = expires
     _save(dialog_manager, retort, promo)
     await dialog_manager.switch_to(DashboardPromocodes.CONFIGURATOR)
 
 
 @inject
-async def on_lifetime_reset(
+async def on_expires_reset(
     callback: CallbackQuery,
     widget: Button,
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
 ) -> None:
     promo = _load(dialog_manager, retort)
-    promo.lifetime = None
+    promo.expires_at = None
     _save(dialog_manager, retort, promo)
     await dialog_manager.switch_to(DashboardPromocodes.CONFIGURATOR)
 

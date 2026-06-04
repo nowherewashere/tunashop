@@ -49,7 +49,7 @@ def upgrade() -> None:
             nullable=False,
             server_default="{}",
         ),
-        sa.Column("lifetime", sa.Integer(), nullable=True),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("max_activations", sa.Integer(), nullable=True),
         sa.Column(
             "created_at",

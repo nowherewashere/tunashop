@@ -7,8 +7,6 @@ test-payment = Тестовый платеж
 unknown = —
 raw-message = { $content }
 
-development-promocode = Промокоды еще не реализованы, для мотивации и ускорения разработки можете закинуть монет.
-
 payment-invoice-description = { purchase-type } подписки { $name } на { $duration }
 
 inline-invite =

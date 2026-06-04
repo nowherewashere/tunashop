@@ -42,7 +42,6 @@ async def getter_promocodes_main(
             }
             for p in promos
         ],
-        "has_promos": bool(promos),
         "page": page,
         "has_next": len(promos) == PAGE_SIZE,
         "has_prev": page > 0,
@@ -64,6 +63,7 @@ async def getter_configurator(
             code="",
             is_active=True,
             reward_type=PromocodeRewardType.DURATION,
+            reward=0,  # DURATION default: unlimited (permanent) subscription
             availability=PromocodeAvailability.ALL,
         )
         dialog_manager.dialog_data[PromocodeDto.__name__] = retort.dump(promo)
@@ -78,14 +78,13 @@ async def getter_configurator(
         "is_edit": dialog_manager.dialog_data.get("is_edit", False),
         "is_active": int(promo.is_active),
         "code": promo.code or "—",
-        "reward": str(promo.reward) if promo.reward is not None else "—",
+        "reward": _reward_display(promo, i18n),
         "promocode_type": promo.reward_type.value,
         "is_subscription": is_subscription,  # used by when= in dialog
-        "plan_name": _format_plan_snapshot(promo.plan_snapshot, i18n),
         "availability_type": promo.availability.value,  # used by FTL fragment
         "availability": promo.availability.value,  # used by when= in dialog
-        "lifetime": i18n.get("unit-day", value=promo.lifetime)
-        if promo.lifetime is not None
+        "expires": promo.expires_at.strftime("%d.%m.%Y %H:%M")
+        if promo.expires_at is not None
         else i18n.get("unlimited"),
         "max_activations": str(promo.max_activations)
         if promo.max_activations is not None
@@ -102,8 +101,27 @@ def _format_plan_snapshot(snapshot: dict[str, Any] | None, i18n: TranslatorRunne
     return f"{name} ({i18n.get('unit-day', value=duration)})" if duration else str(name)
 
 
+def _reward_display(promo: PromocodeDto, i18n: TranslatorRunner) -> str:
+    """Render the reward via the shared ``frg-promocode-reward`` FTL fragment.
+
+    All formatting (unlimited symbol, pluralization, units, per-type wording) lives in
+    the fragment. Returns ``—`` for an unset reward on non-subscription drafts; the
+    ``None`` value cannot be passed to the fragment (Fluent raises on it).
+    """
+    if promo.reward_type != PromocodeRewardType.SUBSCRIPTION and promo.reward is None:
+        return "—"
+    return i18n.get(
+        "frg-promocode-reward",
+        promocode_type=promo.reward_type.value,
+        reward=promo.reward if promo.reward is not None else 0,
+        plan_name=_format_plan_snapshot(promo.plan_snapshot, i18n),
+    )
+
+
 async def getter_type_select(**kwargs: Any) -> dict[str, Any]:
-    return {"types": [{"value": t.value, "label": t.value} for t in PromocodeRewardType]}
+    return {
+        "types": [{"value": t.value} for t in PromocodeRewardType],
+    }
 
 
 @inject
@@ -114,7 +132,9 @@ async def getter_plan_select(
 ) -> dict[str, Any]:
     user = dialog_manager.middleware_data[USER_KEY]
     plans = await get_available_plans.system(user)
-    return {"plans": [{"id": p.id, "name": p.name} for p in plans]}
+    return {
+        "plans": [{"id": p.id, "name": p.name} for p in plans],
+    }
 
 
 @inject
@@ -128,12 +148,14 @@ async def getter_plan_duration_select(
     plans = await get_available_plans.system(user)
     plan = next((p for p in plans if p.id == plan_id), None)
     durations = plan.durations if plan else []
-    return {"durations": [{"days": d.days} for d in durations]}
+    return {
+        "durations": [{"days": d.days} for d in durations],
+    }
 
 
 async def getter_availability_select(**kwargs: Any) -> dict[str, Any]:
     return {
-        "availability_types": [{"value": a.value, "label": a.value} for a in PromocodeAvailability]
+        "availability_types": [{"value": a.value} for a in PromocodeAvailability],
     }
 
 
@@ -147,20 +169,62 @@ async def getter_allowed(
     if not raw:
         return {"allowed_ids": []}
     promo = retort.load(raw, PromocodeDto)
-    return {"allowed_ids": promo.allowed_telegram_ids}
+    return {
+        "allowed_ids": promo.allowed_telegram_ids,
+    }
 
 
 @inject
-async def getter_lifetime(
+async def getter_code(
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
     **kwargs: Any,
 ) -> dict[str, Any]:
     raw = dialog_manager.dialog_data.get(PromocodeDto.__name__)
     if not raw:
-        return {"has_lifetime": False}
+        return {"code": "0"}
     promo = retort.load(raw, PromocodeDto)
-    return {"has_lifetime": promo.lifetime is not None}
+    return {
+        "code": promo.code or "0",
+    }
+
+
+@inject
+async def getter_reward(
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    i18n: FromDishka[TranslatorRunner],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    raw = dialog_manager.dialog_data.get(PromocodeDto.__name__)
+    promo = retort.load(raw, PromocodeDto) if raw else None
+    promocode_type = promo.reward_type.value if promo else ""
+    # "0" is the sentinel for "not set" (-> [0] branch shows nothing); a real reward is
+    # rendered via the shared fragment (never "0"), so the [HAS] branch shows it.
+    if promo is None or promo.reward is None:
+        return {"reward": "0", "promocode_type": promocode_type}
+    return {
+        "reward": _reward_display(promo, i18n),
+        "promocode_type": promocode_type,
+    }
+
+
+@inject
+async def getter_expires(
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    raw = dialog_manager.dialog_data.get(PromocodeDto.__name__)
+    if not raw:
+        return {"has_expires": False, "expires": "0"}
+    promo = retort.load(raw, PromocodeDto)
+    return {
+        "has_expires": promo.expires_at is not None,
+        "expires": promo.expires_at.strftime("%d.%m.%Y %H:%M")
+        if promo.expires_at is not None
+        else "0",
+    }
 
 
 @inject
@@ -171,6 +235,9 @@ async def getter_max_activations(
 ) -> dict[str, Any]:
     raw = dialog_manager.dialog_data.get(PromocodeDto.__name__)
     if not raw:
-        return {"has_max_activations": False}
+        return {"has_max_activations": False, "max_activations": "0"}
     promo = retort.load(raw, PromocodeDto)
-    return {"has_max_activations": promo.max_activations is not None}
+    return {
+        "has_max_activations": promo.max_activations is not None,
+        "max_activations": str(promo.max_activations) if promo.max_activations is not None else "0",
+    }

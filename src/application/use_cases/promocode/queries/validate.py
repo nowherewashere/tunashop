@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from datetime import timedelta
 
 from loguru import logger
 
@@ -10,6 +9,7 @@ from src.application.dto import PromocodeDto, UserDto
 from src.core.enums import PromocodeAvailability, PromocodeRewardType
 from src.core.exceptions import (
     PromocodeAlreadyActivatedError,
+    PromocodeExpiredError,
     PromocodeNotAvailableError,
     PromocodeNotFoundError,
 )
@@ -55,11 +55,9 @@ class ValidatePromocode(Interactor[ValidatePromocodeDto, PromocodeDto]):
 
         assert promo.id is not None
 
-        if promo.lifetime is not None and promo.created_at is not None:
-            expires_at = promo.created_at + timedelta(days=promo.lifetime)
-            if datetime_now() > expires_at:
-                logger.info(f"{actor.log} Promocode '{code}' expired")
-                raise PromocodeNotAvailableError("Promocode has expired")
+        if promo.expires_at is not None and datetime_now() > promo.expires_at:
+            logger.info(f"{actor.log} Promocode '{code}' expired")
+            raise PromocodeExpiredError("Promocode has expired")
 
         if promo.max_activations is not None:
             count = await self.promocode_dao.get_activations_count(promo.id)

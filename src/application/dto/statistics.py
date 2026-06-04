@@ -80,6 +80,29 @@ class PlanIncomeDto:
 
 
 @dataclass(frozen=True)
+class PromocodeTopDto:
+    code: str
+    activations: int
+
+
+@dataclass(frozen=True)
+class PromocodeStatisticsDto:
+    total_promocodes: int
+    active_promocodes: int
+    total_activations: int
+    activations_today: int
+    activations_week: int
+    activations_month: int
+    issued_days: int
+    issued_traffic: int
+    issued_devices: int
+    issued_subscriptions: int
+    issued_personal_discounts: int
+    issued_purchase_discounts: int
+    top: list[PromocodeTopDto]
+
+
+@dataclass(frozen=True)
 class GatewayStatsDto:
     gateway_type: PaymentGatewayType
     total_income: Decimal

@@ -21,6 +21,7 @@ from src.application.use_cases.promocode.queries.validate import (
 from src.core.constants import USER_KEY
 from src.core.exceptions import (
     PromocodeAlreadyActivatedError,
+    PromocodeExpiredError,
     PromocodeNotAvailableError,
     PromocodeNotFoundError,
 )
@@ -53,6 +54,9 @@ async def on_promocode_input(
         return
     except PromocodeAlreadyActivatedError:
         await notifier.notify_user(user, i18n_key="ntf-promocode.already-activated")
+        return
+    except PromocodeExpiredError:
+        await notifier.notify_user(user, i18n_key="ntf-promocode.expired")
         return
     except PromocodeNotAvailableError:
         await notifier.notify_user(user, i18n_key="ntf-promocode.not-available")
@@ -89,6 +93,9 @@ async def on_promocode_confirm(
         promo = await activate_promocode(user, ActivatePromocodeDto(code=code, user=user))
     except PromocodeAlreadyActivatedError:
         await notifier.notify_user(user, i18n_key="ntf-promocode.already-activated")
+        return
+    except PromocodeExpiredError:
+        await notifier.notify_user(user, i18n_key="ntf-promocode.expired")
         return
     except (PromocodeNotFoundError, PromocodeNotAvailableError):
         await notifier.notify_user(user, i18n_key="ntf-promocode.activation-failed")

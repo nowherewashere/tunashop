@@ -534,6 +534,7 @@ class PromocodeActivatedEvent(BaseEvent):
     promocode_code: str
     reward_type: str
     reward: Optional[int]
+    plan_name: str
 
     @property
     def event_key(self) -> str:
@@ -547,8 +548,9 @@ class PromocodeActivatedEvent(BaseEvent):
                 "username": self.username or 0,
                 "name": self.name,
                 "promocode_code": self.promocode_code,
-                "reward_type": self.reward_type,
+                "promocode_type": self.reward_type,  # used by promocode-type term + reward branch
                 "reward": self.reward if self.reward is not None else 0,
+                "plan_name": self.plan_name or "—",
             },
             disable_default_markup=False,
             delete_after=None,

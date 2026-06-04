@@ -1,14 +1,22 @@
+from datetime import timedelta
 from typing import Optional
 
 from adaptix.conversion import ConversionRetort
 from loguru import logger
-from sqlalchemy import delete, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.application.common.dao import PromocodeDao
-from src.application.dto import PromocodeActivationDto, PromocodeDto
+from src.application.dto import (
+    PromocodeActivationDto,
+    PromocodeDto,
+    PromocodeStatisticsDto,
+    PromocodeTopDto,
+)
+from src.core.enums import PromocodeRewardType
 from src.core.exceptions import PromocodeAlreadyActivatedError, PromocodeNotAvailableError
+from src.core.utils.time import datetime_now
 from src.infrastructure.database.models.promocode import Promocode, PromocodeActivation
 
 
@@ -30,7 +38,7 @@ class PromocodeDaoImpl(PromocodeDao):
             plan_snapshot=promocode.plan_snapshot,
             availability=promocode.availability,
             allowed_telegram_ids=promocode.allowed_telegram_ids,
-            lifetime=promocode.lifetime,
+            expires_at=promocode.expires_at,
             max_activations=promocode.max_activations,
         )
         self.session.add(db)
@@ -90,6 +98,99 @@ class PromocodeDaoImpl(PromocodeDao):
             )
         )
         return result or 0
+
+    async def get_statistics(self) -> PromocodeStatisticsDto:
+        now = datetime_now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_ago = now - timedelta(days=7)
+        month_ago = now - timedelta(days=30)
+
+        promo_counts = (
+            (
+                await self.session.execute(
+                    select(
+                        func.count().label("total"),
+                        func.sum(case((Promocode.is_active, 1), else_=0)).label("active"),
+                    ).select_from(Promocode)
+                )
+            )
+            .mappings()
+            .one()
+        )
+
+        activated_at = PromocodeActivation.activated_at
+        activation_counts = (
+            (
+                await self.session.execute(
+                    select(
+                        func.count().label("total"),
+                        func.sum(case((activated_at >= today_start, 1), else_=0)).label("today"),
+                        func.sum(case((activated_at >= week_ago, 1), else_=0)).label("week"),
+                        func.sum(case((activated_at >= month_ago, 1), else_=0)).label("month"),
+                    ).select_from(PromocodeActivation)
+                )
+            )
+            .mappings()
+            .one()
+        )
+
+        by_type_rows = (
+            (
+                await self.session.execute(
+                    select(
+                        Promocode.reward_type,
+                        func.count(PromocodeActivation.id).label("count"),
+                        func.coalesce(func.sum(Promocode.reward), 0).label("reward_sum"),
+                    )
+                    .join(PromocodeActivation, PromocodeActivation.promocode_id == Promocode.id)
+                    .group_by(Promocode.reward_type)
+                )
+            )
+            .mappings()
+            .all()
+        )
+
+        counts: dict[PromocodeRewardType, int] = {}
+        reward_sums: dict[PromocodeRewardType, int] = {}
+        for row in by_type_rows:
+            counts[row["reward_type"]] = int(row["count"] or 0)
+            reward_sums[row["reward_type"]] = int(row["reward_sum"] or 0)
+
+        top_rows = (
+            (
+                await self.session.execute(
+                    select(
+                        Promocode.code,
+                        func.count(PromocodeActivation.id).label("activations"),
+                    )
+                    .join(PromocodeActivation, PromocodeActivation.promocode_id == Promocode.id)
+                    .group_by(Promocode.id)
+                    .order_by(func.count(PromocodeActivation.id).desc())
+                    .limit(5)
+                )
+            )
+            .mappings()
+            .all()
+        )
+
+        return PromocodeStatisticsDto(
+            total_promocodes=int(promo_counts["total"] or 0),
+            active_promocodes=int(promo_counts["active"] or 0),
+            total_activations=int(activation_counts["total"] or 0),
+            activations_today=int(activation_counts["today"] or 0),
+            activations_week=int(activation_counts["week"] or 0),
+            activations_month=int(activation_counts["month"] or 0),
+            issued_days=reward_sums.get(PromocodeRewardType.DURATION, 0),
+            issued_traffic=reward_sums.get(PromocodeRewardType.TRAFFIC, 0),
+            issued_devices=reward_sums.get(PromocodeRewardType.DEVICES, 0),
+            issued_subscriptions=counts.get(PromocodeRewardType.SUBSCRIPTION, 0),
+            issued_personal_discounts=counts.get(PromocodeRewardType.PERSONAL_DISCOUNT, 0),
+            issued_purchase_discounts=counts.get(PromocodeRewardType.PURCHASE_DISCOUNT, 0),
+            top=[
+                PromocodeTopDto(code=row["code"], activations=int(row["activations"]))
+                for row in top_rows
+            ],
+        )
 
     async def get_activation_by_user(
         self, promocode_id: int, user_id: int

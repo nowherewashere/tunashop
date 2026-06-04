@@ -9,7 +9,6 @@ btn-common =
     .notification-close = ❌ Закрыть
     .devices-empty = ⚠️ У вас нет подключенных устройств
     .cancel = Отмена
-    .create = ➕ Создать
     .next = ▶️ Далее
     .prev = ◀️ Назад
 
@@ -73,11 +72,11 @@ btn-menu =
     .dashboard = 🛠 Панель управления
 
     .connect-not-available =
-    <e id="5420323339723881652">⚠️</e> { $status ->
+    ⚠️ { $status ->
     [LIMITED] ПРЕВЫШЕН ЛИМИТ ТРАФИКА
     [EXPIRED] СРОК ДЕЙСТВИЯ ИСТЕК
     *[OTHER] ВАША ПОДПИСКА НЕ РАБОТАЕТ
-    } <e id="5420323339723881652">⚠️</e>
+    } ⚠️
 
 btn-invite =
     .about = ❓ Подробнее о награде
@@ -248,17 +247,32 @@ btn-goto =
     .contact-support = 📩 Перейти в поддержку
 
 btn-promocodes =
-    .list = 🗒️ Список промокодов
-    .search = 🔍 Поиск промокода
-    .create = 🆕 Создать
+    .save = ✅ Сохранить
+    .create = 🆕 Создать промокод
+    .confirm = ✅ Создать промокод
     .delete = 🗑️ Удалить
-    .edit = ✏️ Редактировать
+    .regenerate = 🔄 Перегенерировать
+    .code = 🏷️ Код
+    .type = 🔖 Тип награды
+    .availability = ✴️ Доступ
+    .reward = 🎁 Награда
+    .plan = 📦 План
+    .expires = ⌛ Действует до
+    .allowed = 👥 Разрешенные пользователи
+    .max-activations = 🔢 Лимит активаций
+    .reset = 🔄 Сбросить
 
-    .item = 🎟 { $code } — { $reward_type }
+    .plan-duration = { $days -> 
+        [one] { $days } день
+        [few] { $days } дня
+        *[more] { $days } дней
+    }
 
-    .toggle = { $is_active ->
-        [1] 🔴 Деактивировать
-        *[0] 🟢 Активировать
+    .item = 🎟 { $code } — { promocode-type }
+
+    .active-toggle = { $is_active ->
+    [1] 🟢 Включен
+    *[0] 🔴 Выключен
     }
 
 btn-access =
@@ -293,7 +307,6 @@ btn-remnashop =
     .menu-editor = 🎛 Редактор главного меню
     .backup = 💾 Бэкап
     .extra = ⚙️ Доп. настройки
-    .transactions = 🧾 Транзакции
 
 btn-remnashop-transaction = { $status ->
     [PENDING] 🕓
@@ -439,7 +452,8 @@ btn-notifications =
 
 btn-plans =
     .save = ✅ Сохранить
-    .create = ✅ Создать план
+    .create = 🆕 Создать план
+    .create-confirm = ✅ Создать план
     .delete = ❌ Удалить
     .name = 🏷️ Название
     .description = 💬 Описание
@@ -544,33 +558,14 @@ btn-subscription =
     *[HAS] { $final_amount }{ $currency }
     }
 
-btn-promocode =
-    .code = 🏷️ Код
-    .type = 🔖 Тип награды
-    .availability = ✴️ Доступ
-    .reward = 🎁 Награда
-    .plan = 📦 План
-    .plan-duration = { $days } дн.
-    .lifetime = ⌛ Время жизни
-    .allowed = 👥 Разрешенные пользователи
-    .confirm = ✅ Подтвердить
-    .save = 💾 Сохранить
-    .create = ✅ Создать
-    .delete = 🗑️ Удалить
-    .max-activations = 🔢 Лимит активаций
-    .reset = 🔄 Сбросить
-
-    .active-toggle = { $is_active ->
-    [1] 🟢
-    *[0] 🔴
-    } Статус
-
 btn-ad-links =
-    .create = ✅ Создать ссылку
     .save = ✅ Сохранить
+    .create = 🆕 Создать ссылку
+    .create-confirm = ✅ Создать ссылку
     .delete = ❌ Удалить ссылку
     .name = 🏷️ Название
-    .code = 🔗 Код (slug)
+    .code = 🔗 Код
+    .regenerate = 🔄 Перегенерировать
     .stats = 📊 Статистика
     .url = 📋 Скопировать ссылку
 
@@ -580,6 +575,6 @@ btn-ad-links =
     } { $name }
 
     .active-toggle = { $is_active ->
-    [1] 🟢 Активна
-    *[0] 🔴 Неактивна
+    [1] 🟢 Включена
+    *[0] 🔴 Выключена
     }

@@ -274,7 +274,7 @@ promocode_window = Window(
     MessageInput(on_promocode_input),
     Row(
         Button(
-            text=I18nFormat("btn-promocode.confirm"),
+            text=I18nFormat("btn-promocodes.confirm"),
             id="confirm_promo",
             on_click=on_promocode_confirm,
             when=F["has_promo"],

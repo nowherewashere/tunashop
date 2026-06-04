@@ -14,12 +14,14 @@ from src.telegram.widgets.kbd import Button, ListGroup, Row, Start, SwitchTo
 from .getters import (
     getter_allowed,
     getter_availability_select,
+    getter_code,
     getter_configurator,
-    getter_lifetime,
+    getter_expires,
     getter_max_activations,
     getter_plan_duration_select,
     getter_plan_select,
     getter_promocodes_main,
+    getter_reward,
     getter_type_select,
 )
 from .handlers import (
@@ -27,10 +29,11 @@ from .handlers import (
     on_allowed_id_remove,
     on_availability_select,
     on_code_input,
+    on_code_regenerate,
     on_create_promo,
     on_delete_promo,
-    on_lifetime_input,
-    on_lifetime_reset,
+    on_expires_input,
+    on_expires_reset,
     on_max_activations_input,
     on_max_activations_reset,
     on_page_next,
@@ -47,13 +50,21 @@ from .handlers import (
 promocodes_main = Window(
     Banner(BannerName.DASHBOARD),
     I18nFormat("msg-promocodes-main"),
+    Row(
+        Button(
+            text=I18nFormat("btn-promocodes.create"),
+            id="create_promo",
+            on_click=on_create_promo,
+            when=F["can_manage"],
+        ),
+    ),
     ListGroup(
         Row(
             Button(
                 text=I18nFormat(
                     "btn-promocodes.item",
                     code=F["item"]["code"],
-                    reward_type=F["item"]["reward_type"],
+                    promocode_type=F["item"]["reward_type"],
                 ),
                 id="promo_item",
                 on_click=on_promo_select,
@@ -62,7 +73,6 @@ promocodes_main = Window(
         id="promos_list",
         item_id_getter=lambda item: item["id"],
         items="promos",
-        when=F["has_promos"],
     ),
     Row(
         Button(
@@ -76,14 +86,6 @@ promocodes_main = Window(
             id="page_next",
             on_click=on_page_next,
             when=F["has_next"],
-        ),
-    ),
-    Row(
-        Button(
-            text=I18nFormat("btn-common.create"),
-            id="create_promo",
-            on_click=on_create_promo,
-            when=F["can_manage"],
         ),
     ),
     Row(
@@ -102,71 +104,61 @@ promocodes_main = Window(
 
 configurator = Window(
     Banner(BannerName.DASHBOARD),
-    I18nFormat(
-        "msg-promocode-configurator",
-        code=F["code"],
-        is_active=F["is_active"],
-        reward=F["reward"],
-        plan_name=F["plan_name"],
-        promocode_type=F["promocode_type"],
-        availability_type=F["availability_type"],
-        lifetime=F["lifetime"],
-        max_activations=F["max_activations"],
-    ),
+    I18nFormat("msg-promocode-configurator"),
     Row(
         Button(
-            text=I18nFormat("btn-promocode.active-toggle", is_active=F["is_active"]),
+            text=I18nFormat("btn-promocodes.active-toggle", is_active=F["is_active"]),
             id="toggle_active",
             on_click=on_toggle_active,
-            when=F["is_edit"] & F["can_manage"],
+            when=F["can_manage"],
         ),
     ),
     Row(
         SwitchTo(
-            text=I18nFormat("btn-promocode.code"),
+            text=I18nFormat("btn-promocodes.code"),
             id="code",
             state=DashboardPromocodes.CODE,
         ),
         SwitchTo(
-            text=I18nFormat("btn-promocode.type"),
+            text=I18nFormat("btn-promocodes.type"),
             id="type",
             state=DashboardPromocodes.TYPE,
         ),
     ),
     Row(
         SwitchTo(
-            text=I18nFormat("btn-promocode.reward"),
+            text=I18nFormat("btn-promocodes.reward"),
             id="reward",
             state=DashboardPromocodes.REWARD,
             when=~F["is_subscription"],
         ),
         SwitchTo(
-            text=I18nFormat("btn-promocode.plan"),
+            text=I18nFormat("btn-promocodes.plan"),
             id="plan",
             state=DashboardPromocodes.PLAN,
             when=F["is_subscription"],
         ),
         SwitchTo(
-            text=I18nFormat("btn-promocode.availability"),
+            text=I18nFormat("btn-promocodes.availability"),
             id="availability",
             state=DashboardPromocodes.AVAILABILITY,
         ),
     ),
     Row(
         SwitchTo(
-            text=I18nFormat("btn-promocode.lifetime"),
-            id="lifetime",
-            state=DashboardPromocodes.LIFETIME,
+            text=I18nFormat("btn-promocodes.expires"),
+            id="expires",
+            state=DashboardPromocodes.EXPIRES,
         ),
         SwitchTo(
-            text=I18nFormat("btn-promocode.max-activations"),
+            text=I18nFormat("btn-promocodes.max-activations"),
             id="max_activations",
             state=DashboardPromocodes.MAX_ACTIVATIONS,
         ),
     ),
     Row(
         SwitchTo(
-            text=I18nFormat("btn-promocode.allowed"),
+            text=I18nFormat("btn-promocodes.allowed"),
             id="allowed",
             state=DashboardPromocodes.ALLOWED,
             when=F["availability"] == PromocodeAvailability.ALLOWED.value,
@@ -174,7 +166,7 @@ configurator = Window(
     ),
     Row(
         Button(
-            text=I18nFormat("btn-promocode.create"),
+            text=I18nFormat("btn-promocodes.confirm"),
             id="confirm_create",
             on_click=on_promo_confirm,
             style=Style(ButtonStyle.SUCCESS),
@@ -183,14 +175,14 @@ configurator = Window(
     ),
     Row(
         Button(
-            text=I18nFormat("btn-promocode.save"),
+            text=I18nFormat("btn-promocodes.save"),
             id="confirm_save",
             on_click=on_promo_confirm,
             style=Style(ButtonStyle.SUCCESS),
             when=F["is_edit"] & F["can_manage"],
         ),
         Button(
-            text=I18nFormat("btn-promocode.delete"),
+            text=I18nFormat("btn-promocodes.delete"),
             id="delete_promo",
             on_click=on_delete_promo,
             style=Style(ButtonStyle.DANGER),
@@ -198,10 +190,11 @@ configurator = Window(
         ),
     ),
     Row(
-        SwitchTo(
+        Start(
             text=I18nFormat("btn-back.general"),
             id="back_list",
             state=DashboardPromocodes.MAIN,
+            mode=StartMode.RESET_STACK,
         ),
     ),
     IgnoreUpdate(),
@@ -213,6 +206,13 @@ code_input = Window(
     Banner(BannerName.DASHBOARD),
     I18nFormat("msg-promocode-input-code"),
     Row(
+        Button(
+            text=I18nFormat("btn-promocodes.regenerate"),
+            id="regenerate",
+            on_click=on_code_regenerate,
+        ),
+    ),
+    Row(
         SwitchTo(
             text=I18nFormat("btn-back.general"),
             id="back",
@@ -222,6 +222,7 @@ code_input = Window(
     MessageInput(func=on_code_input),
     IgnoreUpdate(),
     state=DashboardPromocodes.CODE,
+    getter=getter_code,
 )
 
 type_select = Window(
@@ -230,7 +231,7 @@ type_select = Window(
     ListGroup(
         Row(
             Button(
-                text=Format("{item[label]}"),
+                text=I18nFormat("promocode-type", promocode_type=F["item"]["value"]),
                 id="type_item",
                 on_click=on_type_select,
             ),
@@ -264,6 +265,7 @@ reward_input = Window(
     MessageInput(func=on_reward_input),
     IgnoreUpdate(),
     state=DashboardPromocodes.REWARD,
+    getter=getter_reward,
 )
 
 plan_select = Window(
@@ -299,7 +301,7 @@ plan_duration_select = Window(
     ListGroup(
         Row(
             Button(
-                text=I18nFormat("btn-promocode.plan-duration", days=F["item"]["days"]),
+                text=I18nFormat("btn-promocodes.plan-duration", days=F["item"]["days"]),
                 id="plan_duration_item",
                 on_click=on_plan_duration_select,
             ),
@@ -326,7 +328,7 @@ availability_select = Window(
     ListGroup(
         Row(
             Button(
-                text=Format("{item[label]}"),
+                text=I18nFormat("availability-type", availability_type=F["item"]["value"]),
                 id="avail_item",
                 on_click=on_availability_select,
             ),
@@ -375,15 +377,15 @@ allowed_ids = Window(
     getter=getter_allowed,
 )
 
-lifetime_input = Window(
+expires_input = Window(
     Banner(BannerName.DASHBOARD),
-    I18nFormat("msg-promocode-input-lifetime"),
+    I18nFormat("msg-promocode-input-expires"),
     Row(
         Button(
-            text=I18nFormat("btn-promocode.reset"),
+            text=I18nFormat("btn-promocodes.reset"),
             id="reset",
-            on_click=on_lifetime_reset,
-            when=F["has_lifetime"],
+            on_click=on_expires_reset,
+            when=F["has_expires"],
         ),
     ),
     Row(
@@ -393,10 +395,10 @@ lifetime_input = Window(
             state=DashboardPromocodes.CONFIGURATOR,
         ),
     ),
-    MessageInput(func=on_lifetime_input),
+    MessageInput(func=on_expires_input),
     IgnoreUpdate(),
-    state=DashboardPromocodes.LIFETIME,
-    getter=getter_lifetime,
+    state=DashboardPromocodes.EXPIRES,
+    getter=getter_expires,
 )
 
 max_activations_input = Window(
@@ -404,7 +406,7 @@ max_activations_input = Window(
     I18nFormat("msg-promocode-input-max-activations"),
     Row(
         Button(
-            text=I18nFormat("btn-promocode.reset"),
+            text=I18nFormat("btn-promocodes.reset"),
             id="reset",
             on_click=on_max_activations_reset,
             when=F["has_max_activations"],
@@ -433,6 +435,6 @@ router = Dialog(
     plan_duration_select,
     availability_select,
     allowed_ids,
-    lifetime_input,
+    expires_input,
     max_activations_input,
 )

@@ -274,7 +274,7 @@ configurator = Window(
     ),
     Row(
         Button(
-            text=I18nFormat("btn-plans.create"),
+            text=I18nFormat("btn-plans.create-confirm"),
             id="create",
             on_click=on_plan_confirm,
             style=Style(ButtonStyle.SUCCESS),

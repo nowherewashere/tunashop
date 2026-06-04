@@ -269,17 +269,30 @@ msg-statistics-promocodes =
     <b>🎁 Статистика по промокодам</b>
 
     <blockquote>
-    • <b>Общее кол-во активаций</b>: { $total_promo_activations }
-    • <b>Самый популярный промокод</b>: { $most_popular_promo ->
-    [0] { unknown }
-    *[HAS] { $most_popular_promo }
-    }
-    • <b>Выдано дней</b>: { $total_promo_days }
-    • <b>Выдано трафика</b>: { $total_promo_traffic }
-    • <b>Выдано подписок</b>: { $total_promo_subscriptions }
-    • <b>Выдано личных скидок</b>: { $total_promo_personal_discounts }
-    • <b>Выдано одноразовых скидок</b>: { $total_promo_purchase_discounts }
+    • <b>Всего промокодов</b>: { $total_promocodes }
+    • <b>Активных</b>: { $active_promocodes }
+    • <b>Всего активаций</b>: { $total_activations }
     </blockquote>
+
+    <blockquote>
+    • <b>Активаций за день</b>: { $activations_today }
+    • <b>Активаций за неделю</b>: { $activations_week }
+    • <b>Активаций за месяц</b>: { $activations_month }
+    </blockquote>
+
+    <blockquote>
+    • <b>Выдано дней</b>: { $issued_days }
+    • <b>Выдано трафика (ГБ)</b>: { $issued_traffic }
+    • <b>Выдано устройств</b>: { $issued_devices }
+    • <b>Выдано подписок</b>: { $issued_subscriptions }
+    • <b>Выдано личных скидок</b>: { $issued_personal_discounts }
+    • <b>Выдано одноразовых скидок</b>: { $issued_purchase_discounts }
+    </blockquote>
+
+    <b>🏆 Топ промокодов</b>
+    <blockquote>{ $top }</blockquote>
+
+msg-statistics-promocodes-top-item = { $index }. <code>{ $code }</code> — { $count }
 
 msg-statistics-referrals =
     <b>👪 Статистика по рефералам</b>
@@ -1523,11 +1536,31 @@ msg-importer-sync-bot-completed =
 
 # Promocodes
 msg-promocodes-main = <b>🎟 Промокоды</b>
+frg-promocode-reward = { $promocode_type ->
+    [DURATION] { $reward ->
+        [0] { unlimited } дней
+        [one] { $reward } день
+        [few] { $reward } дня
+        *[more] { $reward } дней
+        } к текущей подписке
+    [TRAFFIC] { $reward } ГБ к текущей подписке
+    [DEVICES] { $reward ->
+        [0] { unlimited } устройств
+        [one] { $reward } устройство
+        [few] { $reward } устройства
+        *[more] { $reward } устройств
+        } к текущей подписке
+    [SUBSCRIPTION] подписка { $plan_name }
+    [PERSONAL_DISCOUNT] { $reward }% к персональной скидке
+    [PURCHASE_DISCOUNT] { $reward }% к скидке на следующую покупку
+    *[OTHER] { $reward }
+    }
+
 msg-promocode-configurator =
     <b>🎟 Конфигуратор промокода</b>
 
     <blockquote>
-    • <b>Код</b>: { $code }
+    • <b>Код</b>: <code>{ $code }</code>
     • <b>Тип</b>: { promocode-type }
     • <b>Доступ</b>: { availability-type }
     • <b>Статус</b>: { $is_active ->
@@ -1537,43 +1570,93 @@ msg-promocode-configurator =
     </blockquote>
 
     <blockquote>
-    { $promocode_type ->
-    [DURATION] • <b>Длительность</b>: { $reward }
-    [TRAFFIC] • <b>Трафик</b>: { $reward }
-    [DEVICES] • <b>Устройства</b>: { $reward }
-    [SUBSCRIPTION] • <b>Подписка</b>: { $plan_name }
-    [PERSONAL_DISCOUNT] • <b>Персональная скидка</b>: { $reward }%
-    [PURCHASE_DISCOUNT] • <b>Скидка на покупку</b>: { $reward }%
-    *[OTHER] • <b>Награда</b>: { $reward }
-    }
-    • <b>Срок действия</b>: { $lifetime }
+    • <b>Награда</b>: { $reward }
+    • <b>Действует до</b>: { $expires }
     • <b>Лимит активаций</b>: { $max_activations }
     </blockquote>
 
     Выберите пункт для изменения.
 
-msg-promocode-input-code = Введите код промокода (от 3 до 16 символов):
+msg-promocode-input-code =
+    <b>🏷️ Изменить код</b>
 
-msg-promocode-select-type = Выберите тип награды:
+    { $code ->
+    [0] { space }
+    *[HAS]
+    <blockquote>
+    { $code }
+    </blockquote>
+    }
 
-msg-promocode-input-reward = Введите значение награды (целое число):
+    Отправьте свой уникальный код (от 3 до 16 символов).
 
-msg-promocode-select-plan = Выберите тарифный план:
+msg-promocode-select-type =
+    <b>🔖 Изменить тип награды</b>
 
-msg-promocode-select-plan-duration = Выберите длительность плана:
+    Выберите тип награды.
 
-msg-promocode-select-availability = Выберите доступность промокода:
+msg-promocode-input-reward =
+    <b>🎁 Изменить награду</b>
 
-msg-promocode-input-lifetime =
-    Введите срок жизни промокода в днях.
+    { $reward ->
+    [0] { space }
+    *[HAS]
+    <blockquote>
+    { $reward }
+    </blockquote>
+    }
+
+    { $promocode_type ->
+    [DURATION] Введите количество дней (0 — бесконечная подписка).
+    [DEVICES] Введите количество устройств (0 — безлимит).
+    *[OTHER] Введите значение награды (целое число).
+    }
+
+msg-promocode-select-plan =
+    <b>📦 Изменить план</b>
+
+    Выберите тарифный план.
+
+msg-promocode-select-plan-duration =
+    <b>⏳ Изменить длительность</b>
+
+    Выберите длительность плана.
+
+msg-promocode-select-availability =
+    <b>✴️ Изменить доступность</b>
+
+    Выберите доступность промокода.
+
+msg-promocode-input-expires =
+    <b>⌛ Действует до</b>
+
+    { $expires ->
+    [0] { space }
+    *[HAS]
+    <blockquote>
+    { $expires }
+    </blockquote>
+    }
+
+    Введите дату «ДД.ММ.ГГГГ» (или с временем «ДД.ММ.ГГГГ ЧЧ:ММ»), либо число — дни с момента создания.
     Нажмите <b>Сбросить</b> для снятия ограничения.
 
 msg-promocode-input-max-activations =
+    <b>🔢 Изменить лимит активаций</b>
+
+    { $max_activations ->
+    [0] { space }
+    *[HAS]
+    <blockquote>
+    { $max_activations }
+    </blockquote>
+    }
+
     Введите максимальное количество активаций.
     Нажмите <b>Сбросить</b> для снятия ограничения.
 
 msg-promocode-allowed-ids =
-    <b>Разрешённые пользователи</b>
+    <b>👥 Изменить список разрешённых пользователей</b>
 
     Введите Telegram ID пользователя для добавления в список.
 
@@ -1585,24 +1668,24 @@ msg-promocode-input =
 
 
 # Ad Links
-msg-ad-links-main = <b>📣 Рекламные ссылки</b>
+msg-ad-links-main = <b>🎯 Рекламные ссылки</b>
 
 msg-ad-link-configurator =
-    <b>📣 Рекламная ссылка</b>
+    <b>🎯 Конфигуратор рекламной ссылки</b>
 
     <blockquote>
     • <b>Название</b>: { $name ->
         [0] не задано
-       *[HAS] { $name }
-      }
+        *[HAS] { $name }
+    }
     • <b>Код</b>: { $code ->
         [0] не задан
-       *[HAS] <code>{ $code }</code>
-      }
+        *[HAS] <code>{ $code }</code>
+    }
     • <b>Статус</b>: { $is_active ->
-        [1] 🟢 Активна
-       *[0] 🔴 Неактивна
-      }
+        [1] 🟢 Включена
+        *[0] 🔴 Выключена
+    }
     </blockquote>
 
     Выберите пункт для изменения.
@@ -1619,15 +1702,11 @@ msg-ad-link-name =
     Введите название рекламной кампании.
 
 msg-ad-link-code =
-    <b>🔗 Код (slug) ссылки</b>
+    <b>🔗 Код ссылки</b>
 
-    { $code ->
-    [0] { space }
-    *[HAS]
     Текущий: <code>{ $code }</code>
-    }
 
-    Введите уникальный slug или отправьте <code>-</code> для авто-генерации.
+    Отправьте свой уникальный код или нажмите.
 
 msg-ad-link-stats =
     <b>📊 Статистика: { $name }</b>
@@ -1637,5 +1716,5 @@ msg-ad-link-stats =
     • <b>Конверсия</b>: { $conversions } ({ $conversion_rate }%)
     • <b>Пробники</b>: { $trials }
     • <b>Выручка</b>:
-{ $revenue_lines }
+    { $revenue_lines }
     </blockquote>

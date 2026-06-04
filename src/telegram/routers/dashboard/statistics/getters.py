@@ -9,6 +9,7 @@ from dishka.integrations.aiogram_dialog import inject
 from src.application.common import TranslatorRunner
 from src.application.dto import TelegramUserDto
 from src.application.use_cases.statistics.queries.plans import GetPlanStatistics
+from src.application.use_cases.statistics.queries.promocodes import GetPromocodeStatistics
 from src.application.use_cases.statistics.queries.referrals import GetReferralStatistics
 from src.application.use_cases.statistics.queries.subscriptions import GetSubscriptionStatistics
 from src.application.use_cases.statistics.queries.transactions import GetTransactionStatistics
@@ -183,6 +184,32 @@ async def subscriptions_getter(
         "all_income": all_income,
         "popular_duration": i18n.get(key, **kw),
     }
+
+
+@inject
+async def promocodes_getter(
+    dialog_manager: DialogManager,
+    get_promocode_statistics: FromDishka[GetPromocodeStatistics],
+    i18n: FromDishka[TranslatorRunner],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    data = await get_promocode_statistics(user)
+
+    top = (
+        "\n".join(
+            i18n.get(
+                "msg-statistics-promocodes-top-item",
+                index=i + 1,
+                code=item.code,
+                count=item.activations,
+            )
+            for i, item in enumerate(data.top)
+        )
+        or "-"
+    )
+
+    return {**asdict(data), "top": top}
 
 
 @inject

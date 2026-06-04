@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Optional
 
 from loguru import logger
@@ -19,7 +20,7 @@ class CreatePromocodeDto:
     plan_snapshot: Optional[dict] = None
     availability: PromocodeAvailability = PromocodeAvailability.ALL
     allowed_telegram_ids: list[int] = field(default_factory=list)
-    lifetime: Optional[int] = None
+    expires_at: Optional[datetime] = None
     max_activations: Optional[int] = None
 
 
@@ -40,9 +41,29 @@ class CreatePromocode(Interactor[CreatePromocodeDto, PromocodeDto]):
         PromocodeRewardType.PURCHASE_DISCOUNT,
     }
 
+    # Discount rewards are percentages, so they are bounded to 1..100.
+    _DISCOUNT_TYPES = {
+        PromocodeRewardType.PERSONAL_DISCOUNT,
+        PromocodeRewardType.PURCHASE_DISCOUNT,
+    }
+
     async def _execute(self, actor: UserDto, data: CreatePromocodeDto) -> PromocodeDto:
-        if data.reward_type in self._REWARD_REQUIRED and (data.reward is None or data.reward <= 0):
-            raise ValueError(f"Reward must be > 0 for reward type '{data.reward_type}'")
+        if data.reward_type in self._REWARD_REQUIRED:
+            # DURATION/DEVICES accept 0 as "unlimited" (permanent subscription / unlimited
+            # devices); other reward types require a strictly positive amount.
+            unlimited_zero = {PromocodeRewardType.DURATION, PromocodeRewardType.DEVICES}
+            min_reward = 0 if data.reward_type in unlimited_zero else 1
+            if data.reward is None or data.reward < min_reward:
+                raise ValueError(
+                    f"Reward must be >= {min_reward} for reward type '{data.reward_type}'"
+                )
+
+        if data.reward_type in self._DISCOUNT_TYPES:
+            # Discount is a percentage; reject anything outside 1..100.
+            if data.reward is None or not 1 <= data.reward <= 100:
+                raise ValueError(
+                    f"Discount must be between 1 and 100 for reward type '{data.reward_type}'"
+                )
 
         existing = await self.promocode_dao.get_by_code(data.code)
         if existing:
@@ -56,7 +77,7 @@ class CreatePromocode(Interactor[CreatePromocodeDto, PromocodeDto]):
             plan_snapshot=data.plan_snapshot,
             availability=data.availability,
             allowed_telegram_ids=data.allowed_telegram_ids,
-            lifetime=data.lifetime,
+            expires_at=data.expires_at,
             max_activations=data.max_activations,
         )
 

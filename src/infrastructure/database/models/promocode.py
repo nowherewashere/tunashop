@@ -27,7 +27,7 @@ class Promocode(BaseSql, TimestampMixin):
         ARRAY(BigInteger), nullable=False, server_default="{}"
     )
 
-    lifetime: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     max_activations: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     activations: Mapped[list["PromocodeActivation"]] = relationship(

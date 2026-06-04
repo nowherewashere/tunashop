@@ -39,6 +39,7 @@ class DashboardStatistics(StatesGroup):
     USERS = State()
     SUBSCRIPTIONS = State()
     TRANSACTIONS = State()
+    PROMOCODES = State()
     REFERRALS = State()
 
 
@@ -62,7 +63,7 @@ class DashboardPromocodes(StatesGroup):
     REWARD = State()
     PLAN = State()
     PLAN_DURATION = State()
-    LIFETIME = State()
+    EXPIRES = State()
     MAX_ACTIVATIONS = State()
     ALLOWED = State()
 
