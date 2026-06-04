@@ -374,14 +374,19 @@ class Locale(StrEnum):
     AR = auto()  # Arabic
     AZ = auto()  # Azerbaijani
     BE = auto()  # Belarusian
+    BG = auto()  # Bulgarian
     CS = auto()  # Czech
+    DA = auto()  # Danish
     DE = auto()  # German
+    EL = auto()  # Greek
     EN = auto()  # English
     ES = auto()  # Spanish
     FA = auto()  # Persian
+    FI = auto()  # Finnish
     FR = auto()  # French
     HE = auto()  # Hebrew
     HI = auto()  # Hindi
+    HU = auto()  # Hungarian
     ID = auto()  # Indonesian
     IT = auto()  # Italian
     JA = auto()  # Japanese
@@ -389,15 +394,20 @@ class Locale(StrEnum):
     KO = auto()  # Korean
     MS = auto()  # Malay
     NL = auto()  # Dutch
+    NO = auto()  # Norwegian
     PL = auto()  # Polish
     PT = auto()  # Portuguese
     RO = auto()  # Romanian
     RU = auto()  # Russian
     SR = auto()  # Serbian
+    SV = auto()  # Swedish
+    TG = auto()  # Tajik
+    TH = auto()  # Thai
     TR = auto()  # Turkish
     UK = auto()  # Ukrainian
     UZ = auto()  # Uzbek
     VI = auto()  # Vietnamese
+    ZH = auto()  # Chinese
 
 
 class LogLevel(UpperStrEnum):
