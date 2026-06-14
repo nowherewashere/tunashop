@@ -1430,16 +1430,15 @@ msg-subscription-details =
     }
     </blockquote>
     
-    <blockquote>
     { $discount_percent ->
     [0] { empty }
-    *[HAS] <i>Цены указаны с учетом { $is_personal_discount ->
+    *[HAS]
+    <blockquote><i>Цены указаны с учетом { $is_personal_discount ->
         [1] вашей персональной скидки { $discount_percent }%
         *[0] разовой скидки { $discount_percent }%
         }
-        </i>
+        </i></blockquote>
     }
-    </blockquote>
 
 msg-subscription-duration =
     <b>⏳ Выберите длительность</b>
