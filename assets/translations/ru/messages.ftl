@@ -260,6 +260,7 @@ msg-statistics-transactions =
     • <b>Доход за день</b>: { $daily_income }{ $currency }
     • <b>Доход за неделю</b>: { $weekly_income }{ $currency }
     • <b>Доход за месяц</b>: { $monthly_income }{ $currency }
+    • <b>Доход за прошлый месяц</b>: { $last_month_income }{ $currency }
     • <b>Средний чек</b>: { $average_check }{ $currency }
     • <b>Сумма скидок</b>: { $total_discounts }{ $currency }
     </blockquote>

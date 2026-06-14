@@ -119,6 +119,7 @@ class GatewayStatsDto:
     daily_income: Decimal
     weekly_income: Decimal
     monthly_income: Decimal
+    last_month_income: Decimal
     paid_count: int
     total_discounts: Decimal
     total_transactions: int

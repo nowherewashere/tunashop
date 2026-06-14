@@ -218,8 +218,10 @@ class TransactionDaoImpl(TransactionDao):
     async def get_gateway_stats(self) -> list[GatewayStatsDto]:
         now = datetime_now()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        week_ago = now - timedelta(days=7)
-        month_ago = now - timedelta(days=30)
+        week_ago = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        month_ago = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_month_end = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_month_start = (last_month_end - timedelta(days=1)).replace(day=1)
 
         final_amount = Transaction.pricing["final_amount"].as_float()
         original_amount = Transaction.pricing["original_amount"].as_float()
@@ -259,6 +261,20 @@ class TransactionDaoImpl(TransactionDao):
                     else_=0.0,
                 )
             ).label("monthly_income"),
+            func.sum(
+                case(
+                    (
+                        and_(
+                            is_completed,
+                            Transaction.created_at >= last_month_start,
+                            Transaction.created_at < last_month_end,
+                        ),
+                        final_amount,
+                    ),
+                    else_=0.0,
+                )
+            ).label("last_month_income"),
+            func.sum(case((and_(is_completed, ~is_free), 1), else_=0)).label("paid_count"),
             func.sum(case((and_(is_completed, ~is_free), 1), else_=0)).label("paid_count"),
             func.sum(case((is_completed, original_amount - final_amount), else_=0.0)).label(
                 "total_discounts"
@@ -276,6 +292,7 @@ class TransactionDaoImpl(TransactionDao):
                 daily_income=Decimal(row["daily_income"] or 0),
                 weekly_income=Decimal(row["weekly_income"] or 0),
                 monthly_income=Decimal(row["monthly_income"] or 0),
+                last_month_income=Decimal(row["last_month_income"] or 0),
                 paid_count=int(row["paid_count"] or 0),
                 total_discounts=Decimal(row["total_discounts"] or 0),
                 total_transactions=int(row["total_transactions"] or 0),

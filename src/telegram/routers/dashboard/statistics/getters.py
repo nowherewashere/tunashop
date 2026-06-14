@@ -110,6 +110,7 @@ async def transactions_getter(
         "daily_income": gateway.daily_income,
         "weekly_income": gateway.weekly_income,
         "monthly_income": gateway.monthly_income,
+        "last_month_income": gateway.last_month_income,
         "average_check": round(gateway.total_income / max(1, gateway.paid_count)),
         "total_discounts": gateway.total_discounts,
         "currency": Currency.from_gateway_type(gateway.gateway_type).symbol,
