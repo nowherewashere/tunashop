@@ -168,7 +168,7 @@ async def devices_getter(
 
     formatted_devices = [
         {
-            "short_hwid": device.hwid[:32],
+            "index": index,
             "hwid": device.hwid,
             "platform": device.platform or False,
             "device_model": device.device_model or False,
@@ -183,7 +183,7 @@ async def devices_getter(
                 created_at=device.created_at.strftime("%d.%m.%Y"),
             ),
         }
-        for device in devices
+        for index, device in enumerate(devices)
     ]
 
     dialog_manager.dialog_data["hwid_map"] = formatted_devices

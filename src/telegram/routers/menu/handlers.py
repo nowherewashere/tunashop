@@ -126,14 +126,14 @@ async def on_device_delete_request(
     widget: Button,
     dialog_manager: DialogManager,
 ) -> None:
-    selected_short_hwid = dialog_manager.item_id  # type: ignore[attr-defined]
+    selected_index = int(dialog_manager.item_id)  # type: ignore[attr-defined]
     hwid_map = dialog_manager.dialog_data.get("hwid_map", [])
-    device = next((d for d in hwid_map if d["short_hwid"] == selected_short_hwid), None)
+    device = hwid_map[selected_index] if selected_index < len(hwid_map) else None
 
     if not device:
-        raise ValueError(f"Device not found for hwid '{selected_short_hwid}'")
+        raise ValueError(f"Device not found at index '{selected_index}'")
 
-    dialog_manager.dialog_data["selected_short_hwid"] = selected_short_hwid
+    dialog_manager.dialog_data["selected_hwid"] = device["hwid"]
     dialog_manager.dialog_data["selected_device_model"] = device["device_model"] or ""
     dialog_manager.dialog_data["selected_platform"] = device["platform"] or ""
     dialog_manager.dialog_data["selected_platform_icon"] = device["platform_icon"]
@@ -150,15 +150,10 @@ async def on_device_delete_confirm(
     notifier: FromDishka[Notifier],
 ) -> None:
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
-    selected_short_hwid = dialog_manager.dialog_data.get("selected_short_hwid")
-    hwid_map = dialog_manager.dialog_data.get("hwid_map", [])
+    full_hwid = dialog_manager.dialog_data.get("selected_hwid")
 
-    if not selected_short_hwid or not hwid_map:
-        raise ValueError("Missing selected device data")
-
-    full_hwid = next((d["hwid"] for d in hwid_map if d["short_hwid"] == selected_short_hwid), None)
     if not full_hwid:
-        raise ValueError(f"Full HWID not found for '{selected_short_hwid}'")
+        raise ValueError("Missing selected device data")
 
     try:
         await delete_user_device(user, DeleteUserDeviceDto(user_id=user.id, hwid=full_hwid))
