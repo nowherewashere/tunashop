@@ -15,21 +15,44 @@ if [ ! -d "$USER_BANNERS" ] || [ -z "$(ls -A "$USER_BANNERS" 2>/dev/null)" ]; th
     cp -a "${ASSETS_DEFAULT_PATH}/banners/." "$USER_BANNERS/"
 fi
 
+# --- Migrate legacy layout: move pre-0.8 *.ftl (except custom.ftl) into .legacy/ ---
+# Built-in translations now ship in assets.default; the user volume keeps only custom.ftl.
+USER_TRANSLATIONS="${ASSETS_CONTAINER_PATH}/translations"
+if [ -d "$USER_TRANSLATIONS" ]; then
+    for locale_dir in "$USER_TRANSLATIONS"/*/; do
+        [ -d "$locale_dir" ] || continue
+        for ftl in "$locale_dir"*.ftl; do
+            [ -f "$ftl" ] || continue
+            case "$(basename "$ftl")" in
+                custom.ftl) continue ;;
+            esac
+            mkdir -p "${locale_dir}.legacy"
+            mv "$ftl" "${locale_dir}.legacy/"
+            echo "Moved legacy translation $(basename "$ftl") -> ${locale_dir}.legacy/"
+        done
+    done
+fi
+
 # --- Bootstrap custom.ftl for each locale in assets.default ---
 if [ -d "${ASSETS_DEFAULT_PATH}/translations" ]; then
     for locale_dir in "${ASSETS_DEFAULT_PATH}/translations"/*/; do
         locale=$(basename "$locale_dir")
-        CUSTOM_FTL="${ASSETS_CONTAINER_PATH}/translations/${locale}/custom.ftl"
+        USER_LOCALE_DIR="${ASSETS_CONTAINER_PATH}/translations/${locale}"
+        CUSTOM_FTL="${USER_LOCALE_DIR}/custom.ftl"
+        TEMPLATE_FTL="${ASSETS_DEFAULT_PATH}/translations/${locale}/custom.ftl"
+        mkdir -p "$USER_LOCALE_DIR"
         if [ ! -f "$CUSTOM_FTL" ]; then
-            mkdir -p "${ASSETS_CONTAINER_PATH}/translations/${locale}"
             # Copy the template custom.ftl from defaults (contains usage comments, no overrides)
-            if [ -f "${ASSETS_DEFAULT_PATH}/translations/${locale}/custom.ftl" ]; then
-                cp "${ASSETS_DEFAULT_PATH}/translations/${locale}/custom.ftl" "$CUSTOM_FTL"
+            if [ -f "$TEMPLATE_FTL" ]; then
+                cp "$TEMPLATE_FTL" "$CUSTOM_FTL"
                 echo "Created custom.ftl for locale: ${locale}"
             else
                 touch "$CUSTOM_FTL"
                 echo "Created empty custom.ftl for locale: ${locale}"
             fi
+        elif [ -f "$TEMPLATE_FTL" ]; then
+            # User's custom.ftl is left untouched; refresh the reference template for diffing
+            cp "$TEMPLATE_FTL" "${CUSTOM_FTL}.example"
         fi
     done
 fi
