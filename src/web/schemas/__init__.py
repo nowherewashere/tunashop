@@ -27,6 +27,7 @@ from .referral import ReferralProgramResponse, ReferralRewardLevelResponse
 from .subscription import (
     DeviceDeleteResponse,
     DeviceResponse,
+    DevicesDeleteAllResponse,
     DevicesResponse,
     DurationGatewayPriceResponse,
     DurationOfferResponse,
@@ -72,6 +73,7 @@ __all__ = [
     # subscription
     "DeviceDeleteResponse",
     "DeviceResponse",
+    "DevicesDeleteAllResponse",
     "DevicesResponse",
     "DurationGatewayPriceResponse",
     "DurationOfferResponse",

@@ -20,6 +20,7 @@ from src.application.use_cases.gateways.commands.payment import (
 )
 from src.application.use_cases.plan.queries.match import MatchPlan, MatchPlanDto
 from src.application.use_cases.remnawave.commands.management import (
+    DeleteUserAllDevices,
     DeleteUserDevice,
     DeleteUserDeviceDto,
     ReissueSubscription,
@@ -34,6 +35,7 @@ from src.core.exceptions import CooldownError
 from src.web.schemas import (
     DeviceDeleteResponse,
     DeviceResponse,
+    DevicesDeleteAllResponse,
     DevicesResponse,
     DurationGatewayPriceResponse,
     DurationOfferResponse,
@@ -170,6 +172,21 @@ async def delete_subscription_device(
         DeleteUserDeviceDto(user_id=user.id, hwid=hwid),
     )
     return DeviceDeleteResponse(deleted=deleted)
+
+
+@router.delete("/devices", response_model=DevicesDeleteAllResponse)
+@inject
+async def delete_all_subscription_devices(
+    user: CurrentUser,
+    delete_all_devices: FromDishka[DeleteUserAllDevices],
+) -> DevicesDeleteAllResponse:
+    try:
+        await delete_all_devices(user)
+    except CooldownError as e:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    return DevicesDeleteAllResponse(success=True)
 
 
 @router.post("/reissue", response_model=ReissueResponse)

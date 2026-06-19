@@ -40,6 +40,10 @@ class DeviceDeleteResponse(BaseModel):
     deleted: bool
 
 
+class DevicesDeleteAllResponse(BaseModel):
+    success: bool
+
+
 class ReissueResponse(BaseModel):
     success: bool
 
