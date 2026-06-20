@@ -10,6 +10,7 @@ from .commands.backup import (
     UpdateBackupMaxFiles,
 )
 from .commands.currency import UpdateDefaultCurrency
+from .commands.defaults import CreateDefaultSettings
 from .commands.extra import (
     ToggleMiniAppReserve,
     ToggleResetFeature,
@@ -32,6 +33,7 @@ from .commands.requirements import (
 )
 
 SETTINGS_USE_CASES: Final[tuple[type[Interactor], ...]] = (
+    CreateDefaultSettings,
     ChangeAccessMode,
     ToggleConditionRequirement,
     ToggleNotification,
