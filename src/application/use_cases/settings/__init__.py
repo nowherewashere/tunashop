@@ -17,7 +17,11 @@ from .commands.extra import (
     ToggleTrialChannelGuard,
     UpdateResetCooldown,
 )
-from .commands.notifications import ToggleNotification, UpdateSystemNotificationRoute
+from .commands.notifications import (
+    ToggleNotification,
+    UpdateDefaultNotificationRoute,
+    UpdateSystemNotificationRoute,
+)
 from .commands.referral import (
     ToggleReferralSystem,
     UpdateReferralAccrualStrategy,
@@ -49,6 +53,7 @@ SETTINGS_USE_CASES: Final[tuple[type[Interactor], ...]] = (
     UpdateRulesRequirement,
     UpdateDefaultCurrency,
     UpdateSystemNotificationRoute,
+    UpdateDefaultNotificationRoute,
     ToggleBackupEnabled,
     ToggleBackupSendToChat,
     UpdateBackupInterval,

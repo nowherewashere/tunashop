@@ -2,6 +2,7 @@ from dataclasses import asdict
 from typing import Any, Optional
 
 from aiogram_dialog import DialogManager
+from aiogram_dialog.api.exceptions import UnknownIntent
 from aiogram_dialog.widgets.common import ManagedScroll
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
@@ -257,7 +258,7 @@ async def promocode_detail_getter(
     promocode_id = dialog_manager.dialog_data[PROMO_STAT_ID_KEY]
     data = await get_promocode_detail_statistics(user, promocode_id)
     if data is None:
-        return {}
+        raise UnknownIntent("Promocode not found for detail statistics")
 
     remaining = remaining_activations(data.max_activations, data.total_activations)
     return {
