@@ -4,6 +4,7 @@ from src.application.common.dao import (
     AdLinkDao,
     AuthSessionDao,
     BroadcastDao,
+    OnboardingNudgeDao,
     PaymentGatewayDao,
     PlanDao,
     PromocodeDao,
@@ -20,6 +21,7 @@ from src.application.common.dao import (
 from src.infrastructure.database.dao import (
     AdLinkDaoImpl,
     BroadcastDaoImpl,
+    OnboardingNudgeDaoImpl,
     PaymentGatewayDaoImpl,
     PlanDaoImpl,
     PromocodeDaoImpl,
@@ -41,6 +43,7 @@ class DaoProvider(Provider):
 
     ad_link = provide(source=AdLinkDaoImpl, provides=AdLinkDao)
     broadcast = provide(source=BroadcastDaoImpl, provides=BroadcastDao)
+    onboarding_nudge = provide(source=OnboardingNudgeDaoImpl, provides=OnboardingNudgeDao)
     payment_gateway = provide(source=PaymentGatewayDaoImpl, provides=PaymentGatewayDao)
     plan = provide(source=PlanDaoImpl, provides=PlanDao)
     promocode = provide(source=PromocodeDaoImpl, provides=PromocodeDao)

@@ -13,6 +13,7 @@ from .commands.currency import UpdateDefaultCurrency
 from .commands.defaults import CreateDefaultSettings
 from .commands.extra import (
     ToggleMiniAppReserve,
+    ToggleOnboarding,
     ToggleResetFeature,
     ToggleTrialChannelGuard,
     UpdateResetCooldown,
@@ -61,5 +62,6 @@ SETTINGS_USE_CASES: Final[tuple[type[Interactor], ...]] = (
     ToggleResetFeature,
     ToggleTrialChannelGuard,
     ToggleMiniAppReserve,
+    ToggleOnboarding,
     UpdateResetCooldown,
 )

@@ -227,6 +227,7 @@ class ExtraSettingsDto(TrackableMixin):
     referral_reset: ResetFeatureSettingsDto = field(default_factory=ResetFeatureSettingsDto)
     trial_channel_guard: bool = False
     mini_app_reserve: bool = False
+    onboarding_enabled: bool = False
 
 
 @dataclass(kw_only=True)

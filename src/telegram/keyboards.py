@@ -10,7 +10,7 @@ from magic_filter import F
 
 from src.core.constants import DOCS, GOTO_PREFIX, PAYMENT_PREFIX, REPOSITORY, T_ME
 from src.core.enums import ButtonType, PurchaseType
-from src.telegram.states import DashboardUser, MainMenu, Notification, Subscription
+from src.telegram.states import DashboardUser, MainMenu, Notification, Onboarding, Subscription
 from src.telegram.widgets import I18nFormat
 from src.telegram.widgets.kbd import Button, CopyText, Group, ListGroup, Row, Start, Url, WebApp
 
@@ -87,25 +87,40 @@ custom_buttons = (
 )
 
 
+# The classic single-button connect widgets. When the guided onboarding funnel is
+# enabled (settings.extra.onboarding_enabled), these are suppressed in favour of
+# `onboarding_connect_buttons`; toggling the flag off restores them exactly.
 connect_buttons = (
     WebApp(
         text=I18nFormat("btn-menu.connect"),
         url=Format("{connection_url}"),
         id="connect_miniapp",
-        when=F["is_mini_app"] & F["connectable"],
+        when=F["is_mini_app"] & F["connectable"] & ~F["onboarding_enabled"],
         style=Style(ButtonStyle.PRIMARY),
     ),
     Url(
         text=I18nFormat("btn-menu.connect-reserve"),
         url=Format("{subscription_url}"),
         id="connect_reserve",
-        when=F["is_mini_app_reserve"] & F["connectable"],
+        when=F["is_mini_app_reserve"] & F["connectable"] & ~F["onboarding_enabled"],
     ),
     Url(
         text=I18nFormat("btn-menu.connect"),
         url=Format("{connection_url}"),
         id="connect_sub_page",
-        when=~F["is_mini_app"] & F["connectable"],
+        when=~F["is_mini_app"] & F["connectable"] & ~F["onboarding_enabled"],
+        style=Style(ButtonStyle.PRIMARY),
+    ),
+)
+
+# Guided-onboarding entry: starts the funnel instead of the direct connect button.
+# Mutually exclusive with `connect_buttons` via the same `onboarding_enabled` flag.
+onboarding_connect_buttons = (
+    Start(
+        text=I18nFormat("btn-menu.connect"),
+        id="connect_onboarding",
+        state=Onboarding.PLATFORM,
+        when=F["onboarding_enabled"] & F["connectable"],
         style=Style(ButtonStyle.PRIMARY),
     ),
 )

@@ -1,6 +1,7 @@
 from .ad_link import AdLinkDaoImpl
 from .broadcast import BroadcastDaoImpl
 from .oauth_provider import UserOAuthProviderDaoImpl
+from .onboarding_nudge import OnboardingNudgeDaoImpl
 from .payment_gateway import PaymentGatewayDaoImpl
 from .plan import PlanDaoImpl
 from .promocode import PromocodeDaoImpl
@@ -16,6 +17,7 @@ __all__ = [
     "AdLinkDaoImpl",
     "BroadcastDaoImpl",
     "UserOAuthProviderDaoImpl",
+    "OnboardingNudgeDaoImpl",
     "PaymentGatewayDaoImpl",
     "PlanDaoImpl",
     "PromocodeDaoImpl",

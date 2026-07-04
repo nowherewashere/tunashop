@@ -11,6 +11,7 @@ from .getters import extra_getter
 from .handlers import (
     on_cooldown_input,
     on_mini_app_reserve_toggle,
+    on_onboarding_toggle,
     on_toggle,
     on_trial_channel_guard_toggle,
 )
@@ -76,6 +77,16 @@ main = Window(
             ),
             id="mini_app_reserve",
             state=RemnashopExtra.MINI_APP_RESERVE,
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat(
+                "btn-remnashop-extra.onboarding",
+                enabled=F["onboarding_enabled"],
+            ),
+            id="onboarding",
+            state=RemnashopExtra.ONBOARDING,
         ),
     ),
     Row(
@@ -255,6 +266,34 @@ mini_app_reserve = Window(
     getter=extra_getter,
 )
 
+onboarding = Window(
+    Banner(BannerName.DASHBOARD),
+    I18nFormat(
+        "msg-extra-onboarding",
+        enabled=F["onboarding_enabled"],
+    ),
+    Row(
+        Button(
+            text=I18nFormat(
+                "btn-remnashop-extra.toggle",
+                enabled=F["onboarding_enabled"],
+            ),
+            id="onboarding_toggle",
+            on_click=on_onboarding_toggle,
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=RemnashopExtra.MAIN,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=RemnashopExtra.ONBOARDING,
+    getter=extra_getter,
+)
+
 router = Dialog(
     main,
     device_single,
@@ -263,4 +302,5 @@ router = Dialog(
     referral_reset,
     trial_channel_guard,
     mini_app_reserve,
+    onboarding,
 )

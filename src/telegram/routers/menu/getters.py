@@ -52,6 +52,7 @@ async def menu_getter(
             # ui / config
             "is_mini_app": config.bot.is_mini_app,
             "is_mini_app_reserve": config.bot.is_mini_app and settings.extra.mini_app_reserve,
+            "onboarding_enabled": settings.extra.onboarding_enabled,
             "support_url": support_url,
             "web_enabled": config.web_enabled,
             "web_cabinet_url": config.web_cabinet_url.strip(),

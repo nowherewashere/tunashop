@@ -2,6 +2,7 @@ from .ad_link import AdLink
 from .base import BaseSql
 from .broadcast import Broadcast, BroadcastMessage
 from .oauth_provider import UserOAuthProvider
+from .onboarding_nudge import OnboardingNudge
 from .payment_gateway import PaymentGateway
 from .plan import Plan, PlanDuration, PlanPrice
 from .promocode import Promocode, PromocodeActivation
@@ -19,6 +20,7 @@ __all__ = [
     "Broadcast",
     "BroadcastMessage",
     "UserOAuthProvider",
+    "OnboardingNudge",
     "PaymentGateway",
     "Plan",
     "PlanDuration",

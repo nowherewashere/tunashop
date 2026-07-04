@@ -7,7 +7,11 @@ from magic_filter import F
 
 from src.core.constants import PAYMENT_PREFIX
 from src.core.enums import BannerName, PaymentGatewayType, PurchaseType
-from src.telegram.keyboards import back_main_menu_button, connect_buttons
+from src.telegram.keyboards import (
+    back_main_menu_button,
+    connect_buttons,
+    onboarding_connect_buttons,
+)
 from src.telegram.states import Subscription
 from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
 from src.telegram.widgets.kbd import Button, Column, Group, Row, Select, SwitchTo, Url
@@ -241,6 +245,7 @@ success_payment = Window(
     Banner(BannerName.SUBSCRIPTION),
     I18nFormat("msg-subscription-success"),
     *connect_buttons,
+    *onboarding_connect_buttons,
     *back_main_menu_button,
     IgnoreUpdate(),
     state=Subscription.SUCCESS,
@@ -251,6 +256,7 @@ success_trial = Window(
     Banner(BannerName.SUBSCRIPTION),
     I18nFormat("msg-subscription-trial"),
     *connect_buttons,
+    *onboarding_connect_buttons,
     *back_main_menu_button,
     IgnoreUpdate(),
     state=Subscription.TRIAL,

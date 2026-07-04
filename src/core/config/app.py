@@ -16,6 +16,7 @@ from .build import BuildConfig
 from .database import DatabaseConfig
 from .email import EmailConfig
 from .log import LogConfig
+from .onboarding import OnboardingConfig
 from .redis import RedisConfig
 from .remnawave import RemnawaveConfig
 from .validators import validate_not_change_me
@@ -45,6 +46,7 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
     email: EmailConfig = Field(default_factory=EmailConfig)
     build: BuildConfig = Field(default_factory=BuildConfig)
     log: LogConfig = Field(default_factory=LogConfig)
+    onboarding: OnboardingConfig = Field(default_factory=OnboardingConfig)
 
     @property
     def default_assets_dir(self) -> Path:

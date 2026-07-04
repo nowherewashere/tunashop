@@ -26,4 +26,5 @@ async def extra_getter(
         "referral_reset_cooldown": extra.referral_reset.cooldown_hours,
         "trial_channel_guard_enabled": extra.trial_channel_guard,
         "mini_app_reserve_enabled": extra.mini_app_reserve,
+        "onboarding_enabled": extra.onboarding_enabled,
     }

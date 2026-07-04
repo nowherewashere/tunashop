@@ -17,6 +17,14 @@ class Notification(StatesGroup):
     CLOSE = State()
 
 
+class Onboarding(StatesGroup):
+    PLATFORM = State()
+    SETUP = State()
+    REFRESH_TIP = State()
+    SUCCESS = State()
+    HELP = State()
+
+
 class Subscription(StatesGroup):
     MAIN = State()
     PROMOCODE = State()
@@ -135,6 +143,7 @@ class RemnashopExtra(StatesGroup):
     REFERRAL_RESET = State()
     TRIAL_CHANNEL_GUARD = State()
     MINI_APP_RESERVE = State()
+    ONBOARDING = State()
 
 
 class RemnashopReferral(StatesGroup):

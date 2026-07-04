@@ -8,7 +8,7 @@ from magic_filter import F
 from src.application.common.policy import Permission
 from src.core.constants import INLINE_QUERY_INVITE, PAYMENT_PREFIX
 from src.core.enums import BannerName
-from src.telegram.keyboards import build_buttons_row, connect_buttons
+from src.telegram.keyboards import build_buttons_row, connect_buttons, onboarding_connect_buttons
 from src.telegram.routers.dashboard.handlers import on_smart_search
 from src.telegram.states import Dashboard, MainMenu, Subscription
 from src.telegram.utils import require_permission
@@ -57,6 +57,7 @@ menu = Window(
     Banner(BannerName.MENU),
     I18nFormat("msg-main-menu"),
     *connect_buttons,
+    *onboarding_connect_buttons,
     Row(
         Button(
             text=I18nFormat("btn-menu.connect-not-available"),

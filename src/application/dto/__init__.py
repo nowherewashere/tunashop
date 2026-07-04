@@ -4,6 +4,7 @@ from .broadcast import BroadcastDto, BroadcastMessageDto
 from .build import BuildInfoDto
 from .message_payload import MediaDescriptorDto, MessagePayloadDto
 from .notification_task import NotificationTaskDto
+from .onboarding import OnboardingNudgeDto
 from .payment_gateway import (
     AnyGatewaySettingsDto,
     GatewaySettingsDto,
@@ -92,6 +93,7 @@ __all__ = [
     "ResetFeatureSettingsDto",
     "SettingsDto",
     "SystemNotificationRouteDto",
+    "OnboardingNudgeDto",
     "RemnaSubscriptionDto",
     "SquadInfoDto",
     "SubscriptionDto",

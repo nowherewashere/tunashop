@@ -48,6 +48,10 @@ PAYMENT_PREFIX: Final[str] = "payment_"
 GOTO_PREFIX: Final[str] = "gt_"
 ENCRYPTED_PREFIX: Final[str] = "enc_"
 
+# goto target (see routers/extra/goto.py) that opens the onboarding funnel; must
+# match the Onboarding.PLATFORM state string in telegram/states.py.
+ONBOARDING_GOTO_TARGET: Final[str] = "Onboarding:PLATFORM"
+
 MIDDLEWARE_DATA_KEY: Final[str] = "middleware_data"
 CONTAINER_KEY: Final[str] = "dishka_container"
 CONFIG_KEY: Final[str] = "config"

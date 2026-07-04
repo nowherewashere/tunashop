@@ -9,6 +9,7 @@ from src.application.common import Notifier
 from src.application.dto import TelegramUserDto
 from src.application.use_cases.settings.commands.extra import (
     ToggleMiniAppReserve,
+    ToggleOnboarding,
     ToggleResetFeature,
     ToggleResetFeatureDto,
     ToggleTrialChannelGuard,
@@ -58,6 +59,17 @@ async def on_mini_app_reserve_toggle(
 ) -> None:
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     await toggle_mini_app_reserve(user)
+
+
+@inject
+async def on_onboarding_toggle(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    toggle_onboarding: FromDishka[ToggleOnboarding],
+) -> None:
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    await toggle_onboarding(user)
 
 
 @inject

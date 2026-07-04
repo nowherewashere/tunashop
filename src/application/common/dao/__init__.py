@@ -3,6 +3,7 @@ from .ad_link import AdLinkDao
 from .auth import AuthSessionDao
 from .broadcast import BroadcastDao
 from .oauth_provider import UserOAuthProviderDao
+from .onboarding_nudge import OnboardingNudgeDao
 from .payment_gateway import PaymentGatewayDao
 from .plan import PlanDao
 from .promocode import PromocodeDao
@@ -20,6 +21,7 @@ __all__ = [
     "AuthSessionDao",
     "BroadcastDao",
     "UserOAuthProviderDao",
+    "OnboardingNudgeDao",
     "PaymentGatewayDao",
     "PlanDao",
     "PromocodeDao",
