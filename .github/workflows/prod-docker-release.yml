@@ -1,4 +1,4 @@
-name: Remnashop - Release
+name: TunaShop - Release
 
 on:
   release:
@@ -50,9 +50,7 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: |
-            ghcr.io/snoups/remnashop:latest
-            ghcr.io/snoups/remnashop:${{ github.ref_name }}
+          tags: ${{ steps.vars.outputs.image_tag }}
           build-args: |
             BUILD_TIME=${{ steps.vars.outputs.build_time }}
             BUILD_BRANCH=main
@@ -68,13 +66,13 @@ jobs:
           name: ${{ github.ref_name }}
           generate_release_notes: false
           body: |
-            # 🛍 Remnashop ${{ github.ref_name }} 
-            [![Telegram Group](https://img.shields.io/badge/public_group-white?style=social&logo=Telegram&logoColor=blue)](https://t.me/remna_shop)
-            [![Remnawave](https://img.shields.io/badge/remnawave-white?style=social&logo=Telegram&logoColor=blue)](https://t.me/+xQs17zMzwCY1NzYy)
+            # 🛍 TunaShop ${{ github.ref_name }}
+
+            A soft fork of [snoups/remnashop](https://github.com/snoups/remnashop) with a guided onboarding funnel.
 
             ---
 
-            - [Compare changes (${{ steps.latest-tag.outputs.previousTag }}...${{ steps.latest-tag.outputs.latestTag }})](https://github.com/snoups/remnashop/compare/${{ steps.latest-tag.outputs.previousTag }}...${{ steps.latest-tag.outputs.latestTag }})
+            - [Compare changes (${{ steps.latest-tag.outputs.previousTag }}...${{ steps.latest-tag.outputs.latestTag }})](https://github.com/${{ github.repository }}/compare/${{ steps.latest-tag.outputs.previousTag }}...${{ steps.latest-tag.outputs.latestTag }})
 
             ---
 
@@ -82,12 +80,12 @@ jobs:
 
             ### Latest:
             ```
-            ghcr.io/snoups/remnashop:latest
+            ghcr.io/${{ github.repository }}:latest
             ```
 
             ### Versioned:
             ```
-            ghcr.io/snoups/remnashop:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
             ```
           draft: false
           prerelease: false

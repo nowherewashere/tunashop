@@ -50,17 +50,14 @@ make run-local            # builds from Dockerfile.local + starts db/redis
 
 `docker-compose.local.yml` builds the image from source, so your fork's code is what runs. Migrations (`0041`, `0042`) are applied automatically by `docker-entrypoint.sh` (`alembic upgrade head`). Then open the bot, go to **Dashboard → Remnashop → Extra → Пошаговое подключение**, and turn the funnel on.
 
-### Is there a prebuilt Docker image?
+### Prebuilt Docker image
 
-**Not yet for this fork.** Upstream ships `ghcr.io/snoups/remnashop:latest`, and the **prod** compose files (`docker-compose.prod.*.yml`) pull *that* upstream image — so as‑is, `make run-prod` would run upstream code, **not** ours. To deploy this fork in production you have two options:
+This fork publishes its own images to **`ghcr.io/nowherewashere/tunashop`**, and the prod compose files (`docker-compose.prod.*.yml`) already point at them — so `make run-prod` runs *this* fork's code:
 
-- **Build locally in prod** — point the prod compose `image:`/build at this repo (as the local compose already does), or
-- **Publish your own image** to `ghcr.io/nowherewashere/tunashop`:
-  1. In `.github/workflows/prod-docker-release.yml`, change the hardcoded `tags:` from `ghcr.io/snoups/remnashop:*` to `ghcr.io/nowherewashere/tunashop:*` (the workflow already computes `IMAGE_REPO` from `${GITHUB_REPOSITORY}` — wire the push `tags` to it).
-  2. Update the `image:` line in `docker-compose.prod.external.yml` / `docker-compose.prod.internal.yml` to `ghcr.io/nowherewashere/tunashop:latest`.
-  3. Add a `GHCR_TOKEN` repo secret and publish a GitHub Release (or run the workflow via `workflow_dispatch`).
+- **`ghcr.io/nowherewashere/tunashop:latest`** and `:<tag>` — built by `prod-docker-release.yml` on each published GitHub Release.
+- **`ghcr.io/nowherewashere/tunashop:dev`** — built by `dev-docker-release.yml` on every push to the `dev` branch.
 
-The `Dockerfile` itself is fork‑agnostic and needs no changes.
+Both workflows derive the image name from `${{ github.repository }}`, so they follow the repo automatically (no hardcoded owner). **One-time setup:** add a `GHCR_TOKEN` repository secret (a PAT with `write:packages`) so CI can push to GHCR; then publish a Release (or run the release workflow via `workflow_dispatch`) to produce `:latest`. The `Dockerfile` is fork-agnostic and needs no changes.
 
 ---
 

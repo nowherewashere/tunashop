@@ -1,4 +1,4 @@
-name: Remnashop - Dev
+name: TunaShop - Dev
 
 on:
   push:
@@ -97,15 +97,15 @@ jobs:
 
       - name: 📁 Archive Project Files
         run: |
-          zip -r remnashop-dev.zip . \
+          zip -r tunashop-dev.zip . \
             -x ".git/*" ".github/*" "logs/*" "*.zip" "node_modules/*"
 
       - name: 🧹 Remove Previous Artifact
         continue-on-error: true
-        run: gh release delete-asset dev-build remnashop-dev.zip || true
+        run: gh release delete-asset dev-build tunashop-dev.zip || true
 
       - name: ⬆️ Upload Artifact to Release
-        run: gh release upload dev-build remnashop-dev.zip --clobber
+        run: gh release upload dev-build tunashop-dev.zip --clobber
 
       - name: 📝 Update Release Notes
         run: |
