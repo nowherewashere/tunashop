@@ -1,64 +1,74 @@
-# Guided onboarding funnel (see src/telegram/routers/onboarding/).
-# Turned on/off at runtime via the Extra settings toggle (onboarding_enabled).
+# Guided onboarding funnel — screens ported 1:1 from the Tuna source bot
+# (handlers/onboarding.py O0–O4 + the "Не получается" branch).
+# Toggled on/off at runtime via the Extra settings (onboarding_enabled).
+# The platform title and the video line come from the getter as pre-formatted
+# variables ($platform_title, $video_block) to keep the copy byte-exact.
 
-msg-onboarding-platform =
-    <b>🚀 Подключим за минуту</b>
+# O0 — entry
+msg-onboarding-entry = Подключим за 1 минуту. Поехали 🐟
 
-    На каком устройстве подключаемся?
+# O1 — device choice
+msg-onboarding-platform = На каком устройстве подключаемся?
 
+# O2 — the 3-step setup
 msg-onboarding-setup =
-    <b>Подключаемся за 3 шага 👇</b>
+    Подключаемся за 3 шага 👇
 
-    <b>1️⃣ Установите Happ</b> — приложение, через которое работает VPN.
-    → <a href="{ $store_link }">Скачать Happ для { $platform ->
-        [ios] iPhone
-        [android] Android
-        [windows] Windows
-        [mac] Mac
-       *[other] вашего устройства
-    }</a>
+    1️⃣ Установить <b>Happ</b> — приложение, через которое работает VPN
+       → <a href="{ $store_link }">Скачать Happ для { $platform_title }</a>
 
-    <b>2️⃣ Добавьте конфигурацию</b> — одним тапом, настроится сама.
-    → <a href="{ $import_url }">Открыть в Happ</a>
+    2️⃣ Добавить <b>Tuna</b> — одним тапом, настроится само
+       → <a href="{ $import_url }">Открыть в Happ</a>
+       Не открылось? → Скопировать ссылку
+       <code>{ $import_url }</code>
 
-    <b>3️⃣ Включите и проверьте</b> — откройте сайт, который раньше не открывался.
+    3️⃣ Включить и проверить — открой сайт, что не открывался
 
-    Не открылось по ссылке? Скопируйте её кнопкой ниже.
-
+# O3 — manual-refresh tip
 msg-onboarding-refresh-tip =
-    <b>✅ Почти готово!</b>
+    ✅ <b>Готово!</b> И один момент, который однажды тебя выручит 🐟
 
-    Один момент, который однажды выручит. Иногда блокировки усиливаются, и подключение перестаёт пробивать. Мы быстро выпускаем фикс, но Happ подтягивает его с задержкой.
+    Иногда РКН усиливает блокировки, и подключение перестаёт пробивать. Мы быстро выпускаем фикс — но Happ подтягивает его с задержкой.
 
-    Чтобы не ждать: откройте Happ и нажмите «Обновить» (⟳) — приложение сразу подтянет свежую версию.
+    Чтобы не ждать: открой Happ и нажми «Обновить» (⟳) — он сразу подтянет свежую версию.{ $video_block }
 
+# O4 — success
 msg-onboarding-success =
-    <b>🎉 Готово, вы в сети!</b>
+    Готово, ты в сети ✓ 🐟
+    Доступ сохранён за тобой.
 
-    Доступ сохранён за вами. Кнопка подключения всегда доступна ниже и в главном меню.
+# "Не получается" — self-service branch
+msg-onboarding-help = Чаще всего помогает 👇
 
-msg-onboarding-help =
-    <b>Чаще всего помогает 👇</b>
+# "Сменить локацию" — shown as a popup alert (show_alert), not a screen.
+msg-onboarding-change-location = В Happ открой список серверов и выбери другую локацию/протокол 🐟
 
-    • Откройте Happ и нажмите «Обновить» (⟳) — подтянутся свежие серверы.
-    • В списке серверов выберите другую локацию или протокол.
-    • Если не помогло — напишите в поддержку, поможем.
+# Manual config refresh screen (from the "Обновить в Happ" button)
+msg-onboarding-refresh-happ =
+    🔄 <b>Обновить в Happ</b>
 
-# Pre-connect nudge (delivered by the sweeper task).
-event-onboarding-nudge =
-    <b>Остался один шаг 🚀</b>
+    Открой Happ и нажми «Обновить» (⟳) — он подтянет свежие сервера. Это занимает пару секунд.{ $video_block }
 
-    Вы почти подключились — осталось добавить конфигурацию и проверить. Займёт минуту.
+# Pre-connect nudges (A-chain), delivered by the sweeper task — one per step.
+event-onboarding-nudge-1 = Застрял на подключении? 🐟 Это занимает минуту — помогу с любого шага.
+event-onboarding-nudge-2 = Happ поставился, но Tuna не добавился? Часто помогает прямая ссылка 👇
+event-onboarding-nudge-3 = Твой пробный доступ ждёт. Подключим за минуту?
 
 btn-onboarding =
-    .nudge-open = 🚀 Продолжить подключение
+    .connect = 🚀 Подключиться
     .platform-ios = 📱 iPhone
     .platform-android = 🤖 Android
     .platform-windows = 💻 Windows
     .platform-mac = 🍎 Mac
     .works = 🎉 Работает!
     .fail = 😕 Не получается
-    .copy = 📋 Скопировать ссылку
     .understood = Понятно
-    .refresh-video = ▶️ Как обновить (видео)
+    .open-menu = Открыть меню
+    .back-menu = ⬅️ В меню
+    .refresh-happ = 🔄 Обновить в Happ (⟳)
+    .change-location = 🌍 Сменить локацию
     .support = 💬 Поддержка
+    .nudge-continue = ▶️ Продолжить
+    .nudge-fail = 🆘 Не получается
+    .nudge-open-happ = ⚡ Открыть в Happ
+    .nudge-help = 💬 Помощь

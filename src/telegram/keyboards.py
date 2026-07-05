@@ -119,7 +119,7 @@ onboarding_connect_buttons = (
     Start(
         text=I18nFormat("btn-menu.connect"),
         id="connect_onboarding",
-        state=Onboarding.PLATFORM,
+        state=Onboarding.ENTRY,
         when=F["onboarding_enabled"] & F["connectable"],
         style=Style(ButtonStyle.PRIMARY),
     ),

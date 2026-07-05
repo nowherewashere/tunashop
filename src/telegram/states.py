@@ -18,11 +18,13 @@ class Notification(StatesGroup):
 
 
 class Onboarding(StatesGroup):
+    ENTRY = State()
     PLATFORM = State()
     SETUP = State()
     REFRESH_TIP = State()
     SUCCESS = State()
     HELP = State()
+    REFRESH_HAPP = State()
 
 
 class Subscription(StatesGroup):

@@ -4,6 +4,7 @@ from aiogram.types import CallbackQuery
 from aiogram_dialog import DialogManager
 from aiogram_dialog.widgets.kbd import Button
 
+from src.application.common import TranslatorRunner
 from src.application.dto import TelegramUserDto
 from src.application.use_cases.onboarding.commands import (
     CancelOnboardingNudges,
@@ -57,3 +58,14 @@ async def on_understood(
         cancel = await container.get(CancelOnboardingNudges)
         await cancel.system(CancelOnboardingNudgesDto(telegram_id=user.telegram_id))
     await dialog_manager.switch_to(Onboarding.SUCCESS)
+
+
+async def on_change_location(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+) -> None:
+    """Location hint — a popup alert, not a screen (matches the source bot)."""
+    container = dialog_manager.middleware_data[CONTAINER_KEY]
+    i18n = await container.get(TranslatorRunner)
+    await callback.answer(i18n.get("msg-onboarding-change-location"), show_alert=True)

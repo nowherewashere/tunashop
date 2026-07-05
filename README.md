@@ -12,7 +12,7 @@ TunaShop keeps 100% of upstream Remnashop's functionality (15 payment gateways, 
 
 A self‑contained **onboarding funnel** (`src/telegram/routers/onboarding/`) plus its supporting pieces:
 
-- **Guided connect flow** — an aiogram‑dialog with `PLATFORM → SETUP → REFRESH_TIP → SUCCESS → HELP` states. `SUCCESS` still surfaces the real Mini App / subscription‑page connect button.
+- **Guided connect flow** — an aiogram‑dialog with `ENTRY → PLATFORM → SETUP → REFRESH_TIP → SUCCESS → HELP → REFRESH_HAPP` states, ported screen‑for‑screen (text, buttons, staged nudges) from the Tuna source bot's `O0–O4` funnel + its "Не получается" branch. `SUCCESS` matches the source (a single "Открыть меню" button — no connect widget); the real connect action lives on `SETUP` step 2 ("Открыть в Happ").
 - **Per‑platform install links** — iOS / Android / Windows / macOS Happ links, chosen by the user's platform (config‑driven, no hardcoded URLs in code).
 - **One‑tap config delivery** — the personal subscription URL is wrapped into a `happ://add/{sub_url}` import deeplink (template is configurable).
 - **Self‑service "not working" branch** — refresh guidance, change‑location hint, and escalation to support.
@@ -107,12 +107,19 @@ Because the feature is additive and flag‑guarded, most merges touch only new f
 - DI + `__init__` aggregators: `di/providers/{use_cases,dao}.py`, dao/model/dto `__init__`.
 - `assets/translations/ru/{buttons,messages}.ftl` — the extra‑toggle strings (new copy lives in the standalone `onboarding.ftl`).
 
+Beyond the onboarding feature, two **fork‑maintenance edits** exist for compatibility (not part of the funnel — but they touch upstream files, so keep them in mind when merging):
+
+- `src/infrastructure/taskiq/tasks/update.py` — `_parse_version()` makes the hourly `check_bot_update` task tolerate our non‑PEP 440 fork tag. Our release tag is `0.8.2-tuna.1` (from `BUILD_TAG`), which `packaging.Version()` rejects outright, crashing the task every hour. The helper strips the `-tuna.N`/`+tuna.N` suffix to the upstream base version we compare against, and returns `None` (skip + warn) on any unparseable tag instead of raising. Upstream versions are always clean, so upstream will never add this — **carry it forward**.
+- `pyproject.toml` + `uv.lock` — the `remnapy` git pin is bumped from `95e15ed` (contract 2.7.0) to the 2.8.0‑aligned `main` tip `0680253`, because **Remnawave panel 2.8.0** (late Jun 2026) renamed the HWID device `userUuid` field to numeric `userId` and added `requestIp`. remnapy 2.7.0's `HwidDeviceDto` required `userUuid`, so the devices screen 500'd against a 2.8.0 panel. The `0680253` model makes both `user_uuid`/`user_id` optional (backward‑compatible with 2.7.x). This is a **stop‑gap**: once upstream ships its own tested 2.8.0 remnapy pin, take theirs and drop ours (see watch‑outs). Verified the fork's whole remnapy surface — all imports, 24 SDK `controller.method` calls, and every device field it reads — is intact on `0680253`.
+
 ### Watch‑outs when merging
 
 - **Migration numbering.** Ours are `0041`/`0042`. If upstream adds migrations with the same numbers, renumber ours (and their `down_revision`) so the Alembic chain stays a single linear head.
 - **`connect_buttons` / connect getters.** If upstream refactors the connect widget or its getters, re‑apply the `~F["onboarding_enabled"]` guard and the `onboarding_enabled` getter key.
-- **`ONBOARDING_GOTO_TARGET`.** Must always equal the `Onboarding.PLATFORM` state string (`"Onboarding:PLATFORM"`); the nudge deeplink relies on Remnashop's `goto` router.
+- **`ONBOARDING_GOTO_TARGET` / `ONBOARDING_GOTO_HELP`.** Must equal the `Onboarding.ENTRY` / `Onboarding.HELP` state strings (`"Onboarding:ENTRY"`, `"Onboarding:HELP"`); the staged nudge buttons rely on Remnashop's `goto` router to reopen the funnel at the start or the fail branch.
 - **`ExtraSettingsDto`.** New upstream fields in `extra` merge cleanly (JSONB), but keep `onboarding_enabled` and its `0041` seed.
+- **remnapy pin (guaranteed conflict on the 2.8.0 merge).** Our `[tool.uv.sources] remnapy` rev + the `uv.lock` remnapy block collide 1:1 with upstream's own 2.8.0 bump. Resolve by **taking upstream's pin** (theirs is the version the whole app is tested against — ours was only a stop‑gap), then re‑run `uv lock` to regenerate the lockfile — **never hand‑merge `uv.lock`**. Don't keep `0680253` once upstream has a tested pin. If upstream moves remnapy to a tagged PyPI release, the `[tool.uv.sources]` git override for remnapy goes away entirely.
+- **`_parse_version` in `update.py`.** Keep it — it exists for *our* fork tag, not a bug upstream shares, so upstream will never contribute it. Re‑apply if an upstream refactor of `update.py` conflicts. (Alternative once addressed: tag fork releases as `0.8.2+tuna.1` — a PEP 440 local version — which parses natively; the guard then just becomes defensive.)
 
 ---
 

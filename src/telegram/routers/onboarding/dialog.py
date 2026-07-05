@@ -1,18 +1,32 @@
-from aiogram.enums import ButtonStyle
-from aiogram_dialog import Dialog, Window
-from aiogram_dialog.widgets.style import Style
+from aiogram_dialog import Dialog, StartMode, Window
 from aiogram_dialog.widgets.text import Format
-from magic_filter import F
 
-from src.core.enums import BannerName
-from src.telegram.keyboards import back_main_menu_button, connect_buttons
-from src.telegram.states import Onboarding
-from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
-from src.telegram.widgets.kbd import Button, CopyText, Group, Row, SwitchTo, Url
+from src.telegram.states import MainMenu, Onboarding
+from src.telegram.widgets import I18nFormat, IgnoreUpdate
+from src.telegram.widgets.kbd import Button, Group, Row, Start, SwitchTo, Url
 
 from .getters import PLATFORMS, onboarding_getter
-from .handlers import on_dialog_start, on_platform_select, on_understood, on_works
+from .handlers import (
+    on_change_location,
+    on_dialog_start,
+    on_platform_select,
+    on_understood,
+    on_works,
+)
 
+# O0 — entry
+entry = Window(
+    I18nFormat("msg-onboarding-entry"),
+    SwitchTo(
+        text=I18nFormat("btn-onboarding.connect"),
+        id="onb_connect",
+        state=Onboarding.PLATFORM,
+    ),
+    IgnoreUpdate(),
+    state=Onboarding.ENTRY,
+)
+
+# O1 — device choice
 _platform_buttons = Group(
     *(
         Button(
@@ -26,29 +40,20 @@ _platform_buttons = Group(
 )
 
 platform = Window(
-    Banner(BannerName.SUBSCRIPTION),
     I18nFormat("msg-onboarding-platform"),
     _platform_buttons,
-    *back_main_menu_button,
     IgnoreUpdate(),
     state=Onboarding.PLATFORM,
-    getter=onboarding_getter,
 )
 
+# O2 — the 3-step setup (store link, deeplink and copyable live in the text)
 setup = Window(
-    Banner(BannerName.SUBSCRIPTION),
-    I18nFormat(
-        "msg-onboarding-setup",
-        platform=F["platform"],
-        store_link=F["store_link"],
-        import_url=F["import_url"],
-    ),
+    I18nFormat("msg-onboarding-setup"),
     Row(
         Button(
             text=I18nFormat("btn-onboarding.works"),
             id="onb_works",
             on_click=on_works,
-            style=Style(ButtonStyle.SUCCESS),
         ),
         SwitchTo(
             text=I18nFormat("btn-onboarding.fail"),
@@ -56,60 +61,50 @@ setup = Window(
             state=Onboarding.HELP,
         ),
     ),
-    Row(
-        CopyText(
-            text=I18nFormat("btn-onboarding.copy"),
-            copy_text=Format("{subscription_url}"),
-            when=F["subscription_url"],
-        ),
-    ),
-    *back_main_menu_button,
     IgnoreUpdate(),
     state=Onboarding.SETUP,
     getter=onboarding_getter,
 )
 
+# O3 — manual-refresh tip
 refresh_tip = Window(
-    Banner(BannerName.SUBSCRIPTION),
     I18nFormat("msg-onboarding-refresh-tip"),
-    Row(
-        Url(
-            text=I18nFormat("btn-onboarding.refresh-video"),
-            url=Format("{refresh_video_url}"),
-            when=F["has_refresh_video"],
-        ),
-    ),
-    Row(
-        Button(
-            text=I18nFormat("btn-onboarding.understood"),
-            id="onb_understood",
-            on_click=on_understood,
-            style=Style(ButtonStyle.SUCCESS),
-        ),
+    Button(
+        text=I18nFormat("btn-onboarding.understood"),
+        id="onb_understood",
+        on_click=on_understood,
     ),
     IgnoreUpdate(),
     state=Onboarding.REFRESH_TIP,
     getter=onboarding_getter,
 )
 
+# O4 — success
 success = Window(
-    Banner(BannerName.SUBSCRIPTION),
     I18nFormat("msg-onboarding-success"),
-    *connect_buttons,
-    *back_main_menu_button,
+    Start(
+        text=I18nFormat("btn-onboarding.open-menu"),
+        id="onb_open_menu",
+        state=MainMenu.MAIN,
+        mode=StartMode.RESET_STACK,
+    ),
     IgnoreUpdate(),
     state=Onboarding.SUCCESS,
-    getter=onboarding_getter,
 )
 
+# "Не получается" — self-service branch
 help_window = Window(
-    Banner(BannerName.SUBSCRIPTION),
     I18nFormat("msg-onboarding-help"),
     Row(
-        Url(
-            text=I18nFormat("btn-onboarding.refresh-video"),
-            url=Format("{refresh_video_url}"),
-            when=F["has_refresh_video"],
+        SwitchTo(
+            text=I18nFormat("btn-onboarding.refresh-happ"),
+            id="onb_refresh_happ",
+            state=Onboarding.REFRESH_HAPP,
+        ),
+        Button(
+            text=I18nFormat("btn-onboarding.change-location"),
+            id="onb_change_location",
+            on_click=on_change_location,
         ),
     ),
     Row(
@@ -118,24 +113,32 @@ help_window = Window(
             url=Format("{support_url}"),
         ),
     ),
-    Row(
-        SwitchTo(
-            text=I18nFormat("btn-back.general"),
-            id="onb_help_back",
-            state=Onboarding.SETUP,
-        ),
-    ),
-    *back_main_menu_button,
     IgnoreUpdate(),
     state=Onboarding.HELP,
     getter=onboarding_getter,
 )
 
+# Manual config refresh screen (from the "Обновить в Happ" button)
+refresh_happ = Window(
+    I18nFormat("msg-onboarding-refresh-happ"),
+    Start(
+        text=I18nFormat("btn-onboarding.back-menu"),
+        id="onb_refresh_back",
+        state=MainMenu.MAIN,
+        mode=StartMode.RESET_STACK,
+    ),
+    IgnoreUpdate(),
+    state=Onboarding.REFRESH_HAPP,
+    getter=onboarding_getter,
+)
+
 router = Dialog(
+    entry,
     platform,
     setup,
     refresh_tip,
     success,
     help_window,
+    refresh_happ,
     on_start=on_dialog_start,
 )
