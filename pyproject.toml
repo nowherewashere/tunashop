@@ -35,8 +35,11 @@ dependencies = [
     "greenlet>=3.3.0",
 ]
 
+# Pinned to the 2.8.0-aligned main tip (untagged as of 2026-07): panel 2.8.0
+# renamed hwid userUuid -> userId (BigInt) + added requestIp, which the 2.7.0
+# pin (95e15ed) rejected. This rev makes HwidDeviceDto tolerate both schemas.
 [tool.uv.sources]
-remnapy = { git = "https://github.com/snoups/remnapy", rev = "95e15ed" }
+remnapy = { git = "https://github.com/snoups/remnapy", rev = "0680253" }
 
 [project.urls]
 homepage = "https://t.me/@remna_shop"
