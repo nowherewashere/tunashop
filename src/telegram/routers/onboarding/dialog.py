@@ -1,8 +1,9 @@
 from aiogram_dialog import Dialog, StartMode, Window
 from aiogram_dialog.widgets.text import Format
 
+from src.core.enums import BannerName
 from src.telegram.states import MainMenu, Onboarding
-from src.telegram.widgets import I18nFormat, IgnoreUpdate
+from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
 from src.telegram.widgets.kbd import Button, Group, Row, Start, SwitchTo, Url
 
 from .getters import PLATFORMS, onboarding_getter
@@ -16,6 +17,7 @@ from .handlers import (
 
 # O0 — entry
 entry = Window(
+    Banner(BannerName.ONBOARDING_ENTRY),
     I18nFormat("msg-onboarding-entry"),
     SwitchTo(
         text=I18nFormat("btn-onboarding.connect"),
@@ -40,6 +42,7 @@ _platform_buttons = Group(
 )
 
 platform = Window(
+    Banner(BannerName.ONBOARDING_PLATFORM),
     I18nFormat("msg-onboarding-platform"),
     _platform_buttons,
     IgnoreUpdate(),
@@ -48,6 +51,7 @@ platform = Window(
 
 # O2 — the 3-step setup (store link, deeplink and copyable live in the text)
 setup = Window(
+    Banner(BannerName.ONBOARDING_SETUP),
     I18nFormat("msg-onboarding-setup"),
     Row(
         Button(
@@ -68,6 +72,7 @@ setup = Window(
 
 # O3 — manual-refresh tip
 refresh_tip = Window(
+    Banner(BannerName.ONBOARDING_REFRESH),
     I18nFormat("msg-onboarding-refresh-tip"),
     Button(
         text=I18nFormat("btn-onboarding.understood"),
@@ -81,6 +86,7 @@ refresh_tip = Window(
 
 # O4 — success
 success = Window(
+    Banner(BannerName.ONBOARDING_SUCCESS),
     I18nFormat("msg-onboarding-success"),
     Start(
         text=I18nFormat("btn-onboarding.open-menu"),
@@ -94,6 +100,7 @@ success = Window(
 
 # "Не получается" — self-service branch
 help_window = Window(
+    Banner(BannerName.ONBOARDING_HELP),
     I18nFormat("msg-onboarding-help"),
     Row(
         SwitchTo(
@@ -120,6 +127,7 @@ help_window = Window(
 
 # Manual config refresh screen (from the "Обновить в Happ" button)
 refresh_happ = Window(
+    Banner(BannerName.ONBOARDING_REFRESH),
     I18nFormat("msg-onboarding-refresh-happ"),
     Start(
         text=I18nFormat("btn-onboarding.back-menu"),

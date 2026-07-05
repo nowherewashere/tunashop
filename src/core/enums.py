@@ -164,6 +164,15 @@ class BannerName(StrEnum):
     PROMOCODE = auto()
     REFERRAL = auto()
     DEVICES = auto()
+    # Guided onboarding funnel — one slot per page so each screen can carry its
+    # own image. Any without a matching file (e.g. onboarding_setup.jpg) falls
+    # back to default.jpg via get_banner(), so adding these is safe with no assets.
+    ONBOARDING_ENTRY = auto()
+    ONBOARDING_PLATFORM = auto()
+    ONBOARDING_SETUP = auto()
+    ONBOARDING_REFRESH = auto()
+    ONBOARDING_SUCCESS = auto()
+    ONBOARDING_HELP = auto()
 
 
 class BannerFormat(StrEnum):
