@@ -6,7 +6,11 @@ from typing import Final
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import HTMLResponse
 
-router = APIRouter()
+from src.core.constants import API_V1
+
+# Mounted under /api/v1 because the prod nginx only proxies that prefix to the
+# app; a bare "/connect/..." route is unreachable from the internet (nginx 404).
+router = APIRouter(prefix=API_V1)
 
 # base64url alphabet (+ padding) — the only thing a valid Happ payload contains.
 _PAYLOAD_RE: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_=-]{1,4096}$")

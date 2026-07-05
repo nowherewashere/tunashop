@@ -9,6 +9,7 @@ from src.application.common import BotService, TranslatorRunner
 from src.application.common.dao import SubscriptionDao
 from src.application.dto import TelegramUserDto
 from src.core.config import AppConfig
+from src.core.constants import API_V1
 
 # Human-readable platform names used inside "Скачать Happ для …" (iOS/macOS share
 # the App Store listing, so they are merged into one "ios" option).
@@ -51,7 +52,8 @@ def _happ_open_url(domain: str, sub_url: str) -> str:
     if not domain or not sub_url:
         return ""
     payload = base64.urlsafe_b64encode(sub_url.encode()).decode()
-    return f"https://{domain}/connect/happ/{payload}"
+    # Must match connect_router's mount (API_V1 prefix) — see connect.py.
+    return f"https://{domain}{API_V1}/connect/happ/{payload}"
 
 
 @inject
