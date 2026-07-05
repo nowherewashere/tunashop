@@ -68,7 +68,8 @@ async def connect_happ(payload: str) -> HTMLResponse:
     if not _SUB_URL_RE.match(sub_url):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    # Happ's "add" scheme takes the subscription URL WITHOUT its http(s):// prefix,
-    # e.g. happ://add/sub.tuna-transfer.xyz/<token>.
-    deeplink = f"happ://add/{re.sub(r'^https?://', '', sub_url)}"
+    # Happ's "add config" scheme takes the FULL subscription URL, scheme included,
+    # e.g. happ://add/https://sub.tuna-transfer.xyz/<token>. Stripping the
+    # http(s):// prefix makes Happ open but fail to recognise the link.
+    deeplink = f"happ://add/{sub_url}"
     return HTMLResponse(_PAGE.replace("__LINK__", deeplink))
