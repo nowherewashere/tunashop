@@ -19,21 +19,29 @@ _PAGE: Final[str] = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tuna — подключение</title>
-<script>window.location.replace("__LINK__");</script>
 <style>
   body { font-family: -apple-system, Segoe UI, Roboto, sans-serif;
          text-align: center; padding: 2.5rem 1.5rem; color: #e7e7e7; background: #17212b; }
-  a.btn { display: inline-block; margin-top: 1rem; padding: .9rem 1.4rem;
+  a.btn { display: inline-block; margin-top: 1rem; padding: 1rem 1.6rem;
           background: #2ea6ff; color: #fff; border-radius: 12px;
-          text-decoration: none; font-weight: 600; }
+          text-decoration: none; font-weight: 600; font-size: 1.05rem; }
   p { line-height: 1.5; }
 </style>
 </head>
 <body>
   <h2>🐟 Открываем Happ…</h2>
-  <p>Если приложение не открылось автоматически — нажми кнопку ниже.</p>
-  <p><a class="btn" href="__LINK__">➡️ Открыть в Happ</a></p>
-  <p style="opacity:.6;font-size:.9rem">Happ должен быть установлен на устройстве.</p>
+  <p>Если приложение не открылось само — нажми кнопку ниже.</p>
+  <p><a class="btn" id="open" href="__LINK__">➡️ Открыть в Happ</a></p>
+  <p style="opacity:.6;font-size:.9rem">Happ должен быть установлен. Если ничего не происходит —
+  открой эту страницу во внешнем браузере (⋮ → «Открыть в браузере»).</p>
+<script>
+  // Custom-scheme navigation is often blocked without a user gesture (and inside
+  // Telegram's in-app browser), so try automatically but also leave the button.
+  try { window.location.href = "__LINK__"; } catch (e) {}
+  document.getElementById("open").addEventListener("click", function () {
+    window.location.href = "__LINK__";
+  });
+</script>
 </body>
 </html>"""
 

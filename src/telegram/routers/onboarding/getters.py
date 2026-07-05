@@ -66,7 +66,6 @@ async def connect_getter(
     sub_url = current_subscription.url if current_subscription else ""
 
     platform = str(dialog_manager.dialog_data.get("platform", "ios"))
-    deeplink = config.onboarding.happ_import_template.format(sub_url=sub_url) if sub_url else ""
     open_url = _happ_open_url(config.domain.get_secret_value(), sub_url)
 
     return {
@@ -75,10 +74,8 @@ async def connect_getter(
         "store_link": config.onboarding.store_link(platform),
         "store_link_ru": config.onboarding.happ_link_ios_ru,
         "is_apple": platform == "ios",
-        "deeplink": deeplink,
         "open_url": open_url,
         "subscription_url": sub_url,
-        "has_deeplink": bool(deeplink),
         "has_open_url": bool(open_url),
     }
 
