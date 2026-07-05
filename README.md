@@ -19,6 +19,7 @@ A self‑contained **onboarding funnel** (`src/telegram/routers/onboarding/`) pl
 - **Config‑refresh tip** — the "press ⟳ in Happ to pull the latest fix" screen, with an optional video URL.
 - **Pre‑connect follow‑up nudges** — a DB queue (`onboarding_nudges`) + a cron sweeper task that reminds users who opened the funnel but never completed it. Fires at most once per user per step; cancelled the moment they reach success or block the bot.
 - **Admin on/off toggle** — Dashboard → Remnashop → Extra → **Пошаговое подключение**. When off, behaviour reverts *exactly* to upstream's single connect button.
+- **Per‑page banners** — every funnel screen has its own `BannerName` slot (`ONBOARDING_ENTRY` / `PLATFORM` / `SETUP` / `REFRESH` / `SUCCESS` / `HELP`), so each onboarding page can carry a distinct image. Reuses the stock banner mechanism and its `use_banners` flag; each slot falls back to `default.jpg` until a file is dropped (see [Configuration](#configuration)).
 
 The **trial/subscription lifecycle is unchanged** — the funnel is presentation only. Activating a trial still creates the Remnawave user immediately, exactly as upstream does.
 
@@ -32,7 +33,7 @@ This fork is written to stay **easy to maintain and to re‑merge with upstream*
 2. **Feature‑flagged and reversible.** The whole funnel is gated by one runtime flag, `settings.extra.onboarding_enabled`. Flip it off and the bot behaves byte‑for‑byte like stock Remnashop — no redeploy needed.
 3. **Config‑driven, never hardcoded.** All links, the deeplink template, the video URL, and the nudge schedule/caps come from an `ONBOARDING_*` env group with safe defaults (`src/core/config/onboarding.py`).
 4. **Idiomatic to the host codebase.** We mirror Remnashop's own patterns — aiogram‑dialog windows/getters/handlers, dishka‑injected `Interactor` use‑cases, DAO protocols + DTOs, fluent `.ftl` i18n, numbered Alembic migrations, and a cron‑scheduled taskiq sweeper (the same shape as `cancel_old_transactions_task`).
-5. **Clean layering.** No `application → telegram` imports; the one routing string the sweeper needs lives in `core/constants.py` (`ONBOARDING_GOTO_TARGET`).
+5. **Clean layering.** No `application → telegram` imports; the routing strings the nudge buttons need live in `core/constants.py` (`ONBOARDING_GOTO_TARGET` / `ONBOARDING_GOTO_HELP`).
 
 ---
 
@@ -79,6 +80,15 @@ Customization via env (`ONBOARDING_*`, all optional — see `.env.example`):
 | `ONBOARDING_NUDGE_MIN_GAP_MINUTES` | `180` | Min gap between nudges to one user |
 | `ONBOARDING_NUDGE_DAILY_CAP` | `4` | Max nudges per user per day |
 
+### Banners (optional)
+
+Banners reuse upstream's stock mechanism: each screen resolves an image *by name* and falls back to `default.jpg` when the file is absent, so they are opt‑in per screen. Drop files in `assets/banners/<locale>/<name>.<jpg|png|webp|gif>` (or `assets/banners/<name>.*`).
+
+- Funnel slots: `onboarding_entry`, `onboarding_platform`, `onboarding_setup`, `onboarding_refresh` (shared by the tip + refresh screens), `onboarding_success`, `onboarding_help`.
+- Devices screen: `devices` (slot already existed upstream — it just needs a file).
+
+Rendering is gated by the stock `config.bot.use_banners` flag: **off** → the funnel stays plain‑text (byte‑for‑byte the source screens); **on** → each page shows its banner (falling back to `default.jpg` until you add per‑page images).
+
 ---
 
 ## Tracking Remnashop upstream
@@ -96,11 +106,12 @@ git merge upstream/main        # or: git rebase upstream/main
 Because the feature is additive and flag‑guarded, most merges touch only new files. The **small set of existing files we edit** (keep these in mind when resolving conflicts):
 
 - `src/core/config/app.py` — one field wiring `OnboardingConfig`.
-- `src/core/constants.py` — `ONBOARDING_GOTO_TARGET`.
+- `src/core/constants.py` — `ONBOARDING_GOTO_TARGET` + `ONBOARDING_GOTO_HELP`.
+- `src/core/enums.py` — `BannerName` gains the `ONBOARDING_*` per‑page slots.
 - `src/application/dto/settings.py` — `ExtraSettingsDto.onboarding_enabled`.
 - `src/application/use_cases/settings/commands/extra.py` (+ its `__init__`) — the `ToggleOnboarding` interactor.
-- `src/telegram/states.py` — the `Onboarding` group + `RemnashopExtra.ONBOARDING`.
-- `src/telegram/keyboards.py` — `onboarding_connect_buttons` + the `~onboarding_enabled` guard on `connect_buttons`.
+- `src/telegram/states.py` — the `Onboarding` group (`ENTRY → PLATFORM → SETUP → REFRESH_TIP → SUCCESS → HELP → REFRESH_HAPP`) + `RemnashopExtra.ONBOARDING`.
+- `src/telegram/keyboards.py` — `onboarding_connect_buttons` (launches at `Onboarding.ENTRY`) + the `~onboarding_enabled` guard on `connect_buttons`.
 - `src/telegram/routers/__init__.py` — one router registration.
 - `src/telegram/routers/{menu,subscription}/{dialog,getters}.py` — one button + one getter key each.
 - `src/telegram/routers/dashboard/remnashop/extra/{dialog,handlers,getters}.py` — the toggle row/window.
@@ -118,6 +129,7 @@ Beyond the onboarding feature, two **fork‑maintenance edits** exist for compat
 - **`connect_buttons` / connect getters.** If upstream refactors the connect widget or its getters, re‑apply the `~F["onboarding_enabled"]` guard and the `onboarding_enabled` getter key.
 - **`ONBOARDING_GOTO_TARGET` / `ONBOARDING_GOTO_HELP`.** Must equal the `Onboarding.ENTRY` / `Onboarding.HELP` state strings (`"Onboarding:ENTRY"`, `"Onboarding:HELP"`); the staged nudge buttons rely on Remnashop's `goto` router to reopen the funnel at the start or the fail branch.
 - **`ExtraSettingsDto`.** New upstream fields in `extra` merge cleanly (JSONB), but keep `onboarding_enabled` and its `0041` seed.
+- **`BannerName` enum.** Our `ONBOARDING_*` members append after upstream's; `StrEnum` values have no positional dependency, so keep both sides on a conflict. The funnel windows reference the slots by name — don't rename them without updating `routers/onboarding/dialog.py`.
 - **remnapy pin (guaranteed conflict on the 2.8.0 merge).** Our `[tool.uv.sources] remnapy` rev + the `uv.lock` remnapy block collide 1:1 with upstream's own 2.8.0 bump. Resolve by **taking upstream's pin** (theirs is the version the whole app is tested against — ours was only a stop‑gap), then re‑run `uv lock` to regenerate the lockfile — **never hand‑merge `uv.lock`**. Don't keep `0680253` once upstream has a tested pin. If upstream moves remnapy to a tagged PyPI release, the `[tool.uv.sources]` git override for remnapy goes away entirely.
 - **`_parse_version` in `update.py`.** Keep it — it exists for *our* fork tag, not a bug upstream shares, so upstream will never contribute it. Re‑apply if an upstream refactor of `update.py` conflicts. (Alternative once addressed: tag fork releases as `0.8.2+tuna.1` — a PEP 440 local version — which parses natively; the guard then just becomes defensive.)
 
