@@ -62,13 +62,13 @@ btn-requirement =
     .channel-confirm = ✅ Подтвердить
 
 btn-menu =
-    .trial = 🎁 ПОПРОБОВАТЬ БЕСПЛАТНО
-    .trial-paid = 🚀 ПОПРОБОВАТЬ ЗА { $trial_price }
+    .trial = 🎁 Получить бесплатный доступ
+    .trial-paid = 🚀 Попробовать за { $trial_price }
     .connect = 🚀 Подключиться
     .connect-reserve = 🔗 Подключиться (резерв)
     .devices = 📱 Устройства
     .subscription = 💳 Подписка
-    .invite = 👥 Пригласить
+    .invite = 💰 Пригласить
     .support = 🆘 Поддержка
     .web-cabinet = 🌐 Личный кабинет
     .dashboard = 🛠 Панель управления

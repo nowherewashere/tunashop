@@ -20,7 +20,15 @@ _PLATFORM_PREFIX = "platform_"
 
 
 async def on_dialog_start(start_data: Any, manager: DialogManager) -> None:
-    """Arm the pre-connect nudge chain when the funnel opens (idempotent per user)."""
+    """Arm the pre-connect nudge chain when the funnel opens (idempotent per user).
+
+    Only the real funnel entry (DEVICE_CHOICE) arms the chain. Opening straight at
+    another screen — the menu Support button → NOT_WORKING, or a nudge's fail-goto —
+    is not a fresh connect attempt, so it must not schedule pre-connect nudges.
+    """
+    context = manager.current_context()
+    if context is None or context.state != Onboarding.DEVICE_CHOICE:
+        return
     user: TelegramUserDto = manager.middleware_data[USER_KEY]
     if user.telegram_id is None:
         return

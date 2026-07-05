@@ -10,7 +10,7 @@ from src.core.constants import INLINE_QUERY_INVITE, PAYMENT_PREFIX
 from src.core.enums import BannerName
 from src.telegram.keyboards import build_buttons_row, connect_buttons, onboarding_connect_buttons
 from src.telegram.routers.dashboard.handlers import on_smart_search
-from src.telegram.states import Dashboard, MainMenu, Subscription
+from src.telegram.states import Dashboard, MainMenu, Onboarding, Subscription
 from src.telegram.utils import require_permission
 from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
 from src.telegram.widgets.kbd import (
@@ -111,10 +111,12 @@ menu = Window(
             id="send",
             when=~F["referral_enabled"],
         ),
-        Url(
+        # Support opens the onboarding "не получается" self-service screen (tips +
+        # a support link inside) instead of jumping straight into the support DM.
+        Start(
             text=I18nFormat("btn-menu.support"),
             id="support",
-            url=Format("{support_url}"),
+            state=Onboarding.NOT_WORKING,
         ),
     ),
     Row(
