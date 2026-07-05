@@ -26,6 +26,14 @@ from src.telegram.states import Subscription
 
 
 async def on_subscription_start(start_data: Any, manager: DialogManager) -> None:
+    if isinstance(start_data, dict) and start_data.get("goto_buy"):
+        # New/trial user opened "Подписка" from the menu: the dialog is started
+        # directly at the plan list (Subscription.PLANS), skipping the MAIN chooser.
+        # For them the purchase is always NEW; downstream steps read this from
+        # dialog_data (on_plan_select onward), so it must be set before rendering.
+        manager.dialog_data["purchase_type"] = PurchaseType.NEW
+        return
+
     if not start_data or "trial_plan" not in start_data:
         return
 

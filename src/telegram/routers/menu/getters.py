@@ -66,6 +66,10 @@ async def menu_getter(
             "trial_price": "",
             "has_device_limit": False,
             "is_trial": False,
+            # True only for a paid (non-trial) subscription — drives whether the menu
+            # "Подписка" button skips straight to buy (new/trial) or opens MAIN
+            # (paid users, who choose between renew and change there).
+            "has_active_subscription": False,
             # subscription-related (nullable)
             "status": None,
             "subscription_type": None,
@@ -103,6 +107,7 @@ async def menu_getter(
             {
                 "has_subscription": True,
                 "is_trial": subscription.is_trial,
+                "has_active_subscription": not subscription.is_trial,
                 "traffic_strategy": subscription.traffic_limit_strategy,
                 "status": subscription.current_status,
                 "subscription_type": subscription.limit_type,

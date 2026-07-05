@@ -89,10 +89,22 @@ menu = Window(
             state=MainMenu.DEVICES,
             when=F["has_device_limit"],
         ),
+        # New/trial users go straight into the buy flow (unambiguously a NEW
+        # purchase) — the goto_buy start_data makes the dialog open at the plan
+        # list and skip the MAIN chooser. Paid users keep MAIN, where they choose
+        # between renew and change.
+        Start(
+            text=I18nFormat("btn-menu.subscription"),
+            id=f"{PAYMENT_PREFIX}subscription_buy",
+            state=Subscription.PLANS,
+            data={"goto_buy": True},
+            when=~F["has_active_subscription"],
+        ),
         Start(
             text=I18nFormat("btn-menu.subscription"),
             id=f"{PAYMENT_PREFIX}subscription",
             state=Subscription.MAIN,
+            when=F["has_active_subscription"],
         ),
     ),
     Row(
@@ -113,10 +125,13 @@ menu = Window(
         ),
         # Support opens the onboarding "не получается" self-service screen (tips +
         # a support link inside) instead of jumping straight into the support DM.
+        # `from_menu` tells that screen its Back button should return to the menu
+        # (in the funnel the same screen goes Back to the connect step instead).
         Start(
             text=I18nFormat("btn-menu.support"),
             id="support",
             state=Onboarding.NOT_WORKING,
+            data={"from_menu": True},
         ),
     ),
     Row(

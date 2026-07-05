@@ -59,13 +59,15 @@ subscription = Window(
             when=F["has_active_subscription"],
         ),
     ),
-    Row(
-        Button(
-            text=I18nFormat("btn-subscription.promocode"),
-            id="goto_promocode",
-            on_click=lambda c, w, m: m.switch_to(Subscription.PROMOCODE),
-        ),
-    ),
+    # Promocode entry hidden for now (per product decision). The PROMOCODE screen
+    # and its handlers are left intact — restore this Row to re-enable it.
+    # Row(
+    #     Button(
+    #         text=I18nFormat("btn-subscription.promocode"),
+    #         id="goto_promocode",
+    #         on_click=lambda c, w, m: m.switch_to(Subscription.PROMOCODE),
+    #     ),
+    # ),
     *back_main_menu_button,
     IgnoreUpdate(),
     state=Subscription.MAIN,

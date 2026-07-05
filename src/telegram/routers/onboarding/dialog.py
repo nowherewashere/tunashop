@@ -199,10 +199,20 @@ not_working = Window(
         ),
     ),
     Row(
+        # From the menu Support button: Back returns to the main menu.
+        Start(
+            text=I18nFormat("btn-back.menu-return"),
+            id="nw_back_menu",
+            state=MainMenu.MAIN,
+            mode=StartMode.RESET_STACK,
+            when="from_menu",
+        ),
+        # Inside the funnel: Back returns to the connect step to retry.
         SwitchTo(
             text=I18nFormat("btn-back.general"),
-            id="back_connect",
+            id="nw_back_connect",
             state=Onboarding.CONNECT,
+            when=~F["from_menu"],
         ),
     ),
     IgnoreUpdate(),

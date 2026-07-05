@@ -121,4 +121,11 @@ async def not_working_getter(
     i18n: FromDishka[TranslatorRunner],
     **kwargs: Any,
 ) -> dict[str, Any]:
-    return {"support_url": bot_service.get_support_url(text=i18n.get("message.help"))}
+    # Entered from the menu Support button (start_data={"from_menu": True}) vs.
+    # reached inside the funnel — drives which Back target the screen shows.
+    start_data = dialog_manager.start_data
+    from_menu = bool(isinstance(start_data, dict) and start_data.get("from_menu"))
+    return {
+        "support_url": bot_service.get_support_url(text=i18n.get("message.help")),
+        "from_menu": from_menu,
+    }
