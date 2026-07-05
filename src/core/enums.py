@@ -167,12 +167,12 @@ class BannerName(StrEnum):
     # Guided onboarding funnel — one slot per page so each screen can carry its
     # own image. Any without a matching file (e.g. onboarding_setup.jpg) falls
     # back to default.jpg via get_banner(), so adding these is safe with no assets.
-    ONBOARDING_ENTRY = auto()
-    ONBOARDING_PLATFORM = auto()
-    ONBOARDING_SETUP = auto()
-    ONBOARDING_REFRESH = auto()
+    ONBOARDING_DEVICE = auto()
+    ONBOARDING_CONNECT = auto()
+    ONBOARDING_TV = auto()
+    ONBOARDING_TIPS = auto()
     ONBOARDING_SUCCESS = auto()
-    ONBOARDING_HELP = auto()
+    ONBOARDING_FAIL = auto()
 
 
 class BannerFormat(StrEnum):

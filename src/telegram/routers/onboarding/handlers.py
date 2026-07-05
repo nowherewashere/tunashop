@@ -1,10 +1,9 @@
 from typing import Any
 
 from aiogram.types import CallbackQuery
-from aiogram_dialog import DialogManager
+from aiogram_dialog import DialogManager, StartMode
 from aiogram_dialog.widgets.kbd import Button
 
-from src.application.common import TranslatorRunner
 from src.application.dto import TelegramUserDto
 from src.application.use_cases.onboarding.commands import (
     CancelOnboardingNudges,
@@ -13,9 +12,11 @@ from src.application.use_cases.onboarding.commands import (
     ScheduleOnboardingNudgesDto,
 )
 from src.core.constants import CONTAINER_KEY, USER_KEY
-from src.telegram.states import Onboarding
+from src.telegram.states import MainMenu, Onboarding
 
-_PLATFORM_PREFIX = "onb_plat_"
+from .getters import is_tv_platform
+
+_PLATFORM_PREFIX = "platform_"
 
 
 async def on_dialog_start(start_data: Any, manager: DialogManager) -> None:
@@ -28,14 +29,19 @@ async def on_dialog_start(start_data: Any, manager: DialogManager) -> None:
     await schedule.system(ScheduleOnboardingNudgesDto(telegram_id=user.telegram_id))
 
 
-async def on_platform_select(
+async def on_platform_selected(
     callback: CallbackQuery,
     widget: Button,
     dialog_manager: DialogManager,
 ) -> None:
+    """Store the chosen platform and move on to the connect instructions.
+
+    TV platforms set up via phone/web import, so they get a dedicated screen.
+    """
     platform = (widget.widget_id or "").removeprefix(_PLATFORM_PREFIX)
     dialog_manager.dialog_data["platform"] = platform
-    await dialog_manager.switch_to(Onboarding.SETUP)
+    target = Onboarding.TV_CONNECT if is_tv_platform(platform) else Onboarding.CONNECT
+    await dialog_manager.switch_to(target)
 
 
 async def on_works(
@@ -43,29 +49,21 @@ async def on_works(
     widget: Button,
     dialog_manager: DialogManager,
 ) -> None:
-    await dialog_manager.switch_to(Onboarding.REFRESH_TIP)
+    """User confirmed the connection works → show the refresh tip."""
+    await dialog_manager.switch_to(Onboarding.TIPS)
 
 
-async def on_understood(
+async def on_tips_ok(
     callback: CallbackQuery,
     widget: Button,
     dialog_manager: DialogManager,
 ) -> None:
-    """Reaching success is the completion signal — stop any pending nudges."""
+    """Terminal step (there is no separate success screen): finishing the tip is
+    the completion signal — stop any pending nudges and return to the main menu.
+    """
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     if user.telegram_id is not None:
         container = dialog_manager.middleware_data[CONTAINER_KEY]
         cancel = await container.get(CancelOnboardingNudges)
         await cancel.system(CancelOnboardingNudgesDto(telegram_id=user.telegram_id))
-    await dialog_manager.switch_to(Onboarding.SUCCESS)
-
-
-async def on_change_location(
-    callback: CallbackQuery,
-    widget: Button,
-    dialog_manager: DialogManager,
-) -> None:
-    """Location hint — a popup alert, not a screen (matches the source bot)."""
-    container = dialog_manager.middleware_data[CONTAINER_KEY]
-    i18n = await container.get(TranslatorRunner)
-    await callback.answer(i18n.get("msg-onboarding-change-location"), show_alert=True)
+    await dialog_manager.start(MainMenu.MAIN, mode=StartMode.RESET_STACK)

@@ -5,11 +5,15 @@ from .base import BaseConfig
 # Default Happ client download links per platform.
 # App Store entry serves both iOS and macOS; Android via Play; desktop via GitHub.
 _DEFAULT_HAPP_IOS: Final[str] = "https://apps.apple.com/app/happ-proxy-utility/id6504287215"
-_DEFAULT_HAPP_ANDROID: Final[str] = (
-    "https://play.google.com/store/apps/details?id=com.happproxy"
+_DEFAULT_HAPP_ANDROID: Final[str] = "https://play.google.com/store/apps/details?id=com.happproxy"
+_DEFAULT_HAPP_WINDOWS: Final[str] = (
+    "https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe"
 )
-_DEFAULT_HAPP_WINDOWS: Final[str] = "https://github.com/Happ-proxy/happ-desktop/releases"
 _DEFAULT_HAPP_MAC: Final[str] = "https://apps.apple.com/app/happ-proxy-utility/id6504287215"
+_DEFAULT_HAPP_LINUX: Final[str] = "https://github.com/happ-proxy"
+# RU App Store has a separate Happ listing (the global one is geo-blocked there),
+# so Apple devices get an extra "RU region" download button.
+_DEFAULT_HAPP_IOS_RU: Final[str] = "https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643"
 
 
 class OnboardingConfig(BaseConfig, env_prefix="ONBOARDING_"):
@@ -21,9 +25,11 @@ class OnboardingConfig(BaseConfig, env_prefix="ONBOARDING_"):
     """
 
     happ_link_ios: str = _DEFAULT_HAPP_IOS
+    happ_link_ios_ru: str = _DEFAULT_HAPP_IOS_RU
     happ_link_android: str = _DEFAULT_HAPP_ANDROID
     happ_link_windows: str = _DEFAULT_HAPP_WINDOWS
     happ_link_mac: str = _DEFAULT_HAPP_MAC
+    happ_link_linux: str = _DEFAULT_HAPP_LINUX
 
     # Optional "how to refresh in Happ" video (O3 tip). Hidden when empty.
     refresh_video_url: str = ""
@@ -56,4 +62,5 @@ class OnboardingConfig(BaseConfig, env_prefix="ONBOARDING_"):
             "android": self.happ_link_android,
             "windows": self.happ_link_windows,
             "mac": self.happ_link_mac,
+            "linux": self.happ_link_linux,
         }.get(platform, self.happ_link_ios)

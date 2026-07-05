@@ -51,8 +51,8 @@ ENCRYPTED_PREFIX: Final[str] = "enc_"
 # goto targets (see routers/extra/goto.py) that open the onboarding funnel from a
 # plain notification button; must match the Onboarding state strings in
 # telegram/states.py. ENTRY is the funnel start (O0); HELP is the fail branch.
-ONBOARDING_GOTO_TARGET: Final[str] = "Onboarding:ENTRY"
-ONBOARDING_GOTO_HELP: Final[str] = "Onboarding:HELP"
+ONBOARDING_GOTO_TARGET: Final[str] = "Onboarding:DEVICE_CHOICE"
+ONBOARDING_GOTO_HELP: Final[str] = "Onboarding:NOT_WORKING"
 
 MIDDLEWARE_DATA_KEY: Final[str] = "middleware_data"
 CONTAINER_KEY: Final[str] = "dishka_container"

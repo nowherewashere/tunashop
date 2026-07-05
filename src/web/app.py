@@ -12,6 +12,7 @@ from src.lifespan import lifespan
 
 from .endpoints import (
     TelegramWebhookEndpoint,
+    connect_router,
     health_router,
     payments_router,
     public_router,
@@ -45,6 +46,7 @@ def get_app(config: AppConfig, dispatcher: Dispatcher) -> FastAPI:
     )
 
     app.include_router(health_router)
+    app.include_router(connect_router)
     app.include_router(payments_router)
     app.include_router(remnawave_router)
     if config.web_enabled:

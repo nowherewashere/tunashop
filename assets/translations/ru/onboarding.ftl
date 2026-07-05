@@ -1,73 +1,110 @@
-# Guided onboarding funnel — screens ported 1:1 from the Tuna source bot
-# (handlers/onboarding.py O0–O4 + the "Не получается" branch).
+# Guided onboarding funnel — screens + copy ported 1:1 from the Tuna idea bot
+# (Belovitc/-LEGACY-TunaTGBot, onboarding router after its rebase onto the
+# Remnashop engine). Flow: device choice → connect (or TV connect) → tips →
+# success, plus a "не получается" self-service branch.
 # Toggled on/off at runtime via the Extra settings (onboarding_enabled).
-# The platform title and the video line come from the getter as pre-formatted
-# variables ($platform_title, $video_block) to keep the copy byte-exact.
+#
+# Our fork keeps its own pre-connect nudge chain on top of these screens — the
+# event-onboarding-nudge-* messages and the btn-onboarding.nudge-* / .connect
+# keys below are ours (consumed by the nudge sweeper), not from the idea bot.
 
-# O0 — entry
-msg-onboarding-entry = Подключим за 1 минуту. Поехали 🐟
+# Device choice — funnel entry
+msg-onboarding-device =
+    <b>🚀 Подключаемся</b>
 
-# O1 — device choice
-msg-onboarding-platform = На каком устройстве подключаемся?
+    На каком устройстве подключаемся? Выбери ниже 👇
 
-# O2 — the 3-step setup
-msg-onboarding-setup =
+# 3-step guided connect (phone / desktop)
+msg-onboarding-connect =
     Подключаемся за 3 шага 👇
 
-    1️⃣ Установить <b>Happ</b> — приложение, через которое работает VPN
-       → <a href="{ $store_link }">Скачать Happ для { $platform_title }</a>
+    1️⃣ Установи <b>Happ</b> — приложение, через которое работает VPN.
+    → Кнопка «{ btn-onboarding.store }» ниже
 
-    2️⃣ Добавить <b>Tuna</b> — одним тапом, настроится само
-       → <a href="{ $import_url }">Открыть в Happ</a>
-       Не открылось? → Скопировать ссылку
-       <code>{ $import_url }</code>
+    2️⃣ Добавь <b>Tuna</b> — нажми кнопку «{ btn-onboarding.open }» ниже или скопируй ссылку прямо нажатием по самой ссылке:
+    <code>{ $deeplink }</code>
 
-    3️⃣ Включить и проверить — открой сайт, что не открывался
+    3️⃣ Включи и проверь — открой сайт, который не открывался.
 
-# O3 — manual-refresh tip
-msg-onboarding-refresh-tip =
+    Получилось? 🐟
+
+# TV connect — phone/web import (no direct deep link)
+msg-onboarding-tv =
+    { $platform ->
+    [apple_tv]
+    <b>📺 Apple TV</b>
+
+    На ТВ нельзя добавить подписку ссылкой — её переносят с телефона. Делается так 👇
+
+    1️⃣ Установи <b>Happ</b> на Apple TV из App Store.
+    2️⃣ Запусти Happ на ТВ — откроется экран импорта.
+    3️⃣ Перенеси подписку с телефона одним из способов:
+    <blockquote>
+    • <b>По Wi-Fi:</b> открой Happ на телефоне в той же сети и отсканируй QR-код с экрана ТВ → выбери подписку → подтверди.
+    • <b>Веб-импорт:</b> на ТВ выбери «Web Import», зайди на <b>tv.happ.su</b>, введи код с экрана, вставь свою ссылку и нажми «Отправить».
+    </blockquote>
+    4️⃣ Готово — список серверов появится на главном экране.
+    *[android_tv]
+    <b>📺 Android TV / Google TV</b>
+
+    На ТВ нельзя добавить подписку ссылкой — её переносят с телефона. Делается так 👇
+
+    1️⃣ Установи <b>Happ</b> на ТВ из Google Play (или APK).
+    2️⃣ Запусти Happ на ТВ — он предложит добавить подписку по локальной сети через QR.
+    3️⃣ Отсканируй QR-код приложением <b>Happ</b> на телефоне — подписка перенесётся на ТВ.
+    4️⃣ Если по Wi-Fi не вышло — выбери «Web Import», зайди на <b>tv.happ.su</b>, введи код и вставь свою ссылку.
+    }
+
+    🔗 Твоя ссылка для веб-импорта (нажми, чтобы скопировать):
+    <code>{ $subscription_url }</code>
+
+    📖 Пошаговая инструкция со скриншотами — по кнопке ниже.
+
+# Refresh tip (shown after "Работает!")
+msg-onboarding-tips =
     ✅ <b>Готово!</b> И один момент, который однажды тебя выручит 🐟
 
-    Иногда РКН усиливает блокировки, и подключение перестаёт пробивать. Мы быстро выпускаем фикс — но Happ подтягивает его с задержкой.
+    Иногда блокировки усиливаются, и подключение перестаёт пробивать. Мы быстро выпускаем фикс — но Happ подтягивает его с задержкой.
 
-    Чтобы не ждать: открой Happ и нажми «Обновить» (⟳) — он сразу подтянет свежую версию.{ $video_block }
+    Чтобы не ждать: открой Happ и нажми «Обновить» (⟳) — он сразу подтянет свежую версию.
 
-# O4 — success
-msg-onboarding-success =
-    Готово, ты в сети ✓ 🐟
-    Доступ сохранён за тобой.
+    → <a href="{ $refresh_video_url }">Видео: как обновить за 5 секунд</a>
 
 # "Не получается" — self-service branch
-msg-onboarding-help = Чаще всего помогает 👇
+msg-onboarding-fail =
+    Чаще всего помогает 👇
+    <blockquote>
+    → Открой Happ и нажми «Обновить» (⟳) — подтянет свежие сервера
+    → Смени локацию/протокол в Happ
+    → Переподключись: скопируй ссылку заново и добавь в Happ
+    </blockquote>
 
-# "Сменить локацию" — shown as a popup alert (show_alert), not a screen.
-msg-onboarding-change-location = В Happ открой список серверов и выбери другую локацию/протокол 🐟
-
-# Manual config refresh screen (from the "Обновить в Happ" button)
-msg-onboarding-refresh-happ =
-    🔄 <b>Обновить в Happ</b>
-
-    Открой Happ и нажми «Обновить» (⟳) — он подтянет свежие сервера. Это занимает пару секунд.{ $video_block }
+    Не помогло? Напиши в поддержку из главного меню 🐟
 
 # Pre-connect nudges (A-chain), delivered by the sweeper task — one per step.
+# Ours, not from the idea bot.
 event-onboarding-nudge-1 = Застрял на подключении? 🐟 Это занимает минуту — помогу с любого шага.
 event-onboarding-nudge-2 = Happ поставился, но Tuna не добавился? Часто помогает прямая ссылка 👇
 event-onboarding-nudge-3 = Твой пробный доступ ждёт. Подключим за минуту?
 
 btn-onboarding =
-    .connect = 🚀 Подключиться
-    .platform-ios = 📱 iPhone
+    .platform-ios = 📱 iPhone / Mac
     .platform-android = 🤖 Android
     .platform-windows = 💻 Windows
-    .platform-mac = 🍎 Mac
+    .platform-linux = 🐧 Linux
+    .platform-appletv = 📺 Apple TV
+    .platform-androidtv = 📺 Android TV / Google TV
+    .faq = 📖 Инструкция со скриншотами
+    .web-import = 🌐 Веб-импорт (tv.happ.su)
+    .store = ⬇️ Скачать Happ для { $platform_title }
+    .store-global = ⬇️ Скачать Happ (Глобальный регион)
+    .store-ru = ⬇️ Скачать Happ (РФ регион)
+    .open = ➡️ Открыть в Happ
+    .copy-link = 📋 Скопировать ссылку Happ
     .works = 🎉 Работает!
     .fail = 😕 Не получается
-    .understood = Понятно
-    .open-menu = Открыть меню
-    .back-menu = ⬅️ В меню
-    .refresh-happ = 🔄 Обновить в Happ (⟳)
-    .change-location = 🌍 Сменить локацию
-    .support = 💬 Поддержка
+    .tips-ok = Понятно
+    .connect = 🚀 Подключиться
     .nudge-continue = ▶️ Продолжить
     .nudge-fail = 🆘 Не получается
     .nudge-open-happ = ⚡ Открыть в Happ

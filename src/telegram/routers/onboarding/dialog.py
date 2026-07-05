@@ -1,152 +1,220 @@
-from aiogram_dialog import Dialog, StartMode, Window
+from aiogram.enums import ButtonStyle
+from aiogram_dialog import Dialog, StartMode
+from aiogram_dialog.widgets.style import Style
 from aiogram_dialog.widgets.text import Format
+from magic_filter import F
 
 from src.core.enums import BannerName
 from src.telegram.states import MainMenu, Onboarding
 from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
 from src.telegram.widgets.kbd import Button, Group, Row, Start, SwitchTo, Url
+from src.telegram.window import Window
 
-from .getters import PLATFORMS, onboarding_getter
-from .handlers import (
-    on_change_location,
-    on_dialog_start,
-    on_platform_select,
-    on_understood,
-    on_works,
-)
+from .getters import connect_getter, not_working_getter, tips_getter, tv_connect_getter
+from .handlers import on_dialog_start, on_platform_selected, on_tips_ok, on_works
 
-# O0 — entry
-entry = Window(
-    Banner(BannerName.ONBOARDING_ENTRY),
-    I18nFormat("msg-onboarding-entry"),
-    SwitchTo(
-        text=I18nFormat("btn-onboarding.connect"),
-        id="onb_connect",
-        state=Onboarding.PLATFORM,
-    ),
-    IgnoreUpdate(),
-    state=Onboarding.ENTRY,
-)
-
-# O1 — device choice
-_platform_buttons = Group(
-    *(
+device_choice = Window(
+    Banner(BannerName.ONBOARDING_DEVICE),
+    I18nFormat("msg-onboarding-device"),
+    Group(
         Button(
-            text=I18nFormat(f"btn-onboarding.platform-{code}"),
-            id=f"onb_plat_{code}",
-            on_click=on_platform_select,
-        )
-        for code in PLATFORMS
+            text=I18nFormat("btn-onboarding.platform-ios"),
+            id="platform_ios",
+            on_click=on_platform_selected,
+        ),
+        Button(
+            text=I18nFormat("btn-onboarding.platform-android"),
+            id="platform_android",
+            on_click=on_platform_selected,
+        ),
+        Button(
+            text=I18nFormat("btn-onboarding.platform-windows"),
+            id="platform_windows",
+            on_click=on_platform_selected,
+        ),
+        Button(
+            text=I18nFormat("btn-onboarding.platform-linux"),
+            id="platform_linux",
+            on_click=on_platform_selected,
+        ),
+        Button(
+            text=I18nFormat("btn-onboarding.platform-appletv"),
+            id="platform_apple_tv",
+            on_click=on_platform_selected,
+        ),
+        Button(
+            text=I18nFormat("btn-onboarding.platform-androidtv"),
+            id="platform_android_tv",
+            on_click=on_platform_selected,
+        ),
+        width=2,
     ),
-    width=2,
-)
-
-platform = Window(
-    Banner(BannerName.ONBOARDING_PLATFORM),
-    I18nFormat("msg-onboarding-platform"),
-    _platform_buttons,
-    IgnoreUpdate(),
-    state=Onboarding.PLATFORM,
-)
-
-# O2 — the 3-step setup (store link, deeplink and copyable live in the text)
-setup = Window(
-    Banner(BannerName.ONBOARDING_SETUP),
-    I18nFormat("msg-onboarding-setup"),
     Row(
-        Button(
-            text=I18nFormat("btn-onboarding.works"),
-            id="onb_works",
-            on_click=on_works,
-        ),
-        SwitchTo(
-            text=I18nFormat("btn-onboarding.fail"),
-            id="onb_fail",
-            state=Onboarding.HELP,
+        Start(
+            text=I18nFormat("btn-back.menu-return"),
+            id="back_main_menu",
+            state=MainMenu.MAIN,
+            mode=StartMode.RESET_STACK,
         ),
     ),
     IgnoreUpdate(),
-    state=Onboarding.SETUP,
-    getter=onboarding_getter,
+    state=Onboarding.DEVICE_CHOICE,
 )
 
-# O3 — manual-refresh tip
-refresh_tip = Window(
-    Banner(BannerName.ONBOARDING_REFRESH),
-    I18nFormat("msg-onboarding-refresh-tip"),
-    Button(
-        text=I18nFormat("btn-onboarding.understood"),
-        id="onb_understood",
-        on_click=on_understood,
-    ),
-    IgnoreUpdate(),
-    state=Onboarding.REFRESH_TIP,
-    getter=onboarding_getter,
-)
-
-# O4 — success
-success = Window(
-    Banner(BannerName.ONBOARDING_SUCCESS),
-    I18nFormat("msg-onboarding-success"),
-    Start(
-        text=I18nFormat("btn-onboarding.open-menu"),
-        id="onb_open_menu",
-        state=MainMenu.MAIN,
-        mode=StartMode.RESET_STACK,
-    ),
-    IgnoreUpdate(),
-    state=Onboarding.SUCCESS,
-)
-
-# "Не получается" — self-service branch
-help_window = Window(
-    Banner(BannerName.ONBOARDING_HELP),
-    I18nFormat("msg-onboarding-help"),
+connect = Window(
+    Banner(BannerName.ONBOARDING_CONNECT),
+    I18nFormat("msg-onboarding-connect"),
     Row(
-        SwitchTo(
-            text=I18nFormat("btn-onboarding.refresh-happ"),
-            id="onb_refresh_happ",
-            state=Onboarding.REFRESH_HAPP,
-        ),
-        Button(
-            text=I18nFormat("btn-onboarding.change-location"),
-            id="onb_change_location",
-            on_click=on_change_location,
+        Url(
+            text=I18nFormat("btn-onboarding.store"),
+            url=Format("{store_link}"),
+            id="store_link",
+            when=~F["is_apple"],
+            style=Style(ButtonStyle.PRIMARY),
         ),
     ),
     Row(
         Url(
-            text=I18nFormat("btn-onboarding.support"),
-            url=Format("{support_url}"),
+            text=I18nFormat("btn-onboarding.store-global"),
+            url=Format("{store_link}"),
+            id="store_global",
+            when="is_apple",
+            style=Style(ButtonStyle.PRIMARY),
+        ),
+    ),
+    Row(
+        Url(
+            text=I18nFormat("btn-onboarding.store-ru"),
+            url=Format("{store_link_ru}"),
+            id="store_ru",
+            when="is_apple",
+            style=Style(ButtonStyle.PRIMARY),
+        ),
+    ),
+    Row(
+        Url(
+            text=I18nFormat("btn-onboarding.open"),
+            url=Format("{open_url}"),
+            id="open_happ",
+            when="has_open_url",
+            style=Style(ButtonStyle.SUCCESS),
+        ),
+    ),
+    Row(
+        Button(
+            text=I18nFormat("btn-onboarding.works"),
+            id="works",
+            on_click=on_works,
+            style=Style(ButtonStyle.SUCCESS),
+        ),
+        SwitchTo(
+            text=I18nFormat("btn-onboarding.fail"),
+            id="fail",
+            state=Onboarding.NOT_WORKING,
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back_device",
+            state=Onboarding.DEVICE_CHOICE,
         ),
     ),
     IgnoreUpdate(),
-    state=Onboarding.HELP,
-    getter=onboarding_getter,
+    state=Onboarding.CONNECT,
+    getter=connect_getter,
 )
 
-# Manual config refresh screen (from the "Обновить в Happ" button)
-refresh_happ = Window(
-    Banner(BannerName.ONBOARDING_REFRESH),
-    I18nFormat("msg-onboarding-refresh-happ"),
-    Start(
-        text=I18nFormat("btn-onboarding.back-menu"),
-        id="onb_refresh_back",
-        state=MainMenu.MAIN,
-        mode=StartMode.RESET_STACK,
+tv_connect = Window(
+    Banner(BannerName.ONBOARDING_TV),
+    I18nFormat("msg-onboarding-tv"),
+    Row(
+        Url(
+            text=I18nFormat("btn-onboarding.faq"),
+            url=Format("{faq_url}"),
+            id="tv_faq",
+            style=Style(ButtonStyle.PRIMARY),
+        ),
+    ),
+    Row(
+        Url(
+            text=I18nFormat("btn-onboarding.web-import"),
+            url=Format("{web_import_url}"),
+            id="tv_web_import",
+        ),
+    ),
+    Row(
+        Button(
+            text=I18nFormat("btn-onboarding.works"),
+            id="works",
+            on_click=on_works,
+            style=Style(ButtonStyle.SUCCESS),
+        ),
+        SwitchTo(
+            text=I18nFormat("btn-onboarding.fail"),
+            id="fail",
+            state=Onboarding.NOT_WORKING,
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back_device",
+            state=Onboarding.DEVICE_CHOICE,
+        ),
     ),
     IgnoreUpdate(),
-    state=Onboarding.REFRESH_HAPP,
-    getter=onboarding_getter,
+    state=Onboarding.TV_CONNECT,
+    getter=tv_connect_getter,
+)
+
+# Terminal screen: the former standalone "success" window was dropped, so this
+# tip screen closes the funnel. It carries the success banner and its "Понятно"
+# button both cancels pending nudges (our completion hook) and returns to the menu.
+tips = Window(
+    Banner(BannerName.ONBOARDING_SUCCESS),
+    I18nFormat("msg-onboarding-tips"),
+    Row(
+        Button(
+            text=I18nFormat("btn-onboarding.tips-ok"),
+            id="tips_ok",
+            on_click=on_tips_ok,
+            style=Style(ButtonStyle.PRIMARY),
+        ),
+    ),
+    IgnoreUpdate(),
+    state=Onboarding.TIPS,
+    getter=tips_getter,
+)
+
+not_working = Window(
+    Banner(BannerName.ONBOARDING_FAIL),
+    I18nFormat("msg-onboarding-fail"),
+    Row(
+        Url(
+            text=I18nFormat("btn-menu.support"),
+            url=Format("{support_url}"),
+            id="support",
+            style=Style(ButtonStyle.PRIMARY),
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back_connect",
+            state=Onboarding.CONNECT,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=Onboarding.NOT_WORKING,
+    getter=not_working_getter,
 )
 
 router = Dialog(
-    entry,
-    platform,
-    setup,
-    refresh_tip,
-    success,
-    help_window,
-    refresh_happ,
+    device_choice,
+    connect,
+    tv_connect,
+    tips,
+    not_working,
     on_start=on_dialog_start,
 )
