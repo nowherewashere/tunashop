@@ -470,7 +470,6 @@ notification-type = { $notification_type ->
     [NOT_CONNECTED] Нет подключения
     [TORRENT_BLOCKED] Ограничение Torrent
     [BLACKLIST_ATTEMPT] Регистрация пользователя (из ЧС)
-    [FOLLOWUP_HABIT] Follow-up: привычка (после подключения)
     [FOLLOWUP_TRIAL_ENDING] Follow-up: триал заканчивается
     [FOLLOWUP_WINBACK] Follow-up: возврат (win-back)
     *[OTHER] { $notification_type }

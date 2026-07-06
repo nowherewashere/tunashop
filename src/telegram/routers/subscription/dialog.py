@@ -139,7 +139,9 @@ duration = Window(
             type_factory=int,
             on_click=on_duration_select,
         ),
-        width=2,
+        # One duration per row (spec fix #6) — the "period | price" label overflows
+        # a 2-column layout on narrow phones.
+        width=1,
     ),
     Row(
         SwitchTo(
@@ -156,7 +158,7 @@ duration = Window(
 )
 
 payment_method = Window(
-    Banner(BannerName.SUBSCRIPTION),
+    Banner(BannerName.PAYMENT_METHOD),
     I18nFormat("msg-subscription-payment-method"),
     Column(
         Select(

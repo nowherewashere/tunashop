@@ -18,15 +18,26 @@ msg-onboarding-device =
 msg-onboarding-connect =
     Подключаемся за 3 шага 👇
 
-    1️⃣ Установи <b>Happ</b> — приложение, через которое работает VPN.
-    → Кнопка «{ btn-onboarding.store }» ниже
+    <b>1️⃣ Установи Happ</b>
+    <blockquote>
+    Приложение, через которое работает VPN.
+    Кнопка «{ btn-onboarding.store }» ниже.
+    </blockquote>
 
-    2️⃣ Добавь <b>Tuna</b> — одним тапом, настроится само. Нажми кнопку «{ btn-onboarding.open }» ниже. Если не сработало — скопируй ссылку (тап по ней) и добавь её в Happ вручную:
-    <code>{ $subscription_url }</code>
+    <b>2️⃣ Добавь Tuna</b>
+    <blockquote>
+    Нажми кнопку «{ btn-onboarding.open }» ниже.
+    Если не сработало — скопируй ссылку и добавь её в Happ вручную.
+    </blockquote>
 
-    3️⃣ Включи и проверь — открой сайт, который не открывался.
+    <b>Ссылка:</b> <code>{ $subscription_url }</code>
 
-    Получилось? 🐟
+    <b>3️⃣ Включи и проверь</b>
+    <blockquote>
+    Открывай заблокированные сайты и пользуйся интернетом без ограничений.
+    </blockquote>
+
+    <i>Получилось? 🐟</i>
 
 # TV connect — phone/web import (no direct deep link)
 msg-onboarding-tv =
@@ -75,17 +86,26 @@ msg-onboarding-fail =
     Чаще всего помогает 👇
     <blockquote>
     → Открой Happ и нажми «Обновить» (⟳) — подтянет свежие сервера
-    → Смени локацию/протокол в Happ
+    → Смени локацию в Happ
     → Переподключись: скопируй ссылку заново и добавь в Happ
     </blockquote>
 
-    Не помогло? Напиши в поддержку из главного меню 🐟
+    Не помогло? Напиши в поддержку 🐟
 
 # Pre-connect nudges (A-chain), delivered by the sweeper task — one per step.
 # Ours, not from the idea bot.
-event-onboarding-nudge-1 = Застрял на подключении? 🐟 Это занимает минуту — помогу с любого шага.
-event-onboarding-nudge-2 = Happ поставился, но Tuna не добавился? Часто помогает прямая ссылка 👇
-event-onboarding-nudge-3 = Твой пробный доступ ждёт. Подключим за минуту?
+event-onboarding-nudge-1 =
+    <b>Застрял на подключении?</b>
+
+    Это занимает минуту 🐟 — помогу с любого шага.
+event-onboarding-nudge-2 =
+    <b>Happ установлен, но VPN не подключился?</b>
+
+    Часто помогает прямая ссылка 👇
+event-onboarding-nudge-3 =
+    <b>Твой пробный доступ ждёт.</b>
+
+    Подключим за минуту? 🐟
 
 btn-onboarding =
     .platform-ios = 📱 iPhone / Mac
@@ -108,4 +128,5 @@ btn-onboarding =
     .nudge-continue = ▶️ Продолжить
     .nudge-fail = 🆘 Не получается
     .nudge-open-happ = ⚡ Открыть в Happ
+    .nudge-connect = ⚡️ Подключиться
     .nudge-help = 💬 Помощь

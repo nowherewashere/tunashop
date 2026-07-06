@@ -28,11 +28,12 @@ btn-devices =
     .confirm-delete = ✅ Да, удалить
     .confirm-reissue = ✅ Да, сбросить
     .cancel-reissue = ❌ Нет
+    .add-device = 📱 Добавить устройство
 
-    .item = { $platform_icon } { $platform } { $device_model -> 
-    [0] { space }
-    *[HAS] ({ $device_model }){ space }
-    }— { $created_at }
+    .item = { $platform_icon } { $platform }{ $device_model ->
+    [0] { "" }
+    *[HAS] { space }({ $device_model })
+    }
 
 btn-backup =
     .active-toggle = { $enabled ->

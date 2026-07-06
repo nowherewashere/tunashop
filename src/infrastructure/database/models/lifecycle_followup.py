@@ -15,13 +15,12 @@ FOLLOWUP_CANCELLED: Final[str] = "cancelled"
 
 # Followup chains (spec §6). The onboarding "A" chain lives in its own table; these
 # are the post-connect / lifecycle chains driven by this unified dispatcher.
-CHAIN_HABIT: Final[str] = "B"  # +12h after first connect — habit / device upsell
 CHAIN_TRIAL_ENDING: Final[str] = "C"  # −3h before trial end — convert
 CHAIN_WINBACK: Final[str] = "E"  # +3d / +2w after churn — win-back
 
 
 class LifecycleFollowup(BaseSql, TimestampMixin):
-    """One scheduled lifecycle followup (chains B/C/E, spec §6).
+    """One scheduled lifecycle followup (chains C/E, spec §6).
 
     Additive table modelled on ``onboarding_nudges``: armed by event listeners,
     swept by a cron task that re-validates live user state before sending, so no

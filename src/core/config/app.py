@@ -41,6 +41,11 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
     # Optional marketing/redirect site that maps /r/<code> to the bot referral
     # link (spec §4.7 second link). Empty ⇒ only the bot link is shown.
     referral_site_url: str = Field(default="", validation_alias="REFERRAL_SITE_URL")
+    # Editable list of available server locations, shared identically across all
+    # plans and rendered on the plan-selection screen. Change without a rebuild.
+    plan_locations: str = Field(
+        default="🇩🇪 | 🇯🇵 | 🇷🇺 | 🇨🇭", validation_alias="PLAN_LOCATIONS"
+    )
 
     bot: BotConfig = Field(default_factory=BotConfig)
     remnawave: RemnawaveConfig = Field(default_factory=RemnawaveConfig)

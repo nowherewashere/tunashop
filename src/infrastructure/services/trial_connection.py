@@ -12,14 +12,10 @@ from src.application.common.remnawave import Remnawave
 from src.application.common.uow import UnitOfWork
 from src.application.events.system import UserFirstConnectionEvent
 from src.core.utils.time import datetime_now
-from src.infrastructure.database.models.lifecycle_followup import (
-    CHAIN_HABIT,
-    CHAIN_TRIAL_ENDING,
-)
+from src.infrastructure.database.models.lifecycle_followup import CHAIN_TRIAL_ENDING
 from src.infrastructure.services.event_bus import on_event
 
 # Post-connect proactive followups armed at first connection (spec §6).
-_HABIT_DELAY = timedelta(hours=12)  # chain B: "how's the speed / add a device"
 _TRIAL_ENDING_LEAD = timedelta(hours=3)  # chain C: nudge 3h before the trial ends
 
 
@@ -99,10 +95,7 @@ class TrialConnectionHandler:
             f"(granted window {granted})"
         )
 
-        # Arm the post-connect proactive chains against the fresh clock.
-        await self.followup_dao.schedule(
-            telegram_id, CHAIN_HABIT, "b_12h", now + _HABIT_DELAY
-        )
+        # Arm the post-connect proactive chain against the fresh clock (spec §6 C).
         trial_ending_at = new_expire - _TRIAL_ENDING_LEAD
         if trial_ending_at > now:
             await self.followup_dao.schedule(

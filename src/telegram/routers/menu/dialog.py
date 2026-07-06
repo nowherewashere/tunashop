@@ -171,11 +171,15 @@ menu = Window(
 devices = Window(
     Banner(BannerName.DEVICES),
     I18nFormat("msg-menu-devices"),
+    # No devices yet → an actionable "Add device" that opens the onboarding funnel
+    # (spec fix #5), replacing the old inert "нет устройств" label.
     Row(
-        Button(
-            text=I18nFormat("btn-common.devices-empty"),
-            id="devices_empty",
+        Start(
+            text=I18nFormat("btn-devices.add-device"),
+            id="add_device",
+            state=Onboarding.DEVICE_CHOICE,
             when=~F["has_devices"],
+            style=Style(ButtonStyle.PRIMARY),
         ),
     ),
     ListGroup(
@@ -228,7 +232,7 @@ devices = Window(
 )
 
 device_confirm_delete = Window(
-    Banner(BannerName.MENU),
+    Banner(BannerName.DEVICE_REMOVE),
     I18nFormat("msg-menu-devices-confirm-delete"),
     Row(
         Button(
@@ -249,7 +253,7 @@ device_confirm_delete = Window(
 )
 
 device_confirm_delete_all = Window(
-    Banner(BannerName.MENU),
+    Banner(BannerName.DEVICE_REMOVE),
     I18nFormat("msg-menu-devices-confirm-delete-all"),
     Row(
         Button(

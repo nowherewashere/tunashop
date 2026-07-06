@@ -66,6 +66,10 @@ async def menu_getter(
             "email": user.email,
             "name": user.name,
             "has_name": int(bool(user.name)),
+            # Hub subscription header shows the active plan name (spec fix #3). Only
+            # set for a real subscription below; empty ⇒ plain "Подписка:".
+            "plan_name": "",
+            "has_plan_name": 0,
             "personal_discount": personal_discount,
             "show_personal_discount": show_personal_discount,
             "purchase_discount": purchase_discount,
@@ -132,11 +136,15 @@ async def menu_getter(
             and timedelta(0) < (subscription.expire_at - datetime_now()) <= TRIAL_ENDING_THRESHOLD
         )
 
+        plan_name = i18n.get(subscription.plan_snapshot.name)
+
         data.update(
             {
                 "has_subscription": True,
                 "trial_ending": int(trial_ending),
                 "is_trial": subscription.is_trial,
+                "plan_name": plan_name,
+                "has_plan_name": int(bool(plan_name)),
                 "has_active_subscription": not subscription.is_trial,
                 "traffic_strategy": subscription.traffic_limit_strategy,
                 "status": subscription.current_status,

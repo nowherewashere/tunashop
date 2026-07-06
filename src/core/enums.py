@@ -173,6 +173,12 @@ class BannerName(StrEnum):
     ONBOARDING_TIPS = auto()
     ONBOARDING_SUCCESS = auto()
     ONBOARDING_FAIL = auto()
+    # Payment-operator selection screen (spec §7 fix). Falls back to default.jpg.
+    PAYMENT_METHOD = auto()
+    # Follow-up A ("Happ installed but VPN off") card banner. Falls back to default.jpg.
+    FOLLOWUP_CONNECT = auto()
+    # Device-removal confirmation screen banner. Falls back to default.jpg.
+    DEVICE_REMOVE = auto()
 
 
 class BannerFormat(StrEnum):
@@ -285,9 +291,8 @@ class UserNotificationType(UpperStrEnum):
     REFERRAL_REWARD_RECEIVED = auto()
     REFERRAL_REWARD_FAILED = auto()
     #
-    # Proactive lifecycle followups (spec §6, chains B/C/E). Admin-toggleable like
+    # Proactive lifecycle followups (spec §6, chains C/E). Admin-toggleable like
     # any other user notification via the dashboard.
-    FOLLOWUP_HABIT = auto()
     FOLLOWUP_TRIAL_ENDING = auto()
     FOLLOWUP_WINBACK = auto()
 

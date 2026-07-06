@@ -1,14 +1,20 @@
 # Menu
 msg-main-menu =
     <b>Tuna VPN</b> 🐟
-    <i>Пробиваем блокировки, пока другие висят на подключении.</i>
+    Рассекаем волны блокировок.
 
     👋 { $has_name ->
     [1] Привет, { $name }!
     *[0] Привет! 🐟
     }
 
-    { hdr-subscription }
+    <b>{ $is_trial ->
+    [1] 🎁 Пробная подписка
+    *[0] 💳 Подписка{ $has_plan_name ->
+        [1] { " " }{ $plan_name }
+        *[0] { "" }
+    }
+    }</b>:
     { $status ->
     [ACTIVE]
     { $trial_ending ->
@@ -1457,7 +1463,20 @@ msg-notifications-system-route-thread-id =
 
 # Subscription
 msg-subscription-main = <b>💳 Подписка</b>
-msg-subscription-plans = <b>📦 Выберите план</b>
+msg-subscription-plans =
+    <b>Выбери подписку</b>:
+
+    { $plans_info }
+
+# One card per available plan — assembled in plans_getter and injected above.
+# Locations are shared across all plans (APP_PLAN_LOCATIONS) and editable via env.
+frg-plan-card =
+    <b>🐟 { $name }</b>:
+    <blockquote>
+    • <b>Трафик</b>: { $traffic }
+    • <b>Устройства</b>: { $devices }
+    • <b>Локации</b>: { $locations }
+    </blockquote>
 msg-subscription-new-success = Чтобы начать пользоваться нашим сервисом, нажмите кнопку <code>`{ btn-subscription.connect }`</code> и следуйте инструкциям!
 msg-subscription-renew-success = Ваша подписка продлена на { $added_duration }.
 
@@ -1513,13 +1532,22 @@ msg-subscription-details =
     }
 
 msg-subscription-duration =
-    <b>⏳ Выберите длительность</b>
+    <b>🐟 { $plan } — выбери срок подписки</b>
 
-    { msg-subscription-details }
+    <blockquote>
+    { $durations_info }
+    </blockquote>
 
     { $plan_is_modified ->
     [1] <i>ℹ️ Условия плана изменились с момента последней покупки — актуальные данные указаны выше.</i>
     *[0] { "" }
+    }
+
+# One line per configured duration — assembled in duration_getter. The discount is
+# computed from the prices (savings vs the shortest term's per-day rate), not stored.
+frg-duration-line = • { $period } — { $amount } { $currency }{ $discount ->
+    [0] { "" }
+    *[other] { " " }(−{ $discount }%)
     }
 
 msg-subscription-payment-method =

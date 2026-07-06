@@ -16,7 +16,6 @@ from src.core.constants import GOTO_PREFIX
 from src.core.enums import UserNotificationType
 from src.core.utils.time import datetime_now
 from src.infrastructure.database.models.lifecycle_followup import (
-    CHAIN_HABIT,
     CHAIN_TRIAL_ENDING,
     CHAIN_WINBACK,
 )
@@ -31,14 +30,12 @@ _GT_INVITE = f"{GOTO_PREFIX}MainMenu:INVITE"
 
 # Per-chain message copy key.
 _COPY: dict[str, str] = {
-    CHAIN_HABIT: "event-followup-habit",
     CHAIN_TRIAL_ENDING: "event-followup-trial-ending",
     CHAIN_WINBACK: "event-followup-winback",
 }
 
 # Per-chain notification type — lets the admin toggle each followup in the panel.
 _NTF_TYPE: dict[str, UserNotificationType] = {
-    CHAIN_HABIT: UserNotificationType.FOLLOWUP_HABIT,
     CHAIN_TRIAL_ENDING: UserNotificationType.FOLLOWUP_TRIAL_ENDING,
     CHAIN_WINBACK: UserNotificationType.FOLLOWUP_WINBACK,
 }
@@ -47,9 +44,7 @@ _NTF_TYPE: dict[str, UserNotificationType] = {
 def _keyboard(chain: str) -> InlineKeyboardMarkup:
     # Button text is the i18n key — the notifier localizes it per recipient
     # (see NotificationService._translate_keyboard_text), like the onboarding chain.
-    if chain == CHAIN_HABIT:
-        rows = [[InlineKeyboardButton(text="btn-followup.add-device", callback_data=_GT_PLANS)]]
-    elif chain == CHAIN_TRIAL_ENDING:
+    if chain == CHAIN_TRIAL_ENDING:
         rows = [
             [
                 InlineKeyboardButton(text="btn-followup.subscribe", callback_data=_GT_PLANS),
@@ -65,7 +60,7 @@ def _should_send(chain: str, subscription: SubscriptionDto | None) -> bool:
     """Re-validate live state at send time so we never need per-chain cancel events."""
     active_trial = bool(subscription and subscription.is_trial and subscription.is_active)
     has_access = bool(subscription and subscription.is_active)
-    if chain in (CHAIN_HABIT, CHAIN_TRIAL_ENDING):
+    if chain == CHAIN_TRIAL_ENDING:
         return active_trial  # only nudge users still inside an active trial
     if chain == CHAIN_WINBACK:
         return not has_access  # only win back users who are actually churned

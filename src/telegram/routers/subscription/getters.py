@@ -1,3 +1,4 @@
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
 
 from adaptix import Retort
@@ -27,6 +28,42 @@ def _get_gateway_title(i18n: TranslatorRunner, gateway: PaymentGatewayDto) -> st
         return gateway.settings.display_name
 
     return i18n.get("gateway-type", gateway_type=gateway.type)
+
+
+def _build_durations_info(i18n: TranslatorRunner, durations: list[dict[str, Any]]) -> str:
+    """Render the duration list with a computed term-savings % (spec fix #9).
+
+    The discount for each term is its saving against the shortest term's per-day
+    rate (rounded), so the labels always follow the plan's configured prices —
+    nothing is stored or maintained by hand.
+    """
+    if not durations:
+        return ""
+
+    base = min(durations, key=lambda d: d["days"])
+    base_days: int = base["days"]
+    base_amount = Decimal(str(base["final_amount"]))
+    base_per_day = base_amount / base_days if base_days else Decimal(0)
+
+    lines = []
+    for duration in durations:
+        final = Decimal(str(duration["final_amount"]))
+        expected = base_per_day * duration["days"]
+        discount = 0
+        if expected > 0 and final < expected:
+            discount = int(
+                ((expected - final) / expected * 100).to_integral_value(rounding=ROUND_HALF_UP)
+            )
+        lines.append(
+            i18n.get(
+                "frg-duration-line",
+                period=duration["period"],
+                amount=duration["final_amount"],
+                currency=duration["currency"],
+                discount=discount,
+            )
+        )
+    return "\n".join(lines)
 
 
 @inject
@@ -89,12 +126,17 @@ async def plan_getter(
 @inject
 async def plans_getter(
     dialog_manager: DialogManager,
+    config: AppConfig,
     user: TelegramUserDto,
     i18n: FromDishka[TranslatorRunner],
     get_available_plans: FromDishka[GetAvailablePlans],
     **kwargs: Any,
 ) -> dict[str, Any]:
     plans = await get_available_plans.system(user)
+
+    # Locations are shared identically across all plans and editable via env
+    # (APP_PLAN_LOCATIONS), so the list stays in sync without per-plan config.
+    locations = config.plan_locations
 
     formatted_plans = [
         {
@@ -104,8 +146,22 @@ async def plans_getter(
         for plan in plans
     ]
 
+    # Pre-render one card per plan (spec fix #8) — a dynamic list can't be looped
+    # inside fluent, so it is assembled here and injected as { $plans_info }.
+    plans_info = "\n".join(
+        i18n.get(
+            "frg-plan-card",
+            name=i18n.get(plan.name),
+            traffic=i18n_format_traffic_limit(plan.traffic_limit),
+            devices=i18n_format_device_limit(plan.device_limit),
+            locations=locations,
+        )
+        for plan in plans
+    )
+
     return {
         "plans": formatted_plans,
+        "plans_info": plans_info,
     }
 
 
@@ -145,6 +201,10 @@ async def duration_getter(
             }
         )
 
+    # Term-savings % (spec fix #9): compute each duration's discount vs the shortest
+    # term's per-day rate, so the "(−N%)" labels always track the configured prices.
+    durations_info = _build_durations_info(i18n, durations)
+
     plan_is_modified = 1 if dialog_manager.dialog_data.get("plan_is_modified", False) else 0
 
     return {
@@ -154,6 +214,7 @@ async def duration_getter(
         "devices": i18n_format_device_limit(plan.device_limit),
         "traffic": i18n_format_traffic_limit(plan.traffic_limit),
         "durations": durations,
+        "durations_info": durations_info,
         "period": 0,
         "final_amount": 0,
         "currency": "",
