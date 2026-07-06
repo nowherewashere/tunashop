@@ -115,12 +115,22 @@ connect_buttons = (
 
 # Guided-onboarding entry: starts the funnel instead of the direct connect button.
 # Mutually exclusive with `connect_buttons` via the same `onboarding_enabled` flag.
+# The caption switches on `connected_once` (spec §4.1): a first-timer sees
+# "🚀 Подключиться"; someone who has already connected sees "📖 Открыть инструкции"
+# (re-opens the step reference). Both re-enter the funnel at DEVICE_CHOICE.
 onboarding_connect_buttons = (
     Start(
         text=I18nFormat("btn-menu.connect"),
         id="connect_onboarding",
         state=Onboarding.DEVICE_CHOICE,
-        when=F["onboarding_enabled"] & F["connectable"],
+        when=F["onboarding_enabled"] & F["connectable"] & ~F["connected_once"],
+        style=Style(ButtonStyle.PRIMARY),
+    ),
+    Start(
+        text=I18nFormat("btn-menu.instructions"),
+        id="instructions_onboarding",
+        state=Onboarding.DEVICE_CHOICE,
+        when=F["onboarding_enabled"] & F["connectable"] & F["connected_once"],
         style=Style(ButtonStyle.PRIMARY),
     ),
 )

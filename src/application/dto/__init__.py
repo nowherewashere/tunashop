@@ -2,6 +2,7 @@ from .ad_link import AdLinkDto, AdLinkStatsDto
 from .base import BaseDto, TimestampMixin, TrackableMixin
 from .broadcast import BroadcastDto, BroadcastMessageDto
 from .build import BuildInfoDto
+from .followup import LifecycleFollowupDto
 from .message_payload import MediaDescriptorDto, MessagePayloadDto
 from .notification_task import NotificationTaskDto
 from .onboarding import OnboardingNudgeDto
@@ -93,6 +94,7 @@ __all__ = [
     "ResetFeatureSettingsDto",
     "SettingsDto",
     "SystemNotificationRouteDto",
+    "LifecycleFollowupDto",
     "OnboardingNudgeDto",
     "RemnaSubscriptionDto",
     "SquadInfoDto",

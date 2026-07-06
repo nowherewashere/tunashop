@@ -1,6 +1,7 @@
 from .ad_link import AdLink
 from .base import BaseSql
 from .broadcast import Broadcast, BroadcastMessage
+from .lifecycle_followup import LifecycleFollowup
 from .oauth_provider import UserOAuthProvider
 from .onboarding_nudge import OnboardingNudge
 from .payment_gateway import PaymentGateway
@@ -11,6 +12,7 @@ from .settings import Settings
 from .subscription import Subscription
 from .transaction import Transaction
 from .user import User
+from .user_connection_state import UserConnectionState
 
 __all__ = [
     "AdLink",
@@ -19,6 +21,7 @@ __all__ = [
     "PromocodeActivation",
     "Broadcast",
     "BroadcastMessage",
+    "LifecycleFollowup",
     "UserOAuthProvider",
     "OnboardingNudge",
     "PaymentGateway",
@@ -31,4 +34,5 @@ __all__ = [
     "Subscription",
     "Transaction",
     "User",
+    "UserConnectionState",
 ]

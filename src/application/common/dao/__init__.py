@@ -2,6 +2,7 @@ from .activity import RecentActivityDao
 from .ad_link import AdLinkDao
 from .auth import AuthSessionDao
 from .broadcast import BroadcastDao
+from .lifecycle_followup import LifecycleFollowupDao
 from .oauth_provider import UserOAuthProviderDao
 from .onboarding_nudge import OnboardingNudgeDao
 from .payment_gateway import PaymentGatewayDao
@@ -12,6 +13,7 @@ from .settings import SettingsDao
 from .subscription import SubscriptionDao
 from .transaction import TransactionDao
 from .user import UserDao
+from .user_connection_state import UserConnectionStateDao
 from .waitlist import WaitlistDao
 from .webhook import WebhookDao
 
@@ -20,6 +22,7 @@ __all__ = [
     "AdLinkDao",
     "AuthSessionDao",
     "BroadcastDao",
+    "LifecycleFollowupDao",
     "UserOAuthProviderDao",
     "OnboardingNudgeDao",
     "PaymentGatewayDao",
@@ -30,6 +33,7 @@ __all__ = [
     "SubscriptionDao",
     "TransactionDao",
     "UserDao",
+    "UserConnectionStateDao",
     "WaitlistDao",
     "WebhookDao",
 ]

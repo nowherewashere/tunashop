@@ -4,6 +4,7 @@ from src.application.common.dao import (
     AdLinkDao,
     AuthSessionDao,
     BroadcastDao,
+    LifecycleFollowupDao,
     OnboardingNudgeDao,
     PaymentGatewayDao,
     PlanDao,
@@ -13,6 +14,7 @@ from src.application.common.dao import (
     SettingsDao,
     SubscriptionDao,
     TransactionDao,
+    UserConnectionStateDao,
     UserDao,
     UserOAuthProviderDao,
     WaitlistDao,
@@ -21,6 +23,7 @@ from src.application.common.dao import (
 from src.infrastructure.database.dao import (
     AdLinkDaoImpl,
     BroadcastDaoImpl,
+    LifecycleFollowupDaoImpl,
     OnboardingNudgeDaoImpl,
     PaymentGatewayDaoImpl,
     PlanDaoImpl,
@@ -29,6 +32,7 @@ from src.infrastructure.database.dao import (
     SettingsDaoImpl,
     SubscriptionDaoImpl,
     TransactionDaoImpl,
+    UserConnectionStateDaoImpl,
     UserDaoImpl,
     UserOAuthProviderDaoImpl,
     WaitlistDaoImpl,
@@ -44,6 +48,12 @@ class DaoProvider(Provider):
     ad_link = provide(source=AdLinkDaoImpl, provides=AdLinkDao)
     broadcast = provide(source=BroadcastDaoImpl, provides=BroadcastDao)
     onboarding_nudge = provide(source=OnboardingNudgeDaoImpl, provides=OnboardingNudgeDao)
+    lifecycle_followup = provide(
+        source=LifecycleFollowupDaoImpl, provides=LifecycleFollowupDao
+    )
+    user_connection_state = provide(
+        source=UserConnectionStateDaoImpl, provides=UserConnectionStateDao
+    )
     payment_gateway = provide(source=PaymentGatewayDaoImpl, provides=PaymentGatewayDao)
     plan = provide(source=PlanDaoImpl, provides=PlanDao)
     promocode = provide(source=PromocodeDaoImpl, provides=PromocodeDao)

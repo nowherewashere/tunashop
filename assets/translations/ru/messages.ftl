@@ -104,6 +104,15 @@ msg-menu-invite =
         *[OTHER] { $reward_type }
     }!
 
+    <b>🔗 Твои ссылки</b>:
+    <blockquote>
+    Бот: { $referral_url }{ $has_site_link ->
+    [1] { "" }
+    Сайт: { $site_referral_url }
+    *[0] { "" }
+    }
+    </blockquote>
+
     <b>📊 Статистика</b>:
     <blockquote>
     👥 Всего приглашенных: { $referrals }

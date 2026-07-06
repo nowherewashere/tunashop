@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional, Protocol, TypeVar, Union
 from uuid import UUID
 
@@ -60,6 +61,8 @@ class Remnawave(Protocol):
     async def reset_traffic(self, uuid: UUID) -> Optional[UserResponseDto]: ...
 
     async def revoke_subscription(self, uuid: UUID) -> None: ...
+
+    async def set_user_expire(self, uuid: UUID, expire_at: datetime) -> None: ...
 
     async def get_squads_available(self) -> bool: ...
 

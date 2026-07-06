@@ -29,6 +29,7 @@ from src.infrastructure.services import (
     CryptographerImpl,
     EventBusImpl,
     HealthService,
+    LifecycleFollowupHandler,
     NotificationQueue,
     NotificationService,
     NotificationWorker,
@@ -37,6 +38,7 @@ from src.infrastructure.services import (
     RedirectImpl,
     RemnawaveImpl,
     SmtpEmailSender,
+    TrialConnectionHandler,
     WebhookService,
     XuiDbReaderImpl,
 )
@@ -63,6 +65,12 @@ class ServicesProvider(Provider):
 
     remnawave = provide(source=RemnawaveImpl, provides=Remnawave)
     remna_webhook = provide(source=RemnaWebhookService, scope=Scope.REQUEST)
+    # First-connection listener (connected_once + on-connect trial-timer restart).
+    # REQUEST scope: it uses the request-scoped uow + DAOs, and the event bus
+    # resolves listeners from a fresh request container.
+    trial_connection = provide(source=TrialConnectionHandler, scope=Scope.REQUEST)
+    # Win-back arming listener (chain E on subscription expiry).
+    lifecycle_followup = provide(source=LifecycleFollowupHandler, scope=Scope.REQUEST)
 
     notification_queue = provide(source=NotificationQueue)
     notification_worker = provide(source=NotificationWorker)

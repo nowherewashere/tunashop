@@ -38,6 +38,9 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
     swagger_enabled: bool = False
     web_enabled: bool = Field(default=False, validation_alias="WEB_ENABLED")
     web_cabinet_url: str = Field(default="", validation_alias="WEB_CABINET_URL")
+    # Optional marketing/redirect site that maps /r/<code> to the bot referral
+    # link (spec §4.7 second link). Empty ⇒ only the bot link is shown.
+    referral_site_url: str = Field(default="", validation_alias="REFERRAL_SITE_URL")
 
     bot: BotConfig = Field(default_factory=BotConfig)
     remnawave: RemnawaveConfig = Field(default_factory=RemnawaveConfig)

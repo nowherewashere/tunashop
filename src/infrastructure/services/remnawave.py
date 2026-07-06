@@ -1,6 +1,6 @@
 import asyncio
 from dataclasses import fields, is_dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Optional, Union
 from uuid import UUID
 
@@ -237,6 +237,21 @@ class RemnawaveImpl(Remnawave):
             logger.info(f"Subscription for RemnaUser '{uuid}' revoked successfully")
         except NotFoundError:
             logger.debug(f"RemnaUser '{uuid}' not found in panel")
+
+    async def set_user_expire(self, uuid: UUID, expire_at: datetime) -> None:
+        """Patch only a RemnaUser's expiry (partial update).
+
+        Used to (re)start the trial clock at first connection without touching any
+        other field — Remnawave applies just the provided ``expire_at``.
+        """
+        try:
+            await self.sdk.users.update_user(
+                UpdateUserRequestDto(uuid=uuid, expire_at=expire_at)
+            )
+            logger.info(f"RemnaUser '{uuid}' expiry set to '{expire_at.isoformat()}'")
+        except NotFoundError:
+            logger.debug(f"RemnaUser '{uuid}' not found in panel")
+            raise
 
     async def get_squads_available(self) -> bool:
         result = await self.sdk.internal_squads.get_internal_squads()

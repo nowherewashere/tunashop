@@ -6,6 +6,7 @@ from src.application.use_cases.auth import AUTH_USE_CASES
 from src.application.use_cases.backup import BACKUP_USE_CASES
 from src.application.use_cases.blacklist import BLACKLIST_USE_CASES
 from src.application.use_cases.broadcast import BROADCAST_USE_CASES
+from src.application.use_cases.followup import FOLLOWUP_USE_CASES
 from src.application.use_cases.gateways import GATEWAYS_USE_CASES
 from src.application.use_cases.importer import IMPORTER_USE_CASES
 from src.application.use_cases.misc import MISC_USE_CASES
@@ -30,6 +31,7 @@ class UseCasesProvider(Provider):
         *BACKUP_USE_CASES,
         *BLACKLIST_USE_CASES,
         *BROADCAST_USE_CASES,
+        *FOLLOWUP_USE_CASES,
         *GATEWAYS_USE_CASES,
         *IMPORTER_USE_CASES,
         *MISC_USE_CASES,

@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Any
 
 from aiogram_dialog import DialogManager
@@ -6,7 +7,12 @@ from dishka.integrations.aiogram_dialog import inject
 from loguru import logger
 
 from src.application.common import BotService, Remnawave, TranslatorRunner
-from src.application.common.dao import ReferralDao, SettingsDao, SubscriptionDao
+from src.application.common.dao import (
+    ReferralDao,
+    SettingsDao,
+    SubscriptionDao,
+    UserConnectionStateDao,
+)
 from src.application.dto import TelegramUserDto
 from src.application.use_cases.misc.queries.menu import GetMenuData
 from src.core.config import AppConfig
@@ -16,7 +22,11 @@ from src.core.utils.i18n_helpers import (
     i18n_format_expire_time,
     i18n_format_traffic_limit,
 )
-from src.core.utils.time import get_traffic_reset_delta
+from src.core.utils.time import datetime_now, get_traffic_reset_delta
+
+# Hub shows the "trial ending" face (coral accent + soft upsell, spec §7) once the
+# trial has less than this left.
+TRIAL_ENDING_THRESHOLD = timedelta(hours=4)
 
 
 @inject
@@ -28,12 +38,22 @@ async def menu_getter(
     i18n: FromDishka[TranslatorRunner],
     get_menu_data: FromDishka[GetMenuData],
     settings_dao: FromDishka[SettingsDao],
+    conn_state_dao: FromDishka[UserConnectionStateDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
     try:
         menu_data = await get_menu_data(user)
         settings = await settings_dao.get()
         support_url = bot_service.get_support_url(text=i18n.get("message.help"))
+
+        # connected_once drives the primary-button switch (Подключиться ↔ Открыть
+        # инструкции, spec §4.1). Only consulted while the guided funnel is on, so
+        # the read stays isolated behind the same flag.
+        connected_once = (
+            await conn_state_dao.is_connected_once(user.telegram_id)
+            if settings.extra.onboarding_enabled
+            else False
+        )
 
         purchase_discount = user.purchase_discount or 0
         personal_discount = user.personal_discount or 0
@@ -53,6 +73,8 @@ async def menu_getter(
             "is_mini_app": config.bot.is_mini_app,
             "is_mini_app_reserve": config.bot.is_mini_app and settings.extra.mini_app_reserve,
             "onboarding_enabled": settings.extra.onboarding_enabled,
+            "connected_once": connected_once,
+            "trial_ending": False,
             "support_url": support_url,
             "web_enabled": config.web_enabled,
             "web_cabinet_url": config.web_cabinet_url.strip(),
@@ -103,9 +125,16 @@ async def menu_getter(
 
         subscription = menu_data.current_subscription
 
+        trial_ending = (
+            subscription.is_trial
+            and subscription.is_active
+            and timedelta(0) < (subscription.expire_at - datetime_now()) <= TRIAL_ENDING_THRESHOLD
+        )
+
         data.update(
             {
                 "has_subscription": True,
+                "trial_ending": trial_ending,
                 "is_trial": subscription.is_trial,
                 "has_active_subscription": not subscription.is_trial,
                 "traffic_strategy": subscription.traffic_limit_strategy,
@@ -217,6 +246,7 @@ async def device_confirm_delete_getter(
 @inject
 async def invite_getter(
     dialog_manager: DialogManager,
+    config: AppConfig,
     user: TelegramUserDto,
     bot_service: FromDishka[BotService],
     i18n: FromDishka[TranslatorRunner],
@@ -230,6 +260,10 @@ async def invite_getter(
     referral_url = await bot_service.get_referral_url(user.referral_code)
     support_url = bot_service.get_support_url(text=i18n.get("message.withdraw-points"))
 
+    # Second (website) referral link, spec §4.7 — shown only when configured.
+    site_base = config.referral_site_url.strip().rstrip("/")
+    site_referral_url = f"{site_base}/r/{user.referral_code}" if site_base else ""
+
     return {
         "reward_type": settings.referral.reward.type,
         "referrals": referrals,
@@ -238,6 +272,8 @@ async def invite_getter(
         "is_points_reward": settings.referral.reward.is_points,
         "has_points": True if user.points > 0 else False,
         "referral_url": referral_url,
+        "site_referral_url": site_referral_url,
+        "has_site_link": int(bool(site_referral_url)),
         "withdraw": support_url,
         "referral_reset_enabled": int(settings.extra.referral_reset.enabled),
     }
