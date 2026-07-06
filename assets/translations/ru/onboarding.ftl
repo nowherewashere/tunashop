@@ -16,17 +16,17 @@ msg-onboarding-device =
 
 # 3-step guided connect (phone / desktop)
 msg-onboarding-connect =
-    Подключаемся за 3 шага 👇
+    <b>Подключаемся за 3 шага 👇</b>
 
     <b>1️⃣ Установи Happ</b>
     <blockquote>
     Приложение, через которое работает VPN.
-    Кнопка «{ btn-onboarding.store }» ниже.
+    Кнопка «<b>{ btn-onboarding.store }</b>» ниже.
     </blockquote>
 
     <b>2️⃣ Добавь Tuna</b>
     <blockquote>
-    Нажми кнопку «{ btn-onboarding.open }» ниже.
+    Нажми кнопку «<b>{ btn-onboarding.open }</b>» ниже.
     Если не сработало — скопируй ссылку и добавь её в Happ вручную.
     </blockquote>
 
@@ -63,10 +63,12 @@ msg-onboarding-tv =
     1️⃣ Установи <b>Happ</b> на ТВ из Google Play (или APK).
     2️⃣ Запусти Happ на ТВ — он предложит добавить подписку по локальной сети через QR.
     3️⃣ Отсканируй QR-код приложением <b>Happ</b> на телефоне — подписка перенесётся на ТВ.
-    4️⃣ Если по Wi-Fi не вышло — выбери «Web Import», зайди на <b>tv.happ.su</b>, введи код и вставь свою ссылку.
     }
 
+    <b>Важно:</b> Если по Wi-Fi не вышло — выбери «Web Import», зайди на <b>tv.happ.su</b>, введи код и вставь свою ссылку.
+
     🔗 Твоя ссылка для веб-импорта (нажми, чтобы скопировать):
+
     <code>{ $subscription_url }</code>
 
     📖 Пошаговая инструкция со скриншотами — по кнопке ниже.
@@ -81,11 +83,15 @@ msg-onboarding-tips =
 
     → <a href="{ $refresh_video_url }">Видео: как обновить за 5 секунд</a>
 
+# Alert shown when a user taps "Работает!" before actually connecting (spec fix #18).
+onboarding-not-connected-yet = 🐟 Похоже, ты ещё не в сети. Добавь Tuna в Happ, включи VPN и открой любой сайт — потом жми «Работает!». Только что подключился? Подожди пару секунд и попробуй снова.
+
 # "Не получается" — self-service branch
 msg-onboarding-fail =
-    Чаще всего помогает 👇
+    <b>Чаще всего помогает 👇</b>
+
     <blockquote>
-    → Открой Happ и нажми «Обновить» (⟳) — подтянет свежие сервера
+    → Открой Happ и нажми <b>«Обновить» (⟳)</b> — подтянет свежие сервера
     → Смени локацию в Happ
     → Переподключись: скопируй ссылку заново и добавь в Happ
     </blockquote>
@@ -117,9 +123,9 @@ btn-onboarding =
     .faq = 📖 Инструкция со скриншотами
     .web-import = 🌐 Веб-импорт (tv.happ.su)
     .store = ⬇️ Скачать Happ для { $platform_title }
-    .store-global = ⬇️ Скачать Happ (Глобальный регион)
-    .store-ru = ⬇️ Скачать Happ (РФ регион)
-    .open = ➡️ Открыть в Happ
+    .store-global = ⬇️ Скачать Happ (Appstore вне РФ)
+    .store-ru = ⬇️ Скачать Happ (Appstore РФ)
+    .open = ➕ Добавить Tuna VPN
     .copy-link = 📋 Скопировать ссылку Happ
     .works = 🎉 Работает!
     .fail = 😕 Не получается

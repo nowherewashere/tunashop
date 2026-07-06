@@ -73,9 +73,7 @@ msg-main-menu =
     }
 
 msg-menu-devices =
-    <b>📱 Управление устройствами</b>
-
-    Подключено: <b>{ $current_count } / { $max_count -> 
+    <b>Подключено: { $current_count } / { $max_count ->
     [0] { unlimited }
     *[LIMIT] { $max_count }
     }</b>
@@ -116,14 +114,18 @@ msg-menu-devices-confirm-delete =
 msg-menu-devices-confirm-delete-all =
     🗑 <b>Подтвердите удаление всех устройств</b>
 
+# Referral screen — copy per UX spec v2 §4.7. The money model (50% / payouts /
+# balance) is spec text only for now; the payout backend isn't built, so the ₽ stat
+# lines render as 0 placeholders and no withdraw/balance buttons are shown yet.
 msg-menu-invite =
-    <b>👥 Пригласить друзей</b>
-    
-    Делитесь вашей уникальной ссылкой и получайте вознаграждение в виде { $reward_type ->
-        [POINTS] <b>баллов, которые можно обменять на подписку или реальные деньги</b>
-        [EXTRA_DAYS] <b>бесплатных дней к вашей подписке</b>
-        *[OTHER] { $reward_type }
-    }!
+    <b>🤝 Реферальная система</b>
+
+    Приглашай и зарабатывай:
+    <blockquote>
+    • 50% с каждого платежа приглашённых — навсегда
+    • Другу — 3 дня бесплатно по твоей ссылке
+    • Выплаты деньгами или оплата подписки балансом
+    </blockquote>
 
     <b>🔗 Твои ссылки</b>:
     <blockquote>
@@ -136,12 +138,11 @@ msg-menu-invite =
 
     <b>📊 Статистика</b>:
     <blockquote>
-    👥 Всего приглашенных: { $referrals }
-    💳 Платежей по вашей ссылке: { $payments }
-    { $reward_type -> 
-    [POINTS] 💎 Ваши баллы: { $points }
-    *[EXTRA_DAYS] { empty }
-    }
+    ├ Приглашено: { $referrals }
+    ├ Из них платят: { $payments }
+    ├ Твой доход всего: { $income } { $currency }
+    ├ Выведено: { $withdrawn } { $currency }
+    └ Доступно к выводу: { $available } { $currency }
     </blockquote>
 
 msg-menu-invite-about =
@@ -1462,7 +1463,14 @@ msg-notifications-system-route-thread-id =
 
 
 # Subscription
-msg-subscription-main = <b>💳 Подписка</b>
+msg-subscription-main =
+    { $has_active_subscription ->
+    [1]
+    <b>💳 Твоя подписка</b>:
+
+    { $subscription_info }
+    *[0] <b>💳 Подписка</b>
+    }
 msg-subscription-plans =
     <b>Выбери подписку</b>:
 

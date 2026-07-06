@@ -4,6 +4,8 @@ from aiogram.types import CallbackQuery
 from aiogram_dialog import DialogManager, StartMode
 from aiogram_dialog.widgets.kbd import Button
 
+from src.application.common import TranslatorRunner
+from src.application.common.dao import UserConnectionStateDao
 from src.application.dto import TelegramUserDto
 from src.application.use_cases.onboarding.commands import (
     CancelOnboardingNudges,
@@ -57,7 +59,24 @@ async def on_works(
     widget: Button,
     dialog_manager: DialogManager,
 ) -> None:
-    """User confirmed the connection works → show the refresh tip."""
+    """User confirmed the connection works → show the refresh tip.
+
+    Guard (spec fix #18): if the user has never actually connected — the same
+    ``connected_once`` signal the hub uses for its primary-button switch — don't
+    advance; pop a branded alert nudging them to finish connecting first.
+    """
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    container = dialog_manager.middleware_data[CONTAINER_KEY]
+
+    if user.telegram_id is not None:
+        conn_state_dao = await container.get(UserConnectionStateDao)
+        if not await conn_state_dao.is_connected_once(user.telegram_id):
+            i18n = await container.get(TranslatorRunner)
+            await callback.answer(
+                text=i18n.get("onboarding-not-connected-yet"), show_alert=True
+            )
+            return
+
     await dialog_manager.switch_to(Onboarding.TIPS)
 
 

@@ -69,16 +69,32 @@ def _build_durations_info(i18n: TranslatorRunner, durations: list[dict[str, Any]
 @inject
 async def subscription_getter(
     dialog_manager: DialogManager,
+    config: AppConfig,
     user: TelegramUserDto,
+    i18n: FromDishka[TranslatorRunner],
     subscription_dao: FromDishka[SubscriptionDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
     current_subscription = await subscription_dao.get_current(user.id)
     has_active = bool(current_subscription and not current_subscription.is_trial)
     is_unlimited = current_subscription.is_unlimited if current_subscription else False
+
+    # Show the active plan's card above renew/change (spec fix #20), same shape as
+    # the plan-selection screen (frg-plan-card with shared locations).
+    subscription_info = ""
+    if has_active and current_subscription is not None:
+        subscription_info = i18n.get(
+            "frg-plan-card",
+            name=i18n.get(current_subscription.plan_snapshot.name),
+            traffic=i18n_format_traffic_limit(current_subscription.traffic_limit),
+            devices=i18n_format_device_limit(current_subscription.device_limit),
+            locations=config.plan_locations,
+        )
+
     return {
-        "has_active_subscription": has_active,
+        "has_active_subscription": int(has_active),
         "is_not_unlimited": not is_unlimited,
+        "subscription_info": subscription_info,
     }
 
 

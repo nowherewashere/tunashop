@@ -111,6 +111,7 @@ connect = Window(
             text=I18nFormat("btn-onboarding.fail"),
             id="fail",
             state=Onboarding.NOT_WORKING,
+            style=Style(ButtonStyle.DANGER),
         ),
     ),
     Row(
@@ -154,6 +155,7 @@ tv_connect = Window(
             text=I18nFormat("btn-onboarding.fail"),
             id="fail",
             state=Onboarding.NOT_WORKING,
+            style=Style(ButtonStyle.DANGER),
         ),
     ),
     Row(

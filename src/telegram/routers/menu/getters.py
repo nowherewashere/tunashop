@@ -226,12 +226,20 @@ async def devices_getter(
 
     settings = await settings_dao.get()
 
+    # device_limit == 0 means unlimited, so a limit is reached only when it is set
+    # (>0) and every slot is taken. Drives the Add device ↔ Изменить подписку switch.
+    at_device_limit = (
+        current_subscription.device_limit != 0
+        and len(devices) >= current_subscription.device_limit
+    )
+
     return {
         "current_count": len(devices),
         "max_count": current_subscription.device_limit,
         "devices": formatted_devices,
         "devices_empty": len(devices) == 0,
         "has_devices": len(devices) > 0,
+        "at_device_limit": int(at_device_limit),
         "device_single_enabled": int(settings.extra.device_single_reset.enabled),
         "device_all_enabled": int(settings.extra.device_all_reset.enabled),
         "link_reset_enabled": int(settings.extra.link_reset.enabled),
@@ -285,6 +293,12 @@ async def invite_getter(
         "has_site_link": int(bool(site_referral_url)),
         "withdraw": support_url,
         "referral_reset_enabled": int(settings.extra.referral_reset.enabled),
+        # Money stats (spec §4.7) — the payout backend isn't built yet, so these are
+        # 0 placeholders for now; the copy is in place ahead of the money model.
+        "income": 0,
+        "withdrawn": 0,
+        "available": 0,
+        "currency": settings.default_currency.symbol,
     }
 
 

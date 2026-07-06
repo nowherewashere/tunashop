@@ -15,7 +15,6 @@ from src.telegram.utils import require_permission
 from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
 from src.telegram.widgets.kbd import (
     Button,
-    CopyText,
     ListGroup,
     Row,
     Start,
@@ -171,14 +170,22 @@ menu = Window(
 devices = Window(
     Banner(BannerName.DEVICES),
     I18nFormat("msg-menu-devices"),
-    # No devices yet → an actionable "Add device" that opens the onboarding funnel
-    # (spec fix #5), replacing the old inert "нет устройств" label.
+    # "Add device" opens the onboarding funnel and stays available until the device
+    # limit is reached (spec fix #5/#15); at the limit it flips to "Изменить подписку"
+    # (→ the Subscription screen), the only way to raise the cap.
     Row(
         Start(
             text=I18nFormat("btn-devices.add-device"),
             id="add_device",
             state=Onboarding.DEVICE_CHOICE,
-            when=~F["has_devices"],
+            when=~F["at_device_limit"],
+            style=Style(ButtonStyle.SUCCESS),
+        ),
+        Start(
+            text=I18nFormat("btn-devices.change-subscription"),
+            id="change_subscription",
+            state=Subscription.MAIN,
+            when=F["at_device_limit"],
             style=Style(ButtonStyle.PRIMARY),
         ),
     ),
@@ -189,11 +196,13 @@ devices = Window(
                 id="device_item",
                 on_click=on_device_delete_request,
                 when=F["data"]["device_single_enabled"],
+                style=Style(ButtonStyle.PRIMARY),
             ),
             Button(
                 text=Format("{item[label]}"),
                 id="device_item_display",
                 when=~F["data"]["device_single_enabled"],
+                style=Style(ButtonStyle.PRIMARY),
             ),
         ),
         id="devices_list",
@@ -283,17 +292,13 @@ invite = Window(
             state=MainMenu.INVITE_ABOUT,
         ),
     ),
-    Row(
-        CopyText(
-            text=I18nFormat("btn-invite.copy"),
-            copy_text=Format("{referral_url}"),
-        ),
-    ),
+    # "Скопировать ссылку" removed (spec fix #22); QR in blue, Пригласить in green.
     Row(
         Button(
             text=I18nFormat("btn-invite.qr"),
             id="qr",
             on_click=on_show_qr,
+            style=Style(ButtonStyle.PRIMARY),
         ),
         SwitchInlineQueryChosenChatButton(
             text=I18nFormat("btn-invite.send"),
@@ -302,6 +307,7 @@ invite = Window(
             allow_group_chats=True,
             allow_channel_chats=True,
             id="send",
+            style=Style(ButtonStyle.SUCCESS),
         ),
     ),
     Row(

@@ -29,6 +29,7 @@ btn-devices =
     .confirm-reissue = ✅ Да, сбросить
     .cancel-reissue = ❌ Нет
     .add-device = 📱 Добавить устройство
+    .change-subscription = 💳 Изменить подписку
 
     .item = { $platform_icon } { $platform }{ $device_model ->
     [0] { "" }
@@ -66,7 +67,7 @@ btn-menu =
     .trial = 🎁 Получить бесплатный доступ
     .trial-paid = 🚀 Попробовать за { $trial_price }
     .connect = 🚀 Подключиться
-    .instructions = 📖 Открыть инструкции
+    .instructions = ➕ Новое подключение
     .subscribe-standard = 💳 Оформить Standard
     .connect-reserve = 🔗 Подключиться (резерв)
     .devices = 📱 Устройства

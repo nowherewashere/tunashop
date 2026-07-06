@@ -51,12 +51,14 @@ subscription = Window(
             id=f"{PAYMENT_PREFIX}{PurchaseType.RENEW}",
             on_click=on_subscription_plans,
             when=F["has_active_subscription"] & F["is_not_unlimited"],
+            style=Style(ButtonStyle.SUCCESS),
         ),
         Button(
             text=I18nFormat("btn-subscription.change"),
             id=f"{PAYMENT_PREFIX}{PurchaseType.CHANGE}",
             on_click=on_subscription_plans,
             when=F["has_active_subscription"],
+            style=Style(ButtonStyle.PRIMARY),
         ),
     ),
     # Promocode entry hidden for now (per product decision). The PROMOCODE screen
@@ -98,6 +100,9 @@ plans = Window(
     Banner(BannerName.SUBSCRIPTION),
     I18nFormat("msg-subscription-plans"),
     Column(
+        # Plan buttons in the brand blue (spec fix #21). Per-plan colours (e.g. a
+        # premium Pro tint) aren't possible yet — Telegram only exposes PRIMARY /
+        # SUCCESS / DANGER, and there's no per-plan colour field to key off.
         Select(
             text=Format("{item[name]}"),
             id=f"{PAYMENT_PREFIX}select_plan",
@@ -105,6 +110,7 @@ plans = Window(
             items="plans",
             type_factory=int,
             on_click=on_plan_select,
+            style=Style(ButtonStyle.PRIMARY),
         ),
     ),
     Row(
