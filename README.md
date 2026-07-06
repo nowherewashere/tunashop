@@ -2,7 +2,7 @@
 
 **A Telegram bot for selling VPN subscriptions on [Remnawave](https://remna.st/) — a soft fork of [`snoups/remnashop`](https://github.com/snoups/remnashop) that adds a guided, platform‑aware onboarding funnel.**
 
-TunaShop keeps 100% of upstream Remnashop's functionality (15 payment gateways, trials, referrals, promo codes, broadcasts, the admin dashboard, Remnawave sync) and layers one product idea on top: instead of a single **"Connect"** button, a new user is walked through **pick platform → install the Happ client → add the config in one tap → "It works? / Help" → done**, with optional pre‑connect reminder nudges for people who start but don't finish.
+TunaShop keeps 100% of upstream Remnashop's functionality (15 payment gateways, trials, referrals, promo codes, broadcasts, the admin dashboard, Remnawave sync) and layers a Tuna product idea on top: instead of a single **"Connect"** button, a new user is walked through **pick platform → install the Happ client → add the config in one tap → "It works? / Help" → done**, with optional pre‑connect reminder nudges for people who start but don't finish. A second **retention & UX layer** (built to UX spec v2) adds on‑connect trial‑timer restart, lifecycle followups, hub polish, a website referral link, and adaptive‑friction captcha — see [Retention & spec‑v2 UX](#retention--spec-v2-ux).
 
 > Fork lineage: upstream is `snoups/remnashop` (MIT). This repository tracks it and adds the onboarding feature as an **isolated, toggle‑able module**. See [Tracking upstream](#tracking-remnashop-upstream).
 
@@ -19,9 +19,21 @@ A self‑contained **onboarding funnel** (`src/telegram/routers/onboarding/`) pl
 - **Config‑refresh tip** — the "press ⟳ in Happ to pull the latest fix" screen, with an optional video URL.
 - **Pre‑connect follow‑up nudges** — a DB queue (`onboarding_nudges`) + a cron sweeper task that reminds users who opened the funnel but never completed it. Fires at most once per user per step; cancelled the moment they reach success or block the bot.
 - **Admin on/off toggle** — Dashboard → Remnashop → Extra → **Пошаговое подключение**. When off, behaviour reverts *exactly* to upstream's single connect button.
-- **Per‑page banners** — every funnel screen has its own `BannerName` slot (`ONBOARDING_ENTRY` / `PLATFORM` / `SETUP` / `REFRESH` / `SUCCESS` / `HELP`), so each onboarding page can carry a distinct image. Reuses the stock banner mechanism and its `use_banners` flag; each slot falls back to `default.jpg` until a file is dropped (see [Configuration](#configuration)).
+- **Per‑page banners** — every funnel screen has its own `BannerName` slot (`ONBOARDING_DEVICE` / `CONNECT` / `TV` / `TIPS` / `SUCCESS` / `FAIL`), so each onboarding page can carry a distinct image. Reuses the stock banner mechanism and its `use_banners` flag; each slot falls back to `default.jpg` until a file is dropped (see [Configuration](#configuration)).
 
-The **trial/subscription lifecycle is unchanged** — the funnel is presentation only. Activating a trial still creates the Remnawave user immediately, exactly as upstream does.
+---
+
+## Retention & spec v2 UX
+
+A second layer, built to the Tuna UX spec v2 (`specs/tuna-vpn-bot-ux-spec-v2-en.md`) and applied with the same **additive** discipline (new tables / event listeners / cron / middleware; upstream models and flows untouched). All of it is gated so it degrades cleanly.
+
+- **Trial clock starts on first connection.** An additive listener on the existing `UserFirstConnectionEvent` (`src/infrastructure/services/trial_connection.py`) restarts a trial's expiry to `now + granted‑window` the first time the user actually connects, records a local `connected_once` milestone (`user_connection_states` table), and cancels the not‑connected nudge chain. *(This supersedes the old "trial lifecycle is unchanged" behaviour — activation still provisions the Remnawave user immediately, but the countdown is re‑anchored to first connect. Caveat: only fires if the user connects before the initially provisioned window lapses.)*
+- **Lifecycle followups (chains C/E).** A unified sweeper (`lifecycle_followups` table + `ProcessDueLifecycleFollowups`, cron `*/10`) sends trial‑ending (−3h) and win‑back (+3d/+2w) touches, re‑validating live state before each send and honouring per‑user frequency caps. **Each chain is admin‑toggleable** in the dashboard (Dashboard → Remnashop → Notifications → user types: `FOLLOWUP_TRIAL_ENDING` / `FOLLOWUP_WINBACK`, default on). All followups — these plus the pre‑connect nudges — share one voice: a **bold headline then a CTA**. The pre‑connect **follow‑up A** ("Happ installed but VPN off") additionally carries a direct **Подключиться** deep link into Happ and its own `followup_connect` card banner. *(A former "habit" chain B was dropped, code and admin toggle alike.)*
+- **Hub & purchase screens.** `/start` shows a greeting (`👋 Привет, {name}!`) under the `Tuna VPN 🐟 / Рассекаем волны блокировок` slogan instead of a profile block — the user's Telegram **ID is not shown** — with the active **plan name in the subscription header**. The primary button switches **Подключиться ↔ Открыть инструкции** on `connected_once`; a `💳 Оформить Standard` upsell + coral "trial ending" status appear when a trial has <4h left. The plan‑selection screen renders a **dynamic card per plan** (traffic / devices / shared locations); the duration screen lists every term with its price and an **auto‑computed savings %** (vs the 1‑month rate), one per row. An empty devices screen offers an **Add device** CTA into the funnel, and device rows drop the add‑date (kept in the per‑device card).
+- **Website referral link.** When `REFERRAL_SITE_URL` is set, the invite screen shows a second `https://{site}/r/{code}` link beside the bot link (the site‑side redirect is infra, out of scope).
+- **Adaptive‑friction captcha.** `CaptchaMiddleware` challenges only users flagged for a `/start` burst with a one‑tap "нажми тунца"; clean users never see it.
+
+**Referral rewards** stay upstream's points/days model (no real‑money rebuild). A few spec items are **admin config, not code**: create a single "Standard" plan with 1/3/6/12‑month durations (249/674/1199/2099 ₽); turn off the `device_all_reset` + `link_reset` flags (leaves per‑device unbind); a 72h referred trial = an `INVITED`‑availability trial plan alongside the 24h base.
 
 ---
 
@@ -29,7 +41,7 @@ The **trial/subscription lifecycle is unchanged** — the funnel is presentation
 
 This fork is written to stay **easy to maintain and to re‑merge with upstream**. The rules we followed:
 
-1. **Additive, not invasive.** New behaviour lives in *new files* (a new router package, use‑case package, config module, model/DAO, `.ftl` file, taskiq task, two migrations). Edits to existing files are single, flag‑guarded lines/blocks.
+1. **Additive, not invasive.** New behaviour lives in *new files* (new router / use‑case / service packages, config fields, models + DAOs, `.ftl` files, taskiq tasks, event listeners, middleware, four migrations `0041`–`0044`). Edits to existing files are single, flag‑guarded lines/blocks. The retention layer (above) follows the same rule — additive event listeners + tables, no upstream‑model changes.
 2. **Feature‑flagged and reversible.** The whole funnel is gated by one runtime flag, `settings.extra.onboarding_enabled`. Flip it off and the bot behaves byte‑for‑byte like stock Remnashop — no redeploy needed.
 3. **Config‑driven, never hardcoded.** All links, the deeplink template, the video URL, and the nudge schedule/caps come from an `ONBOARDING_*` env group with safe defaults (`src/core/config/onboarding.py`).
 4. **Idiomatic to the host codebase.** We mirror Remnashop's own patterns — aiogram‑dialog windows/getters/handlers, dishka‑injected `Interactor` use‑cases, DAO protocols + DTOs, fluent `.ftl` i18n, numbered Alembic migrations, and a cron‑scheduled taskiq sweeper (the same shape as `cancel_old_transactions_task`).
@@ -49,7 +61,7 @@ make setup-env            # generate crypt/secret/db/redis secrets
 make run-local            # builds from Dockerfile.local + starts db/redis
 ```
 
-`docker-compose.local.yml` builds the image from source, so your fork's code is what runs. Migrations (`0041`, `0042`) are applied automatically by `docker-entrypoint.sh` (`alembic upgrade head`). Then open the bot, go to **Dashboard → Remnashop → Extra → Пошаговое подключение**, and turn the funnel on.
+`docker-compose.local.yml` builds the image from source, so your fork's code is what runs. Migrations (`0041`–`0044`) are applied automatically by `docker-entrypoint.sh` (`alembic upgrade head`) on container start — no manual step. Then open the bot, go to **Dashboard → Remnashop → Extra → Пошаговое подключение**, and turn the funnel on.
 
 ### Prebuilt Docker image
 
@@ -80,11 +92,17 @@ Customization via env (`ONBOARDING_*`, all optional — see `.env.example`):
 | `ONBOARDING_NUDGE_MIN_GAP_MINUTES` | `180` | Min gap between nudges to one user |
 | `ONBOARDING_NUDGE_DAILY_CAP` | `4` | Max nudges per user per day |
 
+Separate from the `ONBOARDING_*` group (both `APP_`‑scoped):
+
+- `REFERRAL_SITE_URL` (default empty) — the marketing site base for the second referral link (`{site}/r/{code}`); empty ⇒ only the bot link is shown.
+- `PLAN_LOCATIONS` (default `🇩🇪 | 🇯🇵 | 🇷🇺 | 🇨🇭`) — the server‑locations line shown identically on every plan card, editable without a rebuild.
+
 ### Banners (optional)
 
 Banners reuse upstream's stock mechanism: each screen resolves an image *by name* and falls back to `default.jpg` when the file is absent, so they are opt‑in per screen. Drop files in `assets/banners/<locale>/<name>.<jpg|png|webp|gif>` (or `assets/banners/<name>.*`).
 
-- Funnel slots: `onboarding_entry`, `onboarding_platform`, `onboarding_setup`, `onboarding_refresh` (shared by the tip + refresh screens), `onboarding_success`, `onboarding_help`.
+- Funnel slots: `onboarding_device`, `onboarding_connect` (the 3‑step connect screen), `onboarding_tv`, `onboarding_tips`, `onboarding_success`, `onboarding_fail`.
+- Retention / purchase slots: `payment_method` (operator‑choice screen), `followup_connect` (the follow‑up A card), `device_remove` (device‑removal confirm screens).
 - Devices screen: `devices` (slot already existed upstream — it just needs a file).
 
 Rendering is gated by the stock `config.bot.use_banners` flag: **off** → the funnel stays plain‑text (byte‑for‑byte the source screens); **on** → each page shows its banner (falling back to `default.jpg` until you add per‑page images).
@@ -107,7 +125,7 @@ Because the feature is additive and flag‑guarded, most merges touch only new f
 
 - `src/core/config/app.py` — one field wiring `OnboardingConfig`.
 - `src/core/constants.py` — `ONBOARDING_GOTO_TARGET` + `ONBOARDING_GOTO_HELP`.
-- `src/core/enums.py` — `BannerName` gains the `ONBOARDING_*` per‑page slots.
+- `src/core/enums.py` — `BannerName` gains the `ONBOARDING_*` per‑page slots plus `PAYMENT_METHOD` / `FOLLOWUP_CONNECT` / `DEVICE_REMOVE`; `UserNotificationType` gains the `FOLLOWUP_*` lifecycle types.
 - `src/application/dto/settings.py` — `ExtraSettingsDto.onboarding_enabled`.
 - `src/application/use_cases/settings/commands/extra.py` (+ its `__init__`) — the `ToggleOnboarding` interactor.
 - `src/telegram/states.py` — the `Onboarding` group (`ENTRY → PLATFORM → SETUP → REFRESH_TIP → SUCCESS → HELP → REFRESH_HAPP`) + `RemnashopExtra.ONBOARDING`.
