@@ -148,7 +148,8 @@ async def plans_getter(
 
     # Pre-render one card per plan (spec fix #8) — a dynamic list can't be looped
     # inside fluent, so it is assembled here and injected as { $plans_info }.
-    plans_info = "\n".join(
+    # Cards are separated by a blank line for readability.
+    plans_info = "\n\n".join(
         i18n.get(
             "frg-plan-card",
             name=i18n.get(plan.name),

@@ -170,7 +170,6 @@ class BannerName(StrEnum):
     ONBOARDING_DEVICE = auto()
     ONBOARDING_CONNECT = auto()
     ONBOARDING_TV = auto()
-    ONBOARDING_TIPS = auto()
     ONBOARDING_SUCCESS = auto()
     ONBOARDING_FAIL = auto()
     # Payment-operator selection screen (spec §7 fix). Falls back to default.jpg.

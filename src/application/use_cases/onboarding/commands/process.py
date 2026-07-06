@@ -150,7 +150,9 @@ class ProcessDueOnboardingNudges(Interactor[None, None]):
                     media=media,
                     media_type=media_type,
                     reply_markup=self._build_keyboard(index, support_url, open_url),
-                    disable_default_markup=True,
+                    # Append the stock "❌ Закрыть" button so the user can dismiss the
+                    # proactive nudge (delete_after=None ⇒ it otherwise stays forever).
+                    disable_default_markup=False,
                     delete_after=None,
                 )
 

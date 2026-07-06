@@ -130,7 +130,9 @@ class ProcessDueLifecycleFollowups(Interactor[None, None]):
                 payload = MessagePayloadDto(
                     i18n_key=_COPY[followup.chain],
                     reply_markup=_keyboard(followup.chain),
-                    disable_default_markup=True,
+                    # Append the stock "❌ Закрыть" button so the user can dismiss the
+                    # proactive message (delete_after=None ⇒ it otherwise stays forever).
+                    disable_default_markup=False,
                     delete_after=None,
                 )
 
