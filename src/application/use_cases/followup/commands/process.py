@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from loguru import logger
@@ -68,7 +68,7 @@ def _should_send(chain: str, subscription: SubscriptionDto | None) -> bool:
 
 
 class ProcessDueLifecycleFollowups(Interactor[None, None]):
-    """Sweep due lifecycle followups (chains B/C/E) and deliver them.
+    """Sweep due lifecycle followups (chains C/E) and deliver them.
 
     Runs from a cron task. Each row is re-validated against the user's current
     subscription state before sending; a stale row (e.g. trial converted, or a
@@ -93,6 +93,13 @@ class ProcessDueLifecycleFollowups(Interactor[None, None]):
         self.settings_dao = settings_dao
         self.notifier = notifier
 
+    async def _rate_limited(self, telegram_id: int, now: datetime) -> bool:
+        """True if this user is inside the min-gap or over the daily cap (spec §9)."""
+        if await self.followup_dao.sent_in_window(telegram_id, now - _MIN_GAP) > 0:
+            return True
+        day_count = await self.followup_dao.sent_in_window(telegram_id, now - timedelta(hours=24))
+        return day_count >= _DAILY_CAP
+
     async def _execute(self, actor: UserDto, data: None) -> None:
         now = datetime_now()
         due = await self.followup_dao.get_due(now)
@@ -108,18 +115,25 @@ class ProcessDueLifecycleFollowups(Interactor[None, None]):
                     await self.followup_dao.mark_cancelled(followup.id)
                     continue
 
+                # Retired/unknown chain (e.g. a legacy row left after a chain was
+                # removed) — drop it instead of letting one KeyError abort the whole
+                # sweep and roll back every other due followup.
+                ntf_type = _NTF_TYPE.get(followup.chain)
+                if ntf_type is None:
+                    logger.warning(
+                        f"Cancelling followup for unknown chain '{followup.chain}' "
+                        f"(step={followup.step}, uid={followup.telegram_id})"
+                    )
+                    await self.followup_dao.mark_cancelled(followup.id)
+                    continue
+
                 # Admin toggle (dashboard) — drop the row if this followup is off.
-                if not settings.notifications.is_enabled(_NTF_TYPE[followup.chain]):
+                if not settings.notifications.is_enabled(ntf_type):
                     await self.followup_dao.mark_cancelled(followup.id)
                     continue
 
                 # Frequency cap — leave the row pending so it retries later.
-                if await self.followup_dao.sent_in_window(followup.telegram_id, now - _MIN_GAP) > 0:
-                    continue
-                day_count = await self.followup_dao.sent_in_window(
-                    followup.telegram_id, now - timedelta(hours=24)
-                )
-                if day_count >= _DAILY_CAP:
+                if await self._rate_limited(followup.telegram_id, now):
                     continue
 
                 subscription = await self.subscription_dao.get_current(user.id)
