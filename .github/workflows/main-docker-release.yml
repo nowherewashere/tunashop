@@ -1,0 +1,63 @@
+name: TunaShop - Main
+
+# Rebuilds and pushes the :latest image on every push to main, so the VPS can just
+# pull the container — no manual release/dispatch needed. The tagged-release flow
+# (prod-docker-release.yml) is unchanged and still owns GitHub Releases.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# A newer push supersedes an in-flight build instead of queuing behind it.
+concurrency:
+  group: main-docker
+  cancel-in-progress: true
+
+jobs:
+  docker-build:
+    name: 🏗️ Build and Push Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧾 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Set Up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔐 Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: 🏷️ Define Tags & Outputs
+        id: vars
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          IMAGE_REPO="ghcr.io/${GITHUB_REPOSITORY}"
+          IMAGE_TAGS="${IMAGE_REPO}:latest,${IMAGE_REPO}:main-${SHORT_SHA}"
+
+          echo "image_tag=${IMAGE_TAGS}" >> $GITHUB_OUTPUT
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
+
+          echo "✅ Tags: ${IMAGE_TAGS}"
+          echo "✅ SHA: ${SHORT_SHA}"
+
+      - name: 🏗️ Build and Push Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.vars.outputs.image_tag }}
+          build-args: |
+            BUILD_TIME=${{ steps.vars.outputs.build_time }}
+            BUILD_BRANCH=main
+            BUILD_COMMIT=${{ steps.vars.outputs.short_sha }}
+            BUILD_TAG=main
