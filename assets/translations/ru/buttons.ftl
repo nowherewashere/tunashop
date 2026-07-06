@@ -66,6 +66,7 @@ btn-menu =
     .trial-paid = 🚀 Попробовать за { $trial_price }
     .connect = 🚀 Подключиться
     .instructions = 📖 Открыть инструкции
+    .subscribe-standard = 💳 Оформить Standard
     .connect-reserve = 🔗 Подключиться (резерв)
     .devices = 📱 Устройства
     .subscription = 💳 Подписка

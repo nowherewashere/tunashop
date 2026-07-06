@@ -58,6 +58,17 @@ menu = Window(
     I18nFormat("msg-main-menu"),
     *connect_buttons,
     *onboarding_connect_buttons,
+    # Trial-ending soft upsell (spec §7) — prominent when the trial has <4h left.
+    Row(
+        Start(
+            text=I18nFormat("btn-menu.subscribe-standard"),
+            id=f"{PAYMENT_PREFIX}subscribe_ending",
+            state=Subscription.PLANS,
+            data={"goto_buy": True},
+            when=F["trial_ending"],
+            style=Style(ButtonStyle.SUCCESS),
+        ),
+    ),
     Row(
         Button(
             text=I18nFormat("btn-menu.connect-not-available"),

@@ -4,10 +4,16 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from loguru import logger
 
 from src.application.common import Interactor, Notifier
-from src.application.common.dao import LifecycleFollowupDao, SubscriptionDao, UserDao
+from src.application.common.dao import (
+    LifecycleFollowupDao,
+    SettingsDao,
+    SubscriptionDao,
+    UserDao,
+)
 from src.application.common.uow import UnitOfWork
 from src.application.dto import MessagePayloadDto, SubscriptionDto, UserDto
 from src.core.constants import GOTO_PREFIX
+from src.core.enums import UserNotificationType
 from src.core.utils.time import datetime_now
 from src.infrastructure.database.models.lifecycle_followup import (
     CHAIN_HABIT,
@@ -28,6 +34,13 @@ _COPY: dict[str, str] = {
     CHAIN_HABIT: "event-followup-habit",
     CHAIN_TRIAL_ENDING: "event-followup-trial-ending",
     CHAIN_WINBACK: "event-followup-winback",
+}
+
+# Per-chain notification type — lets the admin toggle each followup in the panel.
+_NTF_TYPE: dict[str, UserNotificationType] = {
+    CHAIN_HABIT: UserNotificationType.FOLLOWUP_HABIT,
+    CHAIN_TRIAL_ENDING: UserNotificationType.FOLLOWUP_TRIAL_ENDING,
+    CHAIN_WINBACK: UserNotificationType.FOLLOWUP_WINBACK,
 }
 
 
@@ -75,12 +88,14 @@ class ProcessDueLifecycleFollowups(Interactor[None, None]):
         followup_dao: LifecycleFollowupDao,
         user_dao: UserDao,
         subscription_dao: SubscriptionDao,
+        settings_dao: SettingsDao,
         notifier: Notifier,
     ) -> None:
         self.uow = uow
         self.followup_dao = followup_dao
         self.user_dao = user_dao
         self.subscription_dao = subscription_dao
+        self.settings_dao = settings_dao
         self.notifier = notifier
 
     async def _execute(self, actor: UserDto, data: None) -> None:
@@ -89,11 +104,17 @@ class ProcessDueLifecycleFollowups(Interactor[None, None]):
         if not due:
             return
 
+        settings = await self.settings_dao.get()
         sent = 0
         async with self.uow:
             for followup in due:
                 user = await self.user_dao.get_by_telegram_id(followup.telegram_id)
                 if not user:
+                    await self.followup_dao.mark_cancelled(followup.id)
+                    continue
+
+                # Admin toggle (dashboard) — drop the row if this followup is off.
+                if not settings.notifications.is_enabled(_NTF_TYPE[followup.chain]):
                     await self.followup_dao.mark_cancelled(followup.id)
                     continue
 

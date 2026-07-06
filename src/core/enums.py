@@ -284,6 +284,12 @@ class UserNotificationType(UpperStrEnum):
     REFERRAL_ATTACHED = auto()
     REFERRAL_REWARD_RECEIVED = auto()
     REFERRAL_REWARD_FAILED = auto()
+    #
+    # Proactive lifecycle followups (spec §6, chains B/C/E). Admin-toggleable like
+    # any other user notification via the dashboard.
+    FOLLOWUP_HABIT = auto()
+    FOLLOWUP_TRIAL_ENDING = auto()
+    FOLLOWUP_WINBACK = auto()
 
 
 class AccessMode(UpperStrEnum):

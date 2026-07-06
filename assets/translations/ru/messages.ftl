@@ -3,13 +3,28 @@ msg-main-menu =
     <b>Tuna VPN</b> 🐟
     <i>Пробиваем блокировки, пока другие висят на подключении.</i>
 
-    { hdr-user-profile }
-    { frg-user }
+    👋 { $has_name ->
+    [1] Привет, { $name }!
+    *[0] Привет! 🐟
+    }
 
     { hdr-subscription }
     { $status ->
     [ACTIVE]
-    { frg-subscription }
+    { $trial_ending ->
+    [1]
+    <blockquote>
+    • <b>Трафик</b>: { $traffic_limit }
+    • <b>Устройства</b>: { $device_limit }
+    • ⏳ <b>Осталось</b>: { $expire_time } — продли, чтобы не отключиться
+    </blockquote>
+    *[0]
+    <blockquote>
+    • <b>Трафик</b>: { $traffic_limit }
+    • <b>Устройства</b>: { $device_limit }
+    • <b>Осталось</b>: { $expire_time }
+    </blockquote>
+    }
     [EXPIRED]
     <blockquote>
     • Срок действия истек.

@@ -65,6 +65,7 @@ async def menu_getter(
             "telegram_id": user.telegram_id,
             "email": user.email,
             "name": user.name,
+            "has_name": int(bool(user.name)),
             "personal_discount": personal_discount,
             "show_personal_discount": show_personal_discount,
             "purchase_discount": purchase_discount,
@@ -74,7 +75,7 @@ async def menu_getter(
             "is_mini_app_reserve": config.bot.is_mini_app and settings.extra.mini_app_reserve,
             "onboarding_enabled": settings.extra.onboarding_enabled,
             "connected_once": connected_once,
-            "trial_ending": False,
+            "trial_ending": 0,
             "support_url": support_url,
             "web_enabled": config.web_enabled,
             "web_cabinet_url": config.web_cabinet_url.strip(),
@@ -134,7 +135,7 @@ async def menu_getter(
         data.update(
             {
                 "has_subscription": True,
-                "trial_ending": trial_ending,
+                "trial_ending": int(trial_ending),
                 "is_trial": subscription.is_trial,
                 "has_active_subscription": not subscription.is_trial,
                 "traffic_strategy": subscription.traffic_limit_strategy,
