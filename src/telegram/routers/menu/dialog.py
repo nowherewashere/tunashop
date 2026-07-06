@@ -186,7 +186,7 @@ devices = Window(
             id="change_subscription",
             state=Subscription.MAIN,
             when=F["at_device_limit"],
-            style=Style(ButtonStyle.PRIMARY),
+            style=Style(ButtonStyle.SUCCESS),
         ),
     ),
     ListGroup(
