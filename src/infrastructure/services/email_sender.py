@@ -9,6 +9,24 @@ from src.core.config import AppConfig
 from src.core.exceptions import EmailDeliveryError
 
 
+class ConsoleEmailSender(EmailSender):
+    """Dev email backend: logs the message (incl. the code) instead of sending it.
+
+    Enables passwordless/verification flows locally without an SMTP provider. Selected via
+    ``EMAIL_CONSOLE=true``. NEVER enable in production — codes would be written to logs.
+    """
+
+    @property
+    def is_enabled(self) -> bool:
+        return True
+
+    async def send(self, *, to: str, subject: str, body: str) -> None:
+        logger.warning(
+            "ConsoleEmailSender (dev): email NOT sent, logged instead | "
+            f"to={to!r} subject={subject!r}\n{body}"
+        )
+
+
 class SmtpEmailSender(EmailSender):
     def __init__(self, config: AppConfig) -> None:
         self._config = config

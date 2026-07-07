@@ -109,6 +109,48 @@ class RequestEmailVerificationCodeResponse(BaseModel):
     expires_at: datetime
 
 
+class RequestEmailLoginCodeRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    email: str = Field(max_length=255, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    referral_code: Optional[str] = Field(default=None, min_length=3, max_length=64)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return value.lower()
+
+    @field_validator("referral_code")
+    @classmethod
+    def normalize_referral_code(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
+class RequestEmailLoginCodeResponse(BaseModel):
+    success: bool
+    target_email: str
+    expires_at: datetime
+
+
+class VerifyEmailLoginCodeRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    email: str = Field(max_length=255, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    code: str = Field(
+        min_length=EMAIL_VERIFICATION_CODE_LENGTH,
+        max_length=EMAIL_VERIFICATION_CODE_LENGTH,
+        pattern=r"^\d{6}$",
+    )
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return value.lower()
+
+
 class ConfirmEmailVerificationRequest(BaseModel):
     code: str = Field(
         min_length=EMAIL_VERIFICATION_CODE_LENGTH,

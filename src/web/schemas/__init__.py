@@ -11,10 +11,13 @@ from .auth import (
     MeResponse,
     MigrateTelegramRequest,
     RegisterRequest,
+    RequestEmailLoginCodeRequest,
+    RequestEmailLoginCodeResponse,
     RequestEmailVerificationCodeRequest,
     RequestEmailVerificationCodeResponse,
     TelegramAuthRequest,
     TelegramWebAppAuthRequest,
+    VerifyEmailLoginCodeRequest,
 )
 from .health import (
     DatabaseStatusSchema,
@@ -66,10 +69,13 @@ __all__ = [
     "MeResponse",
     "MigrateTelegramRequest",
     "RegisterRequest",
+    "RequestEmailLoginCodeRequest",
+    "RequestEmailLoginCodeResponse",
     "RequestEmailVerificationCodeRequest",
     "RequestEmailVerificationCodeResponse",
     "TelegramAuthRequest",
     "TelegramWebAppAuthRequest",
+    "VerifyEmailLoginCodeRequest",
     # plans
     "PublicPlanLandingListResponse",
     "PublicPlanLandingResponse",

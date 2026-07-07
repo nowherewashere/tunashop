@@ -7,6 +7,7 @@ from .commands.email import (
     ConfirmEmailVerification,
     RequestEmailVerification,
 )
+from .commands.email_login import RequestEmailLoginCode, VerifyEmailLoginCode
 from .commands.login import LoginEmailUser
 from .commands.password import ChangePassword
 from .commands.register import RegisterEmailUser
@@ -24,4 +25,6 @@ AUTH_USE_CASES: Final[tuple[type[Interactor], ...]] = (
     ChangeEmail,
     RequestEmailVerification,
     ConfirmEmailVerification,
+    RequestEmailLoginCode,
+    VerifyEmailLoginCode,
 )

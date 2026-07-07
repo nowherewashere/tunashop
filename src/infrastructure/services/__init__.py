@@ -2,7 +2,7 @@ from .bot import BotService as BotServiceImpl
 from .command import CommandService
 from .cryptography import CryptographerImpl
 from .dispatcher import BroadcastDispatcherImpl, PaymentNotificationDispatcherImpl
-from .email_sender import SmtpEmailSender
+from .email_sender import ConsoleEmailSender, SmtpEmailSender
 from .event_bus import EventBusImpl
 from .file_downloader import AiogramFileDownloader
 from .health import HealthService
@@ -25,6 +25,7 @@ __all__ = [
     "BroadcastDispatcherImpl",
     "CommandService",
     "CryptographerImpl",
+    "ConsoleEmailSender",
     "SmtpEmailSender",
     "EventBusImpl",
     "HealthService",

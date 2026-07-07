@@ -12,6 +12,12 @@ from src.application.use_cases.auth.commands.email import (
     RequestEmailVerification,
     RequestEmailVerificationDto,
 )
+from src.application.use_cases.auth.commands.email_login import (
+    RequestEmailLoginCode,
+    RequestEmailLoginCodeDto,
+    VerifyEmailLoginCode,
+    VerifyEmailLoginCodeDto,
+)
 from src.application.use_cases.auth.commands.login import LoginEmailUser, LoginEmailUserDto
 from src.application.use_cases.auth.commands.password import ChangePassword, ChangePasswordDto
 from src.application.use_cases.auth.commands.register import (
@@ -40,10 +46,13 @@ from src.web.schemas import (
     LogoutResponse,
     MeResponse,
     RegisterRequest,
+    RequestEmailLoginCodeRequest,
+    RequestEmailLoginCodeResponse,
     RequestEmailVerificationCodeRequest,
     RequestEmailVerificationCodeResponse,
     TelegramAuthRequest,
     TelegramWebAppAuthRequest,
+    VerifyEmailLoginCodeRequest,
 )
 
 from ._common import (
@@ -112,6 +121,38 @@ async def login_public_user(
     user = await login_email_user.system(
         LoginEmailUserDto(email=body.email, password=body.password)
     )
+    return await _issue_and_set(user, response, config, auth_session)
+
+
+@router.post("/email/request-code", response_model=RequestEmailLoginCodeResponse)
+@inject
+async def request_email_login_code(
+    body: RequestEmailLoginCodeRequest,
+    request_login_code: FromDishka[RequestEmailLoginCode],
+) -> RequestEmailLoginCodeResponse:
+    try:
+        result = await request_login_code.system(
+            RequestEmailLoginCodeDto(email=body.email, referral_code=body.referral_code)
+        )
+    except EmailDeliveryDisabledError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
+    except EmailDeliveryError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e)) from e
+    return RequestEmailLoginCodeResponse(
+        success=True, target_email=result.target_email, expires_at=result.expires_at
+    )
+
+
+@router.post("/email/verify-code", response_model=AuthResponse)
+@inject
+async def verify_email_login_code(
+    body: VerifyEmailLoginCodeRequest,
+    response: Response,
+    config: FromDishka[AppConfig],
+    verify_login_code: FromDishka[VerifyEmailLoginCode],
+    auth_session: FromDishka[AuthSessionDao],
+) -> AuthResponse:
+    user = await verify_login_code.system(VerifyEmailLoginCodeDto(email=body.email, code=body.code))
     return await _issue_and_set(user, response, config, auth_session)
 
 

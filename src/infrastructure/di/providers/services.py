@@ -20,12 +20,14 @@ from src.application.services import (
     PricingService,
     RemnaWebhookService,
 )
+from src.core.config import AppConfig
 from src.infrastructure.services import (
     AiogramFileDownloader,
     AiohttpClient,
     BotServiceImpl,
     BroadcastDispatcherImpl,
     CommandService,
+    ConsoleEmailSender,
     CryptographerImpl,
     EventBusImpl,
     HealthService,
@@ -51,7 +53,14 @@ class ServicesProvider(Provider):
     health = provide(source=HealthService)
     cryptographer = provide(source=CryptographerImpl, provides=Cryptographer)
     password_hasher = provide(source=PasswordHasherImpl, provides=PasswordHasher)
-    email_sender = provide(source=SmtpEmailSender, provides=EmailSender)
+
+    @provide(scope=Scope.APP)
+    def email_sender(self, config: AppConfig) -> EmailSender:
+        # Dev/local: console backend logs the code (no SMTP). Prod: real SMTP.
+        if config.email.console:
+            return ConsoleEmailSender()
+        return SmtpEmailSender(config)
+
     http_client = provide(source=AiohttpClient, provides=HttpClient)
     redirect = provide(source=RedirectImpl, provides=Redirect)
     pricing = provide(source=PricingService)
