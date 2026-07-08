@@ -14,6 +14,11 @@ _DEFAULT_HAPP_LINUX: Final[str] = "https://github.com/happ-proxy"
 # RU App Store has a separate Happ listing (the global one is geo-blocked there),
 # so Apple devices get an extra "RU region" download button.
 _DEFAULT_HAPP_IOS_RU: Final[str] = "https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643"
+# TV clients import the subscription via a web page (no custom-scheme deep link on
+# TV), with per-platform setup FAQs.
+_DEFAULT_TV_WEB_IMPORT: Final[str] = "https://tv.happ.su"
+_DEFAULT_FAQ_APPLE_TV: Final[str] = "https://www.happ.su/main/faq/apple-tv-tvos"
+_DEFAULT_FAQ_ANDROID_TV: Final[str] = "https://www.happ.su/main/faq/android-tv"
 
 
 class OnboardingConfig(BaseConfig, env_prefix="ONBOARDING_"):
@@ -30,6 +35,11 @@ class OnboardingConfig(BaseConfig, env_prefix="ONBOARDING_"):
     happ_link_windows: str = _DEFAULT_HAPP_WINDOWS
     happ_link_mac: str = _DEFAULT_HAPP_MAC
     happ_link_linux: str = _DEFAULT_HAPP_LINUX
+
+    # TV setup: web-import page + per-platform FAQ (TV has no deep-link import).
+    tv_web_import_url: str = _DEFAULT_TV_WEB_IMPORT
+    happ_faq_apple_tv: str = _DEFAULT_FAQ_APPLE_TV
+    happ_faq_android_tv: str = _DEFAULT_FAQ_ANDROID_TV
 
     # Optional "how to refresh in Happ" video (O3 tip). Hidden when empty.
     refresh_video_url: str = ""
@@ -64,3 +74,9 @@ class OnboardingConfig(BaseConfig, env_prefix="ONBOARDING_"):
             "mac": self.happ_link_mac,
             "linux": self.happ_link_linux,
         }.get(platform, self.happ_link_ios)
+
+    def tv_faq_link(self, platform: str) -> str:
+        return {
+            "apple_tv": self.happ_faq_apple_tv,
+            "android_tv": self.happ_faq_android_tv,
+        }.get(platform, "")

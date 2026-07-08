@@ -22,13 +22,9 @@ PLATFORM_TITLES: Final[dict[str, str]] = {
 _PLATFORM_TITLE_DEFAULT: Final[str] = "устройства"
 
 # TV platforms set up via phone/web import (no direct subscription deep link), so
-# they get their own instruction screen linking to the official FAQ.
+# they get their own instruction screen. The web-import URL and per-platform FAQ
+# links live in OnboardingConfig (single source shared with the web API).
 TV_PLATFORMS: Final[tuple[str, ...]] = ("apple_tv", "android_tv")
-HAPP_WEB_IMPORT_URL: Final[str] = "https://tv.happ.su"
-HAPP_FAQ_LINKS: Final[dict[str, str]] = {
-    "apple_tv": "https://www.happ.su/main/faq/apple-tv-tvos",
-    "android_tv": "https://www.happ.su/main/faq/android-tv",
-}
 # Fallback "how to refresh in Happ" clip when ONBOARDING_REFRESH_VIDEO_URL is unset
 # (the tips screen always renders the link, so it must resolve to something).
 _REFRESH_VIDEO_DEFAULT: Final[str] = "https://t.me/tuna_vpn"
@@ -85,6 +81,7 @@ async def connect_getter(
 @inject
 async def tv_connect_getter(
     dialog_manager: DialogManager,
+    config: AppConfig,
     user: TelegramUserDto,
     subscription_dao: FromDishka[SubscriptionDao],
     **kwargs: Any,
@@ -96,8 +93,8 @@ async def tv_connect_getter(
 
     return {
         "platform": platform,
-        "faq_url": HAPP_FAQ_LINKS.get(platform, ""),
-        "web_import_url": HAPP_WEB_IMPORT_URL,
+        "faq_url": config.onboarding.tv_faq_link(platform),
+        "web_import_url": config.onboarding.tv_web_import_url,
         "subscription_url": sub_url,
         "has_sub": bool(sub_url),
     }

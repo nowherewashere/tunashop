@@ -26,6 +26,12 @@ from .health import (
     HealthResponse,
     PoolMetricsSchema,
 )
+from .onboarding import (
+    OnboardingConfigResponse,
+    OnboardingStoreLinks,
+    OnboardingTvConfig,
+    OnboardingTvFaq,
+)
 from .plans import PublicPlanLandingListResponse, PublicPlanLandingResponse
 from .referral import ReferralProgramResponse, ReferralRewardLevelResponse
 from .subscription import (
@@ -76,6 +82,11 @@ __all__ = [
     "TelegramAuthRequest",
     "TelegramWebAppAuthRequest",
     "VerifyEmailLoginCodeRequest",
+    # onboarding
+    "OnboardingConfigResponse",
+    "OnboardingStoreLinks",
+    "OnboardingTvConfig",
+    "OnboardingTvFaq",
     # plans
     "PublicPlanLandingListResponse",
     "PublicPlanLandingResponse",
