@@ -21,7 +21,6 @@ from src.telegram.widgets.kbd import (
     SwitchInlineQueryChosenChatButton,
     SwitchTo,
     Url,
-    WebApp,
 )
 from src.telegram.window import Window
 
@@ -143,13 +142,6 @@ menu = Window(
             state=Onboarding.NOT_WORKING,
             data={"from_menu": True},
         ),
-    ),
-    Row(
-        WebApp(
-            text=I18nFormat("btn-menu.web-cabinet"),
-            url=Format("{web_cabinet_url}"),
-        ),
-        when=F["has_web_cabinet"],
     ),
     *custom_buttons,
     Row(
