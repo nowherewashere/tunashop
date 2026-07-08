@@ -23,3 +23,10 @@ class EmailConfig(BaseConfig, env_prefix="EMAIL_"):
     from_name: str = ""
 
     verification_code_ttl_minutes: int = 15
+
+    # Hard caps on passwordless code requests within `code_rate_window_seconds`.
+    # Per-IP is generous by default so shared/CGNAT clients aren't blocked
+    # (captcha + per-email are the tighter gates). Tune via EMAIL_CODE_* env.
+    code_max_per_email: int = 5
+    code_max_per_ip: int = 60
+    code_rate_window_seconds: int = 3600

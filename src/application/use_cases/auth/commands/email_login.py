@@ -22,9 +22,6 @@ from src.application.use_cases.user.commands.web_registration import (
 )
 from src.core.config import AppConfig
 from src.core.constants import (
-    EMAIL_CODE_MAX_PER_EMAIL,
-    EMAIL_CODE_MAX_PER_IP,
-    EMAIL_CODE_RATE_WINDOW_SECONDS,
     EMAIL_VERIFICATION_BODY_TEMPLATE,
     EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
     EMAIL_VERIFICATION_SUBJECT,
@@ -141,18 +138,19 @@ class RequestEmailLoginCode(Interactor[RequestEmailLoginCodeDto, EmailLoginCodeR
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many code requests. Please try again later.",
         )
+        email_cfg = self.config.email
         if data.ip and not await self.rate_limiter.hit(
             "otp_ip",
             data.ip,
-            limit=EMAIL_CODE_MAX_PER_IP,
-            window_seconds=EMAIL_CODE_RATE_WINDOW_SECONDS,
+            limit=email_cfg.code_max_per_ip,
+            window_seconds=email_cfg.code_rate_window_seconds,
         ):
             raise too_many
         if not await self.rate_limiter.hit(
             "otp_email",
             data.email,
-            limit=EMAIL_CODE_MAX_PER_EMAIL,
-            window_seconds=EMAIL_CODE_RATE_WINDOW_SECONDS,
+            limit=email_cfg.code_max_per_email,
+            window_seconds=email_cfg.code_rate_window_seconds,
         ):
             raise too_many
 
