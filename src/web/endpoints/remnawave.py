@@ -1,4 +1,5 @@
-from typing import cast
+import json
+from typing import Any, cast
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
@@ -21,6 +22,32 @@ from src.core.constants import API_V1, REMNAWAVE_WEBHOOK_PATH
 router = APIRouter(prefix=API_V1, include_in_schema=False)
 
 
+def _adapt_hwid_device_payload(body: dict[str, Any]) -> None:
+    """Adapt Remnawave's `user_hwid_devices` payload to the pinned remnapy schema.
+
+    The panel emits the device object with `userId` (internal numeric id) and no
+    `userUuid`, while remnapy's `HwidUserDeviceDto` requires `userUuid: UUID`. We
+    backfill it from the sibling `user.uuid` so parsing does not fail. This is an
+    anti-corruption shim for a schema drift between the panel and the pinned SDK;
+    it can be removed once remnapy's model matches the panel.
+    """
+    event = body.get("event", "")
+    if not event.startswith("user_hwid_devices."):
+        return
+
+    data = body.get("data")
+    if not isinstance(data, dict):
+        return
+
+    device = data.get("hwidUserDevice")
+    user = data.get("user")
+    if not isinstance(device, dict) or not isinstance(user, dict):
+        return
+
+    if not device.get("userUuid") and user.get("uuid"):
+        device["userUuid"] = user["uuid"]
+
+
 async def _process_remnawave_webhook(
     request: Request,
     config: AppConfig,
@@ -29,13 +56,30 @@ async def _process_remnawave_webhook(
 ) -> Response:
     try:
         raw_body = await request.body()
-        logger.debug(f"Received Remnawave webhook raw body: '{raw_body.decode('utf-8')[:500]}'")
-        payload = WebhookUtility.parse_webhook(
-            body=raw_body.decode("utf-8"),
+        raw_str = raw_body.decode("utf-8")
+        logger.debug(f"Received Remnawave webhook raw body: '{raw_str[:500]}'")
+
+        # Validate the signature against the *original* body, then adapt the payload
+        # before parsing so a schema drift in one scope cannot 401 the whole webhook.
+        if not WebhookUtility.validate_webhook_with_headers(
+            body=raw_str,
             headers=dict(request.headers),
             webhook_secret=config.remnawave.webhook_secret.get_secret_value(),
-            validate=True,
+        ):
+            logger.warning("Webhook signature validation failed")
+            raise HTTPException(status_code=401)
+
+        body = json.loads(raw_str)
+        _adapt_hwid_device_payload(body)
+
+        payload = WebhookUtility.parse_webhook(
+            body=body,
+            headers=dict(request.headers),
+            webhook_secret=config.remnawave.webhook_secret.get_secret_value(),
+            validate=False,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Webhook validation failed with error '{e}'")
         raise HTTPException(status_code=401)
