@@ -26,6 +26,7 @@ from .health import (
     HealthResponse,
     PoolMetricsSchema,
 )
+from .config import PublicConfigResponse
 from .onboarding import (
     OnboardingConfigResponse,
     OnboardingStoreLinks,
@@ -82,6 +83,8 @@ __all__ = [
     "TelegramAuthRequest",
     "TelegramWebAppAuthRequest",
     "VerifyEmailLoginCodeRequest",
+    # config
+    "PublicConfigResponse",
     # onboarding
     "OnboardingConfigResponse",
     "OnboardingStoreLinks",

@@ -33,6 +33,11 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
     crypt_key: SecretStr
     jwt_secret: Optional[SecretStr] = None
     api_key: Optional[SecretStr] = None
+    # Cloudflare Turnstile (captcha on passwordless code requests). Secret is
+    # server-side; site key is public and served to the frontend via /public/config.
+    # When the secret is unset, verification is skipped (captcha disabled).
+    turnstile_secret: Optional[SecretStr] = Field(default=None, validation_alias="TURNSTILE_SECRET")
+    turnstile_site_key: str = Field(default="", validation_alias="TURNSTILE_SITE_KEY")
     assets_dir: Path = ASSETS_DIR
     origins: StringList = StringList("")
     swagger_enabled: bool = False

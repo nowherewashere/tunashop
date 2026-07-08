@@ -114,6 +114,7 @@ class RequestEmailLoginCodeRequest(BaseModel):
 
     email: str = Field(max_length=255, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     referral_code: Optional[str] = Field(default=None, min_length=3, max_length=64)
+    turnstile_token: Optional[str] = Field(default=None, max_length=4096)
 
     @field_validator("email")
     @classmethod

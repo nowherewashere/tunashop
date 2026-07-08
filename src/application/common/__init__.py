@@ -11,6 +11,7 @@ from .password_hasher import PasswordHasher
 from .redirect import Redirect
 from .remnawave import Remnawave
 from .translator import TranslatorHub, TranslatorRunner
+from .turnstile import TurnstileVerifier
 from .xui_reader import XuiDbReader
 
 __all__ = [
@@ -30,5 +31,6 @@ __all__ = [
     "Remnawave",
     "TranslatorHub",
     "TranslatorRunner",
+    "TurnstileVerifier",
     "XuiDbReader",
 ]

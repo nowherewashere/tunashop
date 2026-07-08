@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
-from src.application.common import Interactor
+from src.application.common import Interactor, TurnstileVerifier
 from src.application.common.dao import RateLimiter, UserDao
 from src.application.common.email_sender import EmailSender
 from src.application.common.uow import UnitOfWork
@@ -39,6 +39,7 @@ class RequestEmailLoginCodeDto:
     email: str
     referral_code: Optional[str] = None
     ip: Optional[str] = None
+    turnstile_token: Optional[str] = None
 
 
 @dataclass
@@ -70,6 +71,7 @@ class RequestEmailLoginCode(Interactor[RequestEmailLoginCodeDto, EmailLoginCodeR
         email_sender: EmailSender,
         register_web_user: RegisterWebUser,
         rate_limiter: RateLimiter,
+        turnstile: TurnstileVerifier,
     ) -> None:
         self.config = config
         self.uow = uow
@@ -77,10 +79,19 @@ class RequestEmailLoginCode(Interactor[RequestEmailLoginCodeDto, EmailLoginCodeR
         self.email_sender = email_sender
         self.register_web_user = register_web_user
         self.rate_limiter = rate_limiter
+        self.turnstile = turnstile
 
     async def _execute(
         self, actor: UserDto, data: RequestEmailLoginCodeDto
     ) -> EmailLoginCodeRequested:
+        if self.turnstile.is_enabled and not await self.turnstile.verify(
+            data.turnstile_token or "", data.ip
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Captcha verification failed",
+            )
+
         if not self.email_sender.is_enabled:
             raise EmailDeliveryDisabledError("Email delivery is not configured")
 

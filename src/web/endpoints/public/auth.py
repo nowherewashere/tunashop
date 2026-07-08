@@ -138,6 +138,7 @@ async def request_email_login_code(
                 email=body.email,
                 referral_code=body.referral_code,
                 ip=get_client_ip(request),
+                turnstile_token=body.turnstile_token,
             )
         )
     except EmailDeliveryDisabledError as e:

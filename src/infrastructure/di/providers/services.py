@@ -14,6 +14,7 @@ from src.application.common import (
     PaymentNotificationDispatcher,
     Redirect,
     Remnawave,
+    TurnstileVerifier,
     XuiDbReader,
 )
 from src.application.services import (
@@ -41,6 +42,7 @@ from src.infrastructure.services import (
     RemnawaveImpl,
     SmtpEmailSender,
     TrialConnectionHandler,
+    TurnstileVerifierImpl,
     WebhookService,
     XuiDbReaderImpl,
 )
@@ -62,6 +64,7 @@ class ServicesProvider(Provider):
         return SmtpEmailSender(config)
 
     http_client = provide(source=AiohttpClient, provides=HttpClient)
+    turnstile = provide(source=TurnstileVerifierImpl, provides=TurnstileVerifier)
     redirect = provide(source=RedirectImpl, provides=Redirect)
     pricing = provide(source=PricingService)
     event_bus = provide(EventBusImpl)

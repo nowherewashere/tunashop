@@ -15,6 +15,7 @@ from .redirect import RedirectImpl
 from .remnawave import RemnawaveImpl
 from .translator import TranslatorHubImpl
 from .trial_connection import TrialConnectionHandler
+from .turnstile import TurnstileVerifierImpl
 from .webhook import WebhookService
 from .xui_reader import XuiDbReaderImpl
 
@@ -38,6 +39,7 @@ __all__ = [
     "LifecycleFollowupHandler",
     "RemnawaveImpl",
     "TrialConnectionHandler",
+    "TurnstileVerifierImpl",
     "TranslatorHubImpl",
     "WebhookService",
     "XuiDbReaderImpl",
