@@ -2,7 +2,9 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import inject
 from fastapi import APIRouter, HTTPException, status
 
+from src.application.common import BotService
 from src.application.common.dao import ReferralDao, SettingsDao, SubscriptionDao
+from src.core.config import AppConfig
 from src.core.enums import SubscriptionStatus
 from src.web.schemas import ReferralProgramResponse, ReferralRewardLevelResponse
 
@@ -15,6 +17,8 @@ router = APIRouter(prefix="/referral", tags=["Public - Referral"])
 @inject
 async def get_referral_program(
     user: CurrentUser,
+    config: FromDishka[AppConfig],
+    bot_service: FromDishka[BotService],
     settings_dao: FromDishka[SettingsDao],
     referral_dao: FromDishka[ReferralDao],
     subscription_dao: FromDishka[SubscriptionDao],
@@ -52,9 +56,15 @@ async def get_referral_program(
         if level.value <= settings.referral.level.value
     ]
 
+    bot_referral_url = await bot_service.get_referral_url(user.referral_code)
+    site_base = config.referral_site_url.rstrip("/")
+    site_referral_url = f"{site_base}/r/{user.referral_code}" if site_base else None
+
     return ReferralProgramResponse(
         enabled=settings.referral.enable,
         referral_code=user.referral_code,
+        bot_referral_url=bot_referral_url,
+        site_referral_url=site_referral_url,
         invited_count=invited_count,
         invited_with_payment_count=invited_with_payment_count,
         reward_type=settings.referral.reward.type.value,
