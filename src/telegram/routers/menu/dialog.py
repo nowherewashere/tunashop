@@ -149,7 +149,7 @@ menu = Window(
             text=I18nFormat("btn-menu.web-cabinet"),
             url=Format("{web_cabinet_url}"),
         ),
-        when=F["web_enabled"],
+        when=F["has_web_cabinet"],
     ),
     *custom_buttons,
     Row(

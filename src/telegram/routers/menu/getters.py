@@ -83,6 +83,9 @@ async def menu_getter(
             "support_url": support_url,
             "web_enabled": config.web_enabled,
             "web_cabinet_url": config.web_cabinet_url.strip(),
+            # Show the cabinet button only when a URL is configured (empty ⇒ hidden,
+            # and never a broken button with an empty href).
+            "has_web_cabinet": bool(config.web_cabinet_url.strip()),
             # referral
             "referral_enabled": menu_data.is_referral_enabled,
             # defaults
