@@ -7,7 +7,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from src.application.common import Interactor
-from src.application.common.dao import UserDao
+from src.application.common.dao import RateLimiter, UserDao
 from src.application.common.email_sender import EmailSender
 from src.application.common.uow import UnitOfWork
 from src.application.dto import UserDto
@@ -22,6 +22,9 @@ from src.application.use_cases.user.commands.web_registration import (
 )
 from src.core.config import AppConfig
 from src.core.constants import (
+    EMAIL_CODE_MAX_PER_EMAIL,
+    EMAIL_CODE_MAX_PER_IP,
+    EMAIL_CODE_RATE_WINDOW_SECONDS,
     EMAIL_VERIFICATION_BODY_TEMPLATE,
     EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
     EMAIL_VERIFICATION_SUBJECT,
@@ -35,6 +38,7 @@ from src.core.utils.time import datetime_now
 class RequestEmailLoginCodeDto:
     email: str
     referral_code: Optional[str] = None
+    ip: Optional[str] = None
 
 
 @dataclass
@@ -65,18 +69,22 @@ class RequestEmailLoginCode(Interactor[RequestEmailLoginCodeDto, EmailLoginCodeR
         user_dao: UserDao,
         email_sender: EmailSender,
         register_web_user: RegisterWebUser,
+        rate_limiter: RateLimiter,
     ) -> None:
         self.config = config
         self.uow = uow
         self.user_dao = user_dao
         self.email_sender = email_sender
         self.register_web_user = register_web_user
+        self.rate_limiter = rate_limiter
 
     async def _execute(
         self, actor: UserDto, data: RequestEmailLoginCodeDto
     ) -> EmailLoginCodeRequested:
         if not self.email_sender.is_enabled:
             raise EmailDeliveryDisabledError("Email delivery is not configured")
+
+        await self._enforce_rate_limits(data)
 
         ttl_minutes = self.config.email.verification_code_ttl_minutes
         user = await self.user_dao.get_by_email(data.email)
@@ -116,6 +124,26 @@ class RequestEmailLoginCode(Interactor[RequestEmailLoginCodeDto, EmailLoginCodeR
                 await self.uow.commit()
 
         return EmailLoginCodeRequested(target_email=data.email, expires_at=expires_at)
+
+    async def _enforce_rate_limits(self, data: RequestEmailLoginCodeDto) -> None:
+        too_many = HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many code requests. Please try again later.",
+        )
+        if data.ip and not await self.rate_limiter.hit(
+            "otp_ip",
+            data.ip,
+            limit=EMAIL_CODE_MAX_PER_IP,
+            window_seconds=EMAIL_CODE_RATE_WINDOW_SECONDS,
+        ):
+            raise too_many
+        if not await self.rate_limiter.hit(
+            "otp_email",
+            data.email,
+            limit=EMAIL_CODE_MAX_PER_EMAIL,
+            window_seconds=EMAIL_CODE_RATE_WINDOW_SECONDS,
+        ):
+            raise too_many
 
     async def _create_user(
         self, data: RequestEmailLoginCodeDto, code_hash: str, expires_at: datetime

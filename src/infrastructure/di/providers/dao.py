@@ -9,6 +9,7 @@ from src.application.common.dao import (
     PaymentGatewayDao,
     PlanDao,
     PromocodeDao,
+    RateLimiter,
     RecentActivityDao,
     ReferralDao,
     SettingsDao,
@@ -40,6 +41,7 @@ from src.infrastructure.database.dao import (
 )
 from src.infrastructure.redis.activity import RedisActivityRepository
 from src.infrastructure.redis.auth import RedisAuthRepository
+from src.infrastructure.redis.rate_limit import RedisRateLimiter
 
 
 class DaoProvider(Provider):
@@ -67,6 +69,7 @@ class DaoProvider(Provider):
     webhook = provide(source=WebhookDaoImpl, provides=WebhookDao, scope=Scope.APP)
     waitlist = provide(source=WaitlistDaoImpl, provides=WaitlistDao, scope=Scope.APP)
     auth_session = provide(source=RedisAuthRepository, provides=AuthSessionDao, scope=Scope.APP)
+    rate_limiter = provide(source=RedisRateLimiter, provides=RateLimiter, scope=Scope.APP)
     recent_activity = provide(
         source=RedisActivityRepository, provides=RecentActivityDao, scope=Scope.APP
     )

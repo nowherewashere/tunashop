@@ -55,6 +55,12 @@ class SyncBotRunningKey(StorageKey, prefix="sync_bot_running"): ...
 
 
 @dataclass(frozen=True)
+class RateLimitKey(StorageKey, prefix="rate_limit"):
+    scope: str
+    identifier: str
+
+
+@dataclass(frozen=True)
 class RefreshTokenKey(StorageKey, prefix="refresh"):
     token: str
 

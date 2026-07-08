@@ -58,6 +58,7 @@ from src.web.schemas import (
 from ._common import (
     CurrentUser,
     clear_auth_cookies,
+    get_client_ip,
     issue_session,
     set_auth_cookies,
 )
@@ -128,11 +129,16 @@ async def login_public_user(
 @inject
 async def request_email_login_code(
     body: RequestEmailLoginCodeRequest,
+    request: Request,
     request_login_code: FromDishka[RequestEmailLoginCode],
 ) -> RequestEmailLoginCodeResponse:
     try:
         result = await request_login_code.system(
-            RequestEmailLoginCodeDto(email=body.email, referral_code=body.referral_code)
+            RequestEmailLoginCodeDto(
+                email=body.email,
+                referral_code=body.referral_code,
+                ip=get_client_ip(request),
+            )
         )
     except EmailDeliveryDisabledError as e:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e

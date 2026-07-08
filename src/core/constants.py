@@ -106,6 +106,10 @@ TELEGRAM_AUTH_MAX_AGE_SECONDS: Final[int] = 600  # 10 minutes
 PUBLIC_LANDING_PLANS_CACHE_TTL_SECONDS: Final[int] = 21600
 EMAIL_VERIFICATION_CODE_LENGTH: Final[int] = 6
 EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: Final[int] = 60
+# Hard caps on passwordless code requests (protects email-sender reputation).
+EMAIL_CODE_RATE_WINDOW_SECONDS: Final[int] = 3600
+EMAIL_CODE_MAX_PER_EMAIL: Final[int] = 5
+EMAIL_CODE_MAX_PER_IP: Final[int] = 20
 EMAIL_VERIFICATION_SUBJECT: Final[str] = "Your verification code"
 EMAIL_VERIFICATION_BODY_TEMPLATE: Final[str] = (
     "Your verification code is: {code}\n\n"

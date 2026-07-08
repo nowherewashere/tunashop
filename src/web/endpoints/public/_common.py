@@ -38,6 +38,18 @@ def decode_access_token(token: str, key: str) -> int:
         raise jwt.InvalidTokenError("Invalid 'sub' claim") from e
 
 
+def get_client_ip(request: Request) -> str:
+    # Behind Cloudflare + nginx: prefer CF's real-client header, then the first
+    # X-Forwarded-For hop, then the direct peer.
+    cf_ip = request.headers.get("cf-connecting-ip")
+    if cf_ip:
+        return cf_ip.strip()
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
     response.set_cookie(
         "access_token",

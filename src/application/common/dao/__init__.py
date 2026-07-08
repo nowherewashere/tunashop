@@ -8,6 +8,7 @@ from .onboarding_nudge import OnboardingNudgeDao
 from .payment_gateway import PaymentGatewayDao
 from .plan import PlanDao
 from .promocode import PromocodeDao
+from .rate_limit import RateLimiter
 from .referral import ReferralDao
 from .settings import SettingsDao
 from .subscription import SubscriptionDao
@@ -28,6 +29,7 @@ __all__ = [
     "PaymentGatewayDao",
     "PlanDao",
     "PromocodeDao",
+    "RateLimiter",
     "ReferralDao",
     "SettingsDao",
     "SubscriptionDao",
