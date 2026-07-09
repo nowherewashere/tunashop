@@ -144,7 +144,13 @@ class LinkTelegramData:
     payload: dict[str, Any]
 
 
-class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
+@dataclass
+class LinkTelegramResult:
+    user: UserDto
+    merged: bool  # True only when a separate bot account was absorbed into the actor
+
+
+class LinkTelegram(Interactor[LinkTelegramData, LinkTelegramResult]):
     """Attach a Telegram identity to the authenticated (site) account.
 
     Three outcomes, all keyed off whether that Telegram already owns a row:
@@ -179,7 +185,7 @@ class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
         self.account_merge = account_merge
         self.remnawave = remnawave
 
-    async def _execute(self, actor: UserDto, data: LinkTelegramData) -> UserDto:
+    async def _execute(self, actor: UserDto, data: LinkTelegramData) -> LinkTelegramResult:
         bot_token = self.config.bot.token.get_secret_value()
         if not verify_telegram_auth(data.payload, bot_token):
             raise HTTPException(
@@ -188,7 +194,7 @@ class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
             )
 
         if actor.telegram_id == data.id:
-            return actor
+            return LinkTelegramResult(user=actor, merged=False)
 
         if actor.telegram_id is not None:
             raise HTTPException(
@@ -198,10 +204,10 @@ class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
 
         existing = await self.user_dao.get_by_telegram_id(data.id)
         if existing is None:
-            return await self._link(actor, data)
+            return LinkTelegramResult(user=await self._link(actor, data), merged=False)
         if existing.id == actor.id:
-            return actor
-        return await self._merge(actor, existing, data)
+            return LinkTelegramResult(user=actor, merged=False)
+        return LinkTelegramResult(user=await self._merge(actor, existing, data), merged=True)
 
     async def _link(self, actor: UserDto, data: LinkTelegramData) -> UserDto:
         actor.telegram_id = data.id

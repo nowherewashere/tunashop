@@ -16,9 +16,11 @@ from .auth import (
     RequestEmailVerificationCodeRequest,
     RequestEmailVerificationCodeResponse,
     TelegramAuthRequest,
+    TelegramLinkResponse,
     TelegramWebAppAuthRequest,
     VerifyEmailLoginCodeRequest,
 )
+from .config import PublicConfigResponse
 from .health import (
     DatabaseStatusSchema,
     HealthChecks,
@@ -26,7 +28,6 @@ from .health import (
     HealthResponse,
     PoolMetricsSchema,
 )
-from .config import PublicConfigResponse
 from .onboarding import (
     OnboardingConfigResponse,
     OnboardingStoreLinks,
@@ -81,6 +82,7 @@ __all__ = [
     "RequestEmailVerificationCodeRequest",
     "RequestEmailVerificationCodeResponse",
     "TelegramAuthRequest",
+    "TelegramLinkResponse",
     "TelegramWebAppAuthRequest",
     "VerifyEmailLoginCodeRequest",
     # config

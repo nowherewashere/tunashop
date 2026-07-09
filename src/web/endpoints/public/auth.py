@@ -51,6 +51,7 @@ from src.web.schemas import (
     RequestEmailVerificationCodeRequest,
     RequestEmailVerificationCodeResponse,
     TelegramAuthRequest,
+    TelegramLinkResponse,
     TelegramWebAppAuthRequest,
     VerifyEmailLoginCodeRequest,
 )
@@ -228,14 +229,14 @@ async def telegram_webapp_login(
     return await _issue_and_set(user, response, config, auth_session)
 
 
-@router.post("/telegram/link", response_model=MeResponse)
+@router.post("/telegram/link", response_model=TelegramLinkResponse)
 @inject
 async def link_telegram_account(
     body: TelegramAuthRequest,
     user: CurrentUser,
     link_telegram: FromDishka[LinkTelegram],
-) -> MeResponse:
-    updated = await link_telegram(
+) -> TelegramLinkResponse:
+    result = await link_telegram(
         user,
         LinkTelegramData(
             id=body.id,
@@ -243,7 +244,7 @@ async def link_telegram_account(
             payload=body.model_dump(exclude_none=True),
         ),
     )
-    return _to_me_response(updated)
+    return TelegramLinkResponse(**_to_me_response(result.user).model_dump(), merged=result.merged)
 
 
 @router.get("/me", response_model=MeResponse)

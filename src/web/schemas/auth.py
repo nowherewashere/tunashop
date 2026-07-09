@@ -66,6 +66,12 @@ class MeResponse(BaseModel):
     language: str
 
 
+class TelegramLinkResponse(MeResponse):
+    # True when linking absorbed a separate bot account into this one — the client
+    # uses it to reassure the user that dropped devices re-appear on their own.
+    merged: bool = False
+
+
 class ChangePasswordResponse(BaseModel):
     success: bool
 
