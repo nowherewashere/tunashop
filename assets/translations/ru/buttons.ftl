@@ -90,6 +90,8 @@ btn-invite =
     .send = 📩 Пригласить
     .qr = 🧾 QR-код
     .withdraw-points = 💎 Обменять баллы
+    .withdraw = 💰 Вывести
+    .pay-vpn = 🐟 Оплатить VPN балансом
     .reset-referral = 🔄 Сбросить реф. ссылку
 
 btn-dashboard =
@@ -102,6 +104,12 @@ btn-dashboard =
     .remnashop = 🛍 RemnaShop
     .transactions = 🧾 Транзакции
     .importer = 📥 Импорт пользователей
+    .payouts = 💸 Выплаты
+
+btn-payouts =
+    .start = ▶️ В обработку
+    .paid = ✅ Выплачено
+    .reject = ❌ Отклонить
 
 btn-statistics =
     .users = 👥 Пользователи

@@ -436,6 +436,30 @@ event-referral =
     <i>Купите подписку, чтобы получать бонусы за приглашенных друзей!</i>
     </blockquote>
 
+event-payout =
+    .processing =
+    <b>⏳ Вывод в обработке</b>
+
+    <blockquote>
+    Твой вывод { $amount } ₽ в обработке.
+    </blockquote>
+
+    .paid =
+    <b>💸 Готово! Вывод выполнен</b>
+
+    <blockquote>
+    { $amount } ₽ отправлены на { $wallet }.
+    Хэш: <code>{ $tx_hash }</code>
+    </blockquote>
+
+    .rejected =
+    <b>⚠️ Вывод отклонён</b>
+
+    <blockquote>
+    Вывод { $amount } ₽ отклонён: { $reason }.
+    Баланс вернулся — { $balance } ₽. Проверь данные и попробуй снова.
+    </blockquote>
+
 event-promocode =
     .activated =
     #PromocodeActivatedEvent

@@ -47,9 +47,9 @@ from src.application.dto.payment_gateway import (
 )
 from src.application.events import UserPurchaseEvent
 from src.application.use_cases.gateways.queries.providers import GetPaymentGatewayInstance
-from src.application.use_cases.referral.commands.rewards import (
-    AssignReferralRewards,
-    AssignReferralRewardsDto,
+from src.application.use_cases.referral.commands.commission import (
+    RecordReferralCommission,
+    RecordReferralCommissionDto,
 )
 from src.application.use_cases.subscription.commands.purchase import (
     PurchaseSubscription,
@@ -307,7 +307,7 @@ class ProcessPayment(Interactor[ProcessPaymentDto, None]):
         event_publisher: EventPublisher,
         notifier: Notifier,
         redirect: Redirect,
-        assign_referral_rewards: AssignReferralRewards,
+        record_referral_commission: RecordReferralCommission,
         purchase_subscription: PurchaseSubscription,
     ) -> None:
         self.uow = uow
@@ -318,7 +318,7 @@ class ProcessPayment(Interactor[ProcessPaymentDto, None]):
         self.event_publisher = event_publisher
         self.notifier = notifier
         self.redirect = redirect
-        self.assign_referral_rewards = assign_referral_rewards
+        self.record_referral_commission = record_referral_commission
         self.purchase_subscription = purchase_subscription
 
     async def _execute(self, actor: UserDto, data: ProcessPaymentDto) -> None:
@@ -508,12 +508,12 @@ class ProcessPayment(Interactor[ProcessPaymentDto, None]):
             # best-effort: their failure must not break the successful purchase nor
             # leave the transaction in a non-terminal state for retry. Isolate it.
             try:
-                await self.assign_referral_rewards.system(
-                    AssignReferralRewardsDto(user, transaction)
+                await self.record_referral_commission.system(
+                    RecordReferralCommissionDto(user, transaction)
                 )
             except Exception:
                 logger.exception(
-                    f"Referral reward assignment failed for user '{user.remna_name}', "
+                    f"Referral commission recording failed for user '{user.remna_name}', "
                     f"transaction '{transaction.payment_id}' — purchase succeeded"
                 )
                 await self.notifier.notify_admins(

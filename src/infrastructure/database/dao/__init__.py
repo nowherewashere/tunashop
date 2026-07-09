@@ -8,6 +8,7 @@ from .payment_gateway import PaymentGatewayDaoImpl
 from .plan import PlanDaoImpl
 from .promocode import PromocodeDaoImpl
 from .referral import ReferralDaoImpl
+from .referral_ledger import ReferralLedgerDaoImpl
 from .settings import SettingsDaoImpl
 from .subscription import SubscriptionDaoImpl
 from .transaction import TransactionDaoImpl
@@ -27,6 +28,7 @@ __all__ = [
     "PlanDaoImpl",
     "PromocodeDaoImpl",
     "ReferralDaoImpl",
+    "ReferralLedgerDaoImpl",
     "SettingsDaoImpl",
     "SubscriptionDaoImpl",
     "TransactionDaoImpl",

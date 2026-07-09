@@ -175,6 +175,86 @@ class ReferralRewardFailedEvent(ReferralRewardEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
+class PayoutEvent(UserEvent):
+    amount: str  # already formatted ₽ amount
+
+
+@dataclass(frozen=True, kw_only=True)
+class PayoutProcessingEvent(PayoutEvent):
+    notification_type: NotificationType = field(
+        default=UserNotificationType.PAYOUT_PROCESSING,
+        init=True,
+    )
+
+    @property
+    def event_key(self) -> str:
+        return "event-payout.processing"
+
+    def as_payload(self) -> "MessagePayloadDto":
+        return MessagePayloadDto(
+            i18n_key=self.event_key,
+            i18n_kwargs={"amount": self.amount},
+            disable_default_markup=False,
+            delete_after=None,
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
+class PayoutPaidEvent(PayoutEvent):
+    notification_type: NotificationType = field(
+        default=UserNotificationType.PAYOUT_PAID,
+        init=True,
+    )
+
+    wallet_short: str
+    tx_hash: str
+
+    @property
+    def event_key(self) -> str:
+        return "event-payout.paid"
+
+    def as_payload(self) -> "MessagePayloadDto":
+        return MessagePayloadDto(
+            i18n_key=self.event_key,
+            i18n_kwargs={
+                "amount": self.amount,
+                "wallet": self.wallet_short,
+                "tx_hash": self.tx_hash,
+            },
+            disable_default_markup=False,
+            delete_after=None,
+            message_effect=MessageEffectId.PARTY,
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
+class PayoutRejectedEvent(PayoutEvent):
+    notification_type: NotificationType = field(
+        default=UserNotificationType.PAYOUT_REJECTED,
+        init=True,
+    )
+
+    reason: str
+    balance: str
+
+    @property
+    def event_key(self) -> str:
+        return "event-payout.rejected"
+
+    def as_payload(self) -> "MessagePayloadDto":
+        return MessagePayloadDto(
+            i18n_key=self.event_key,
+            i18n_kwargs={
+                "amount": self.amount,
+                "reason": self.reason,
+                "balance": self.balance,
+            },
+            disable_default_markup=False,
+            delete_after=None,
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
 class UserNotConnectedEvent(UserEvent):
     notification_type: NotificationType = field(
         default=UserNotificationType.NOT_CONNECTED,

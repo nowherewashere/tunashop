@@ -15,12 +15,13 @@ from src.telegram.utils import require_permission
 from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
 from src.telegram.widgets.kbd import (
     Button,
+    Column,
     ListGroup,
     Row,
+    Select,
     Start,
     SwitchInlineQueryChosenChatButton,
     SwitchTo,
-    Url,
 )
 from src.telegram.window import Window
 
@@ -29,6 +30,8 @@ from .getters import (
     devices_getter,
     invite_about_getter,
     invite_getter,
+    invite_pay_getter,
+    invite_withdraw_getter,
     menu_getter,
 )
 from .handlers import (
@@ -37,11 +40,12 @@ from .handlers import (
     on_device_delete_request,
     on_get_trial,
     on_invite,
+    on_pay_with_balance_select,
     on_reissue_subscription_confirm,
     on_reset_referral_code,
     on_show_qr,
     on_text_button_click,
-    on_withdraw_points,
+    on_withdraw_wallet_input,
     show_reason,
 )
 
@@ -303,19 +307,18 @@ invite = Window(
         ),
     ),
     Row(
-        Button(
-            text=I18nFormat("btn-invite.withdraw-points"),
-            id="withdraw_points",
-            on_click=on_withdraw_points,
-            when=~F["has_points"],
+        SwitchTo(
+            text=I18nFormat("btn-invite.withdraw"),
+            id="withdraw",
+            state=MainMenu.INVITE_WITHDRAW,
+            when=F["can_withdraw"],
         ),
-        Url(
-            text=I18nFormat("btn-invite.withdraw-points"),
-            id="withdraw_points",
-            url=Format("{withdraw}"),
-            when=F["has_points"],
+        SwitchTo(
+            text=I18nFormat("btn-invite.pay-vpn"),
+            id="pay_vpn",
+            state=MainMenu.INVITE_PAY,
+            when=F["can_pay"],
         ),
-        when=F["is_points_reward"],
     ),
     Row(
         Button(
@@ -352,6 +355,47 @@ invite_about = Window(
     getter=invite_about_getter,
 )
 
+invite_withdraw = Window(
+    Banner(BannerName.REFERRAL),
+    I18nFormat("msg-menu-invite-withdraw"),
+    MessageInput(on_withdraw_wallet_input),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=MainMenu.INVITE,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=MainMenu.INVITE_WITHDRAW,
+    getter=invite_withdraw_getter,
+)
+
+invite_pay = Window(
+    Banner(BannerName.REFERRAL),
+    I18nFormat("msg-menu-invite-pay"),
+    Column(
+        Select(
+            text=Format("{item[label]}"),
+            id="pay_select",
+            item_id_getter=lambda item: item["id"],
+            items="pay_items",
+            on_click=on_pay_with_balance_select,
+        ),
+        when=F["has_items"],
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=MainMenu.INVITE,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=MainMenu.INVITE_PAY,
+    getter=invite_pay_getter,
+)
+
 
 device_confirm_reissue = Window(
     Banner(BannerName.MENU),
@@ -382,4 +426,6 @@ router = Dialog(
     device_confirm_reissue,
     invite,
     invite_about,
+    invite_withdraw,
+    invite_pay,
 )

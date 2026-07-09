@@ -83,3 +83,22 @@ class EmailDeliveryError(Exception): ...
 
 
 class EmailDeliveryDisabledError(Exception): ...
+
+
+class ReferralError(Exception): ...
+
+
+class InsufficientBalanceError(ReferralError):
+    """Balance is below the amount required to pay for the chosen plan (full-cover)."""
+
+
+class BalanceNegativeError(ReferralError):
+    """Balance is below zero (a chargeback landed): block payouts + pay-with-balance."""
+
+
+class PayoutLockedError(ReferralError):
+    """An open payout (requested/processing) already exists: single-open-payout lock."""
+
+
+class PayoutBelowMinimumError(ReferralError):
+    """Balance is below the crypto payout minimum (REFERRAL_PAYOUT_MIN_KOP)."""

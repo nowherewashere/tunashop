@@ -13,6 +13,7 @@ from src.application.common.dao import (
     RateLimiter,
     RecentActivityDao,
     ReferralDao,
+    ReferralLedgerDao,
     SettingsDao,
     SubscriptionDao,
     TransactionDao,
@@ -32,6 +33,7 @@ from src.infrastructure.database.dao import (
     PlanDaoImpl,
     PromocodeDaoImpl,
     ReferralDaoImpl,
+    ReferralLedgerDaoImpl,
     SettingsDaoImpl,
     SubscriptionDaoImpl,
     TransactionDaoImpl,
@@ -63,6 +65,7 @@ class DaoProvider(Provider):
     plan = provide(source=PlanDaoImpl, provides=PlanDao)
     promocode = provide(source=PromocodeDaoImpl, provides=PromocodeDao)
     referral = provide(source=ReferralDaoImpl, provides=ReferralDao)
+    referral_ledger = provide(source=ReferralLedgerDaoImpl, provides=ReferralLedgerDao)
     settings = provide(source=SettingsDaoImpl, provides=SettingsDao)
     subscription = provide(source=SubscriptionDaoImpl, provides=SubscriptionDao)
     transaction = provide(source=TransactionDaoImpl, provides=TransactionDao)

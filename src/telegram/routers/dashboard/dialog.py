@@ -9,6 +9,7 @@ from src.telegram.states import (
     DashboardAccess,
     DashboardBroadcast,
     DashboardImporter,
+    DashboardPayouts,
     DashboardPromocodes,
     DashboardRemnashop,
     DashboardRemnawave,
@@ -70,6 +71,13 @@ dashboard = Window(
             state=DashboardAccess.MAIN,
             mode=StartMode.RESET_STACK,
             when=require_permission(Permission.VIEW_ACCESS),
+        ),
+        Start(
+            text=I18nFormat("btn-dashboard.payouts"),
+            id="payouts",
+            state=DashboardPayouts.MAIN,
+            mode=StartMode.RESET_STACK,
+            when=require_permission(Permission.VIEW_REFERRAL),
         ),
     ),
     Row(
