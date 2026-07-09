@@ -37,7 +37,7 @@ from .handlers import (
 from .promocode_handlers import getter_promocode, on_promocode_confirm, on_promocode_input
 
 subscription = Window(
-    Banner(BannerName.SUBSCRIPTION),
+    DataBanner(),
     I18nFormat("msg-subscription-main"),
     Row(
         Button(
@@ -255,7 +255,7 @@ confirm = Window(
 )
 
 success_payment = Window(
-    Banner(BannerName.SUBSCRIPTION),
+    Banner(BannerName.SUCCESS),
     I18nFormat("msg-subscription-success"),
     *connect_buttons,
     *onboarding_connect_buttons,
@@ -266,7 +266,7 @@ success_payment = Window(
 )
 
 success_trial = Window(
-    Banner(BannerName.SUBSCRIPTION),
+    DataBanner(),
     I18nFormat("msg-subscription-trial"),
     *connect_buttons,
     *onboarding_connect_buttons,
@@ -277,7 +277,7 @@ success_trial = Window(
 )
 
 failed = Window(
-    Banner(BannerName.SUBSCRIPTION),
+    DataBanner(),
     I18nFormat("msg-subscription-failed"),
     *back_main_menu_button,
     IgnoreUpdate(),

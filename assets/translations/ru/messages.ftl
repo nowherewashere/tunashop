@@ -1629,14 +1629,16 @@ msg-subscription-trial =
     { msg-subscription-new-success }
 
 msg-subscription-success =
-    <b>✅ Оплата прошла успешно!</b>
+    <b>✅ Оплата прошла успешно</b>
 
-    { $purchase_type ->
-    [NEW] { msg-subscription-new-success }
-    [RENEW] { msg-subscription-renew-success }
-    [CHANGE] { msg-subscription-change-success }
-    *[OTHER] { $purchase_type }
-    }
+    <b>Подписка { $plan_name }</b>
+    <blockquote>
+    • <b>Трафик</b>: { $traffic_limit }
+    • <b>Устройства</b>: { $device_limit }
+    • <b>Осталось</b>: { $expire_time }
+    </blockquote>
+
+    Спасибо, что остаёшься с Tuna 🐟
 
 msg-subscription-change-success = 
     Ваша подписка была изменена.

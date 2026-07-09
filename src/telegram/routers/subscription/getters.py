@@ -84,19 +84,25 @@ async def subscription_getter(
     # Show the active plan's card above renew/change (spec fix #20), same shape as
     # the plan-selection screen (frg-plan-card with shared locations).
     subscription_info = ""
+    banner_candidates: tuple[str, ...] = ()
     if has_active and current_subscription is not None:
+        snapshot = current_subscription.plan_snapshot
+        plan_name = translate_or_literal(i18n, snapshot.name)
         subscription_info = i18n.get(
             "frg-plan-card",
-            name=i18n.get(current_subscription.plan_snapshot.name),
+            name=plan_name,
             traffic=i18n_format_traffic_limit(current_subscription.traffic_limit),
             devices=i18n_format_device_limit(current_subscription.device_limit),
             locations=config.plan_locations,
         )
+        # DataBanner shows the current plan's own image here (→ choose_sub → default).
+        banner_candidates = plan_banner_candidates(plan_name, snapshot.id)
 
     return {
         "has_active_subscription": int(has_active),
         "is_not_unlimited": not is_unlimited,
         "subscription_info": subscription_info,
+        "banner_candidates": banner_candidates,
     }
 
 
@@ -432,7 +438,7 @@ async def success_payment_getter(
 
     return {
         "purchase_type": purchase_type,
-        "plan_name": i18n.get(subscription.plan_snapshot.name),
+        "plan_name": translate_or_literal(i18n, subscription.plan_snapshot.name),
         "traffic_limit": i18n_format_traffic_limit(subscription.traffic_limit),
         "device_limit": i18n_format_device_limit(subscription.device_limit),
         "expire_time": i18n_format_expire_time(subscription.expire_at),

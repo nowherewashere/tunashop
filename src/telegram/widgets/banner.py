@@ -165,10 +165,11 @@ class Banner(StaticMedia):
 class DataBanner(StaticMedia):
     """Banner whose file is chosen at render time from getter data.
 
-    The getter publishes an ordered tuple of candidate names under
+    The getter may publish an ordered tuple of candidate names under
     ``BANNER_CANDIDATES_KEY`` (see plan_banner_candidates()); this widget resolves
-    the first one that exists, falling back to the global default. When the getter
-    provides no candidates it renders nothing, so it is safe on any screen.
+    the first one that exists. With no candidates it falls back to the global
+    default — same worst case as a static ``Banner`` — so it is a safe drop-in on
+    any screen.
     """
 
     def __init__(self, data_key: str = BANNER_CANDIDATES_KEY) -> None:
@@ -182,12 +183,10 @@ class DataBanner(StaticMedia):
         dialog_manager: DialogManager,
     ) -> bool:
         config: AppConfig = dialog_manager.middleware_data[CONFIG_KEY]
-        return config.bot.use_banners and bool(data.get(self.data_key))
+        return config.bot.use_banners
 
     async def _render_media(self, data: dict, manager: DialogManager) -> Optional[MediaAttachment]:
-        candidates = data.get(self.data_key)
-        if not candidates:
-            return None
+        candidates = data.get(self.data_key) or ()
 
         user: TelegramUserDto = manager.middleware_data[USER_KEY]
         config: AppConfig = manager.middleware_data[CONFIG_KEY]
