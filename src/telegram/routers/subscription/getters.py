@@ -379,6 +379,9 @@ async def confirm_getter(
         "only_single_plan": only_single_plan,
         "is_free": is_free,
         "plan_is_modified": plan_is_modified,
+        # Per-plan banner on the confirmation screen too (falls back to
+        # choose_sub then default), matching the plan/duration screens.
+        "banner_candidates": plan_banner_candidates(translate_or_literal(i18n, plan.name), plan.id),
     }
 
 

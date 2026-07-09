@@ -144,8 +144,8 @@ duration = Window(
             items="durations",
             type_factory=int,
             on_click=on_duration_select,
-            # Duration buttons in the brand blue (fix.txt #3); the "return to main
-            # menu" button below stays the default colour.
+            # Duration buttons in the brand blue (fix.txt #3); the navigation
+            # buttons below stay the default colour.
             style=Style(ButtonStyle.PRIMARY),
         ),
         # One duration per row (spec fix #6) — the "period | price" label overflows
@@ -158,7 +158,6 @@ duration = Window(
             id=f"{PAYMENT_PREFIX}back_plans",
             state=Subscription.PLANS,
             when=~F["only_single_plan"],
-            style=Style(ButtonStyle.PRIMARY),
         ),
     ),
     *back_main_menu_button,
@@ -210,7 +209,7 @@ payment_method = Window(
 )
 
 confirm = Window(
-    Banner(BannerName.SUBSCRIPTION),
+    DataBanner(),
     I18nFormat("msg-subscription-confirm"),
     Row(
         Url(
