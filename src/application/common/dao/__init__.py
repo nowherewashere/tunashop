@@ -1,3 +1,4 @@
+from .account_merge import AccountMergeDao
 from .activity import RecentActivityDao
 from .ad_link import AdLinkDao
 from .auth import AuthSessionDao
@@ -19,6 +20,7 @@ from .waitlist import WaitlistDao
 from .webhook import WebhookDao
 
 __all__ = [
+    "AccountMergeDao",
     "RecentActivityDao",
     "AdLinkDao",
     "AuthSessionDao",

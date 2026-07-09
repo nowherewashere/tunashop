@@ -1,3 +1,4 @@
+from .account_merge import AccountMergeDaoImpl
 from .ad_link import AdLinkDaoImpl
 from .broadcast import BroadcastDaoImpl
 from .lifecycle_followup import LifecycleFollowupDaoImpl
@@ -16,6 +17,7 @@ from .waitlist import WaitlistDaoImpl
 from .webhook import WebhookDaoImpl
 
 __all__ = [
+    "AccountMergeDaoImpl",
     "AdLinkDaoImpl",
     "BroadcastDaoImpl",
     "LifecycleFollowupDaoImpl",
