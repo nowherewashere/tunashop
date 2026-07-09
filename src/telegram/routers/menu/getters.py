@@ -293,7 +293,6 @@ async def invite_getter(
     site_base = config.referral_site_url.strip().rstrip("/")
     site_referral_url = f"{site_base}/r/{user.referral_code}" if site_base else ""
 
-    payout_min_kop = config.referral.payout_min_kop
     return {
         # Stats block (spec §8.1) — real money now, all in ₽ (kopecks derived).
         "referrals": summary.invited,
@@ -306,13 +305,10 @@ async def invite_getter(
         "site_referral_url": site_referral_url,
         "has_site_link": int(bool(site_referral_url)),
         "referral_reset_enabled": int(settings.extra.referral_reset.enabled),
-        # Action gating (spec §8.2): crypto withdraw needs ≥ min and no open payout;
-        # pay-with-balance needs any positive balance and no open payout.
-        "can_withdraw": summary.balance_kop >= payout_min_kop and not summary.has_open_payout,
-        "can_pay": summary.balance_kop > 0 and not summary.has_open_payout,
+        # The action buttons are always offered (discoverability); each flow explains
+        # when there is nothing to do yet. They only hide while a payout is open, since
+        # that locks both withdraw and pay-with-balance (spec §3.3).
         "has_open_payout": summary.has_open_payout,
-        "payout_min": kop_to_rub(payout_min_kop),
-        "remaining_to_min": kop_to_rub(max(0, payout_min_kop - summary.balance_kop)),
     }
 
 
@@ -325,11 +321,15 @@ async def invite_withdraw_getter(
     **kwargs: Any,
 ) -> dict[str, Any]:
     summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
+    payout_min_kop = config.referral.payout_min_kop
     return {
         "balance": kop_to_rub(summary.balance_kop),
         "currency": "₽",
         "crypto_asset": config.payout.crypto_asset,
         "crypto_network": config.payout.crypto_network,
+        "can_withdraw": int(summary.balance_kop >= payout_min_kop),
+        "payout_min": kop_to_rub(payout_min_kop),
+        "remaining_to_min": kop_to_rub(max(0, payout_min_kop - summary.balance_kop)),
     }
 
 
@@ -372,38 +372,18 @@ async def invite_pay_getter(
         "balance": kop_to_rub(summary.balance_kop),
         "currency": "₽",
         "pay_items": items,
-        "has_items": bool(items),
+        "has_items": int(bool(items)),
     }
 
 
 @inject
 async def invite_about_getter(
     dialog_manager: DialogManager,
-    i18n: FromDishka[TranslatorRunner],
-    settings_dao: FromDishka[SettingsDao],
+    config: AppConfig,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    settings = await settings_dao.get()
-    reward_config = settings.referral.reward.config
-
-    max_level = settings.referral.level.value
-    identical_reward = settings.referral.reward.is_identical
-
-    reward_levels: dict[str, str] = {}
-    for lvl, val in reward_config.items():
-        if lvl.value <= max_level:
-            reward_levels[f"reward_level_{lvl.value}"] = i18n.get(
-                "msg-invite-reward",
-                value=val,
-                reward_strategy_type=settings.referral.reward.strategy,
-                reward_type=settings.referral.reward.type,
-            )
-
+    # Money model (spec §1): rate% recurring, crypto payout from the min, or pay-VPN.
     return {
-        **reward_levels,
-        "reward_type": settings.referral.reward.type,
-        "reward_strategy_type": settings.referral.reward.strategy,
-        "accrual_strategy": settings.referral.accrual_strategy,
-        "identical_reward": identical_reward,
-        "max_level": max_level,
+        "rate": config.referral.rate_bp // 100,
+        "min": kop_to_rub(config.referral.payout_min_kop),
     }
