@@ -1,5 +1,5 @@
 import re
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 from uuid import UUID
 
 from adaptix import Retort
@@ -38,6 +38,25 @@ class TranslatorRunnerImpl(TranslatorRunner):
         processed_text = self._postprocess(text)
 
         return processed_text
+
+    def get_optional(self, key: str, obj: Any = None, **kwargs: Any) -> Optional[str]:
+        """Like get(), but returns None on a missing key instead of warning.
+
+        Used for values that may legitimately be a plain literal rather than a
+        translation key (e.g. admin-entered plan names/descriptions), so the miss
+        is expected and must not spam the logs.
+        """
+        data = self.retort.dump(obj) if obj is not None else {}
+        data.update(kwargs)
+
+        sanitized_data = self._sanitize_data(data)
+        translated_data = self._translate_values(sanitized_data)
+        try:
+            text = self._get_translation(key, **translated_data)
+        except KeyNotFoundError:
+            return None
+
+        return self._postprocess(text)
 
     def from_event(self, event: Any, **kwargs: Any) -> str:
         raw_name = getattr(event, "event_type", event.__class__.__name__)

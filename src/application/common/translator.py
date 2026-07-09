@@ -1,9 +1,11 @@
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Optional, Protocol, runtime_checkable
 
 
 @runtime_checkable
 class TranslatorRunner(Protocol):
     def get(self, key: str, obj: Any = None, **kwargs: Any) -> str: ...
+
+    def get_optional(self, key: str, obj: Any = None, **kwargs: Any) -> Optional[str]: ...
 
     def from_event(self, event: Any, **kwargs: Any) -> str: ...
 

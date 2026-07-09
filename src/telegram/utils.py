@@ -4,11 +4,22 @@ from typing import Callable, Optional
 from aiogram_dialog import DialogManager
 from aiogram_dialog.widgets.common.when import Whenable
 
+from src.application.common import TranslatorRunner
 from src.application.common.policy import Permission, PermissionPolicy
 from src.application.dto import TelegramUserDto
 from src.core.constants import USER_KEY
 from src.core.enums import Role
 from src.core.utils.time import datetime_now
+
+
+def translate_or_literal(i18n: TranslatorRunner, value: str) -> str:
+    """Resolve a plan name/description that may be a translation key or a literal.
+
+    Admin-entered plan labels (e.g. "Pro") are not translation keys, so translating
+    them would only log a spurious "key not found" warning. Return the translation
+    when the key exists, otherwise the value itself — silently.
+    """
+    return i18n.get_optional(value) or value
 
 
 def is_double_click(dialog_manager: DialogManager, key: str, cooldown: int = 10) -> bool:

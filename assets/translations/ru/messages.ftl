@@ -1542,7 +1542,7 @@ msg-subscription-details =
     }
 
 msg-subscription-duration =
-    <b>🐟 { $plan } — выбери срок подписки</b>
+    <b>{ $plan } — выбери срок подписки</b>
 
     <blockquote>
     { $durations_info }

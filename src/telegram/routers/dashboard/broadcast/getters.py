@@ -9,6 +9,7 @@ from src.application.common.dao import BroadcastDao, PlanDao, SettingsDao
 from src.application.dto import PlanDto
 from src.core.constants import DATETIME_VIEW_FORMAT
 from src.telegram.keyboards import CLOSE_BUTTON_ID, get_broadcast_buttons
+from src.telegram.utils import translate_or_literal
 
 
 @inject
@@ -22,7 +23,7 @@ async def plans_getter(
     formatted_plans = [
         {
             "id": plan.id,
-            "name": i18n.get(plan.name),
+            "name": translate_or_literal(i18n, plan.name),
             "is_active": plan.is_active,
         }
         for plan in plans

@@ -21,6 +21,7 @@ from src.core.utils.i18n_helpers import (
     i18n_format_expire_time,
     i18n_format_traffic_limit,
 )
+from src.telegram.utils import translate_or_literal
 from src.telegram.widgets.banner import plan_banner_candidates
 
 
@@ -134,11 +135,11 @@ async def plan_getter(
 
     return {
         "plan_id": [plan.id],
-        "name": i18n.get(plan.name),
-        "description": i18n.get(plan.description) if plan.description else False,
+        "name": translate_or_literal(i18n, plan.name),
+        "description": translate_or_literal(i18n, plan.description) if plan.description else False,
         "purchase_type": purchase_type,
         # Per-plan banner (fix.txt #7) — falls back to choose_sub then default.
-        "banner_candidates": plan_banner_candidates(i18n.get(plan.name), plan.id),
+        "banner_candidates": plan_banner_candidates(translate_or_literal(i18n, plan.name), plan.id),
     }
 
 
@@ -160,7 +161,7 @@ async def plans_getter(
     formatted_plans = [
         {
             "id": plan.id,
-            "name": i18n.get(plan.name),
+            "name": translate_or_literal(i18n, plan.name),
         }
         for plan in plans
     ]
@@ -171,7 +172,7 @@ async def plans_getter(
     plans_info = "\n\n".join(
         i18n.get(
             "frg-plan-card",
-            name=i18n.get(plan.name),
+            name=translate_or_literal(i18n, plan.name),
             traffic=i18n_format_traffic_limit(plan.traffic_limit),
             devices=i18n_format_device_limit(plan.device_limit),
             locations=locations,
@@ -234,8 +235,8 @@ async def duration_getter(
     plan_is_modified = 1 if dialog_manager.dialog_data.get("plan_is_modified", False) else 0
 
     return {
-        "plan": i18n.get(plan.name),
-        "description": i18n.get(plan.description) if plan.description else False,
+        "plan": translate_or_literal(i18n, plan.name),
+        "description": translate_or_literal(i18n, plan.description) if plan.description else False,
         "type": plan.type,
         "devices": i18n_format_device_limit(plan.device_limit),
         "traffic": i18n_format_traffic_limit(plan.traffic_limit),
@@ -249,7 +250,7 @@ async def duration_getter(
         "is_personal_discount": pricing_service.is_largest_discount_personal(user),
         "plan_is_modified": plan_is_modified,
         # Per-plan banner (fix.txt #7) — falls back to choose_sub then default.
-        "banner_candidates": plan_banner_candidates(i18n.get(plan.name), plan.id),
+        "banner_candidates": plan_banner_candidates(translate_or_literal(i18n, plan.name), plan.id),
     }
 
 
@@ -299,8 +300,8 @@ async def payment_method_getter(
     plan_is_modified = 1 if dialog_manager.dialog_data.get("plan_is_modified", False) else 0
 
     return {
-        "plan": i18n.get(plan.name),
-        "description": i18n.get(plan.description) if plan.description else False,
+        "plan": translate_or_literal(i18n, plan.name),
+        "description": translate_or_literal(i18n, plan.description) if plan.description else False,
         "type": plan.type,
         "devices": i18n_format_device_limit(plan.device_limit),
         "traffic": i18n_format_traffic_limit(plan.traffic_limit),
@@ -359,8 +360,8 @@ async def confirm_getter(
 
     return {
         "purchase_type": purchase_type,
-        "plan": i18n.get(plan.name),
-        "description": i18n.get(plan.description) if plan.description else False,
+        "plan": translate_or_literal(i18n, plan.name),
+        "description": translate_or_literal(i18n, plan.description) if plan.description else False,
         "type": plan.type,
         "devices": i18n_format_device_limit(plan.device_limit),
         "traffic": i18n_format_traffic_limit(plan.traffic_limit),

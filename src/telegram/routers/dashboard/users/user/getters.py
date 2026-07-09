@@ -50,6 +50,7 @@ from src.core.utils.i18n_helpers import (
     i18n_format_traffic_limit,
 )
 from src.core.utils.i18n_keys import ByteUnitKey
+from src.telegram.utils import translate_or_literal
 
 
 @inject
@@ -552,7 +553,7 @@ async def give_access_getter(
 
     formatted_plans = [
         {
-            "plan_name": i18n.get(plan.name),
+            "plan_name": translate_or_literal(i18n, plan.name),
             "plan_id": plan.id,
             "selected": (
                 target_user.telegram_id is not None
@@ -587,7 +588,7 @@ async def give_subscription_getter(
 
     formatted_plans = [
         {
-            "plan_name": i18n.get(plan.name),
+            "plan_name": translate_or_literal(i18n, plan.name),
             "plan_id": plan.id,
         }
         for plan in plans
