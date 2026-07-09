@@ -17,7 +17,9 @@ from .database import DatabaseConfig
 from .email import EmailConfig
 from .log import LogConfig
 from .onboarding import OnboardingConfig
+from .payout import PayoutConfig
 from .redis import RedisConfig
+from .referral import ReferralConfig
 from .remnawave import RemnawaveConfig
 from .validators import validate_not_change_me
 
@@ -60,6 +62,8 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
     build: BuildConfig = Field(default_factory=BuildConfig)
     log: LogConfig = Field(default_factory=LogConfig)
     onboarding: OnboardingConfig = Field(default_factory=OnboardingConfig)
+    referral: ReferralConfig = Field(default_factory=ReferralConfig)
+    payout: PayoutConfig = Field(default_factory=PayoutConfig)
 
     @property
     def default_assets_dir(self) -> Path:

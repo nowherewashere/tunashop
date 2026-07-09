@@ -293,6 +293,11 @@ class UserNotificationType(UpperStrEnum):
     REFERRAL_REWARD_RECEIVED = auto()
     REFERRAL_REWARD_FAILED = auto()
     #
+    # Referral money payouts (spec §8.4). Transactional — enabled by default.
+    PAYOUT_PROCESSING = auto()
+    PAYOUT_PAID = auto()
+    PAYOUT_REJECTED = auto()
+    #
     # Proactive lifecycle followups (spec §6, chains C/E). Admin-toggleable like
     # any other user notification via the dashboard.
     FOLLOWUP_TRIAL_ENDING = auto()

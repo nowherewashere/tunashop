@@ -143,8 +143,27 @@ msg-menu-invite =
     ├ Из них платят: { $payments }
     ├ Баланс: { $balance } { $currency }
     ├ Выведено: { $withdrawn } { $currency }
-    ├ Потрачено на VPN: { $spent_on_vpn } { $currency }
-    └ Доступно к выводу: { $available } { $currency }
+    └ Потрачено на VPN: { $spent_on_vpn } { $currency }
+    </blockquote>
+
+msg-menu-invite-withdraw =
+    <b>💰 Вывод в крипте</b>
+
+    <blockquote>
+    Выведем весь баланс — <b>{ $balance } { $currency }</b> в { $crypto_asset } ({ $crypto_network }).
+    </blockquote>
+
+    Пришли адрес кошелька <b>{ $crypto_asset } · { $crypto_network }</b> сообщением — создадим заявку. Выплаты по понедельникам.
+
+msg-menu-invite-pay =
+    <b>🐟 Оплатить подписку балансом</b>
+
+    <blockquote>
+    На балансе — <b>{ $balance } { $currency }</b>.
+    { $has_items ->
+    [1] Выбери тариф — спишем с баланса, дни добавятся к текущей подписке.
+    *[0] Пока не хватает баланса ни на один тариф.
+    }
     </blockquote>
 
 msg-menu-invite-about =
@@ -214,6 +233,41 @@ msg-invite-reward = { $value }{ $reward_strategy_type ->
 # Dashboard
 msg-dashboard-main = <b>🛠 Панель управления</b>
 msg-users-main = <b>👥 Пользователи</b>
+msg-payouts-main =
+    <b>💸 Выплаты</b>
+
+    <blockquote>
+    В очереди: { $count }.
+    { $has_items ->
+    [0] Пока пусто.
+    *[other] Выбери заявку.
+    }
+    </blockquote>
+msg-payouts-detail =
+    <b>💸 Заявка на вывод</b>
+
+    <blockquote>
+    Сумма: <b>{ $amount } ₽</b>
+    Статус: { $status }
+    Пользователь: { $user_label }
+    Email: { $email }
+    Кошелёк: <code>{ $wallet }</code>
+    Актив: { $asset } · { $network }
+    </blockquote>
+msg-payouts-tx-hash =
+    <b>✅ Подтверждение выплаты</b>
+
+    <blockquote>
+    Сумма: <b>{ $amount } ₽</b> · кошелёк <code>{ $wallet }</code>.
+    Пришли <b>хэш транзакции</b> сообщением — отметим выплату и уведомим пользователя.
+    </blockquote>
+msg-payouts-reject =
+    <b>❌ Отклонение заявки</b>
+
+    <blockquote>
+    Сумма: <b>{ $amount } ₽</b> · { $user_label }.
+    Пришли <b>причину отклонения</b> сообщением — уведомим пользователя, баланс останется.
+    </blockquote>
 msg-broadcast-main = <b>📢 Рассылка</b>
 msg-statistics-main = <b>📊 Статистика</b>
     

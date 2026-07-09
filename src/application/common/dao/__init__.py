@@ -11,6 +11,7 @@ from .plan import PlanDao
 from .promocode import PromocodeDao
 from .rate_limit import RateLimiter
 from .referral import ReferralDao
+from .referral_ledger import ReferralLedgerDao
 from .settings import SettingsDao
 from .subscription import SubscriptionDao
 from .transaction import TransactionDao
@@ -33,6 +34,7 @@ __all__ = [
     "PromocodeDao",
     "RateLimiter",
     "ReferralDao",
+    "ReferralLedgerDao",
     "SettingsDao",
     "SubscriptionDao",
     "TransactionDao",

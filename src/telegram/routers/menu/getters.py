@@ -8,21 +8,33 @@ from loguru import logger
 
 from src.application.common import BotService, Remnawave, TranslatorRunner
 from src.application.common.dao import (
-    ReferralDao,
     SettingsDao,
     SubscriptionDao,
     UserConnectionStateDao,
 )
 from src.application.dto import TelegramUserDto
 from src.application.use_cases.misc.queries.menu import GetMenuData
+from src.application.use_cases.referral.queries.summary import (
+    GetReferralSummary,
+    GetReferralSummaryDto,
+)
+from src.application.use_cases.user.queries.plans import GetAvailablePlans
 from src.core.config import AppConfig
-from src.core.exceptions import MenuRenderError
+from src.core.enums import Currency
+from src.core.exceptions import MenuRenderError, PriceNotFoundError
 from src.core.utils.i18n_helpers import (
     i18n_format_device_limit,
     i18n_format_expire_time,
     i18n_format_traffic_limit,
 )
+from src.core.utils.money import kop_to_rub
 from src.core.utils.time import datetime_now, get_traffic_reset_delta
+
+
+def _term_label(days: int) -> str:
+    if days > 0 and days % 30 == 0:
+        return f"{days // 30} мес"
+    return f"{days} дн"
 
 # Hub shows the "trial ending" face (coral accent + soft upsell, spec §7) once the
 # trial has less than this left.
@@ -269,40 +281,98 @@ async def invite_getter(
     config: AppConfig,
     user: TelegramUserDto,
     bot_service: FromDishka[BotService],
-    i18n: FromDishka[TranslatorRunner],
     settings_dao: FromDishka[SettingsDao],
-    referral_dao: FromDishka[ReferralDao],
+    get_referral_summary: FromDishka[GetReferralSummary],
     **kwargs: Any,
 ) -> dict[str, Any]:
     settings = await settings_dao.get()
-    referrals = await referral_dao.get_referrals_count(user.id)
-    payments = await referral_dao.get_referrals_with_payment_count(user.id)
+    summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
     referral_url = await bot_service.get_referral_url(user.referral_code)
-    support_url = bot_service.get_support_url(text=i18n.get("message.withdraw-points"))
 
     # Second (website) referral link, spec §4.7 — shown only when configured.
     site_base = config.referral_site_url.strip().rstrip("/")
     site_referral_url = f"{site_base}/r/{user.referral_code}" if site_base else ""
 
+    payout_min_kop = config.referral.payout_min_kop
     return {
-        "reward_type": settings.referral.reward.type,
-        "referrals": referrals,
-        "payments": payments,
-        "points": user.points,
-        "is_points_reward": settings.referral.reward.is_points,
-        "has_points": True if user.points > 0 else False,
+        # Stats block (spec §8.1) — real money now, all in ₽ (kopecks derived).
+        "referrals": summary.invited,
+        "payments": summary.paying,
+        "balance": kop_to_rub(summary.balance_kop),
+        "withdrawn": kop_to_rub(summary.withdrawn_kop),
+        "spent_on_vpn": kop_to_rub(summary.spent_kop),
+        "currency": "₽",
         "referral_url": referral_url,
         "site_referral_url": site_referral_url,
         "has_site_link": int(bool(site_referral_url)),
-        "withdraw": support_url,
         "referral_reset_enabled": int(settings.extra.referral_reset.enabled),
-        # Money stats (spec §4.7) — the payout backend isn't built yet, so these are
-        # 0 placeholders for now; the copy is in place ahead of the money model.
-        "balance": 0,
-        "withdrawn": 0,
-        "spent_on_vpn": 0,
-        "available": 0,
-        "currency": settings.default_currency.symbol,
+        # Action gating (spec §8.2): crypto withdraw needs ≥ min and no open payout;
+        # pay-with-balance needs any positive balance and no open payout.
+        "can_withdraw": summary.balance_kop >= payout_min_kop and not summary.has_open_payout,
+        "can_pay": summary.balance_kop > 0 and not summary.has_open_payout,
+        "has_open_payout": summary.has_open_payout,
+        "payout_min": kop_to_rub(payout_min_kop),
+        "remaining_to_min": kop_to_rub(max(0, payout_min_kop - summary.balance_kop)),
+    }
+
+
+@inject
+async def invite_withdraw_getter(
+    dialog_manager: DialogManager,
+    config: AppConfig,
+    user: TelegramUserDto,
+    get_referral_summary: FromDishka[GetReferralSummary],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
+    return {
+        "balance": kop_to_rub(summary.balance_kop),
+        "currency": "₽",
+        "crypto_asset": config.payout.crypto_asset,
+        "crypto_network": config.payout.crypto_network,
+    }
+
+
+@inject
+async def invite_pay_getter(
+    dialog_manager: DialogManager,
+    config: AppConfig,
+    user: TelegramUserDto,
+    i18n: FromDishka[TranslatorRunner],
+    get_available_plans: FromDishka[GetAvailablePlans],
+    get_referral_summary: FromDishka[GetReferralSummary],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
+    plans = await get_available_plans.system(user)
+
+    # Flat list of affordable plan × duration options (full-cover only, so we hide
+    # anything the balance can't fully pay). The item id carries "plan_id:days".
+    items: list[dict[str, Any]] = []
+    for plan in plans:
+        if plan.is_trial:
+            continue
+        name = i18n.get(plan.name)
+        for duration in sorted(plan.durations, key=lambda d: d.days):
+            try:
+                price = duration.get_price(Currency.RUB)
+            except PriceNotFoundError:
+                continue
+            price_kop = int(price * 100)
+            if price_kop <= 0 or summary.balance_kop < price_kop:
+                continue
+            items.append(
+                {
+                    "id": f"{plan.id}:{duration.days}",
+                    "label": f"{name} · {_term_label(duration.days)} · {int(price)} ₽",
+                }
+            )
+
+    return {
+        "balance": kop_to_rub(summary.balance_kop),
+        "currency": "₽",
+        "pay_items": items,
+        "has_items": bool(items),
     }
 
 

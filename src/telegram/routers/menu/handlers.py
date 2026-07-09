@@ -3,7 +3,8 @@ from aiogram import F, Router
 from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, Message
 from aiogram_dialog import DialogManager, ShowMode, StartMode
-from aiogram_dialog.widgets.kbd import Button
+from aiogram_dialog.widgets.input import MessageInput
+from aiogram_dialog.widgets.kbd import Button, Select
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 from loguru import logger
@@ -15,6 +16,14 @@ from src.application.dto import (
     MessagePayloadDto,
     PlanSnapshotDto,
     TelegramUserDto,
+)
+from src.application.use_cases.referral.commands.balance import (
+    PayWithBalance,
+    PayWithBalanceDto,
+)
+from src.application.use_cases.referral.commands.payout import (
+    RequestCryptoPayout,
+    RequestCryptoPayoutDto,
 )
 from src.application.use_cases.referral.queries.code import GenerateReferralQr
 from src.application.use_cases.remnawave.commands.management import (
@@ -31,8 +40,18 @@ from src.application.use_cases.user.commands.profile_edit import ResetOwnReferra
 from src.application.use_cases.user.queries.plans import GetAvailableTrial
 from src.core.constants import USER_KEY
 from src.core.enums import MediaType
-from src.core.exceptions import CooldownError
+from src.core.exceptions import (
+    BalanceNegativeError,
+    CooldownError,
+    InsufficientBalanceError,
+    PayoutBelowMinimumError,
+    PayoutLockedError,
+    PlanError,
+    PurchaseError,
+    ReferralError,
+)
 from src.core.utils.i18n_helpers import i18n_format_expire_time
+from src.core.utils.money import kop_to_rub
 from src.core.utils.time import get_traffic_reset_delta
 from src.telegram.keyboards import CALLBACK_CHANNEL_CONFIRM, CALLBACK_RULES_ACCEPT
 from src.telegram.states import MainMenu, Subscription
@@ -308,14 +327,89 @@ async def on_text_button_click(
 
 
 @inject
-async def on_withdraw_points(
-    callback: CallbackQuery,
-    widget: Button,
+async def on_withdraw_wallet_input(
+    message: Message,
+    widget: MessageInput,
     dialog_manager: DialogManager,
+    request_crypto_payout: FromDishka[RequestCryptoPayout],
+    notifier: FromDishka[Notifier],
+) -> None:
+    dialog_manager.show_mode = ShowMode.EDIT
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    wallet = (message.text or "").strip()
+    if not wallet:
+        return
+
+    try:
+        payout = await request_crypto_payout.system(
+            RequestCryptoPayoutDto(user=user, wallet=wallet)
+        )
+    except PayoutBelowMinimumError:
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.payout-below-min")
+        return
+    except PayoutLockedError:
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.payout-locked")
+        return
+    except BalanceNegativeError:
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.payout-negative")
+        return
+    except ReferralError:
+        # base ReferralError → invalid wallet (specific subclasses handled above)
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.payout-bad-wallet")
+        return
+
+    await notifier.notify_user(
+        user=user,
+        payload=MessagePayloadDto(
+            i18n_key="ntf-invite.payout-requested",
+            i18n_kwargs={"amount": kop_to_rub(payout.amount_kop)},
+        ),
+    )
+    await dialog_manager.switch_to(state=MainMenu.INVITE)
+
+
+@inject
+async def on_pay_with_balance_select(
+    callback: CallbackQuery,
+    widget: Select,
+    dialog_manager: DialogManager,
+    item_id: str,
+    pay_with_balance: FromDishka[PayWithBalance],
     notifier: FromDishka[Notifier],
 ) -> None:
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
-    await notifier.notify_user(user=user, i18n_key="ntf-common.withdraw-points")
+    try:
+        plan_id_str, days_str = item_id.split(":", 1)
+        plan_id, days = int(plan_id_str), int(days_str)
+    except (ValueError, AttributeError):
+        return
+
+    try:
+        await pay_with_balance.system(
+            PayWithBalanceDto(user=user, plan_id=plan_id, duration_days=days)
+        )
+    except InsufficientBalanceError:
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.pay-insufficient")
+        return
+    except (PayoutLockedError, BalanceNegativeError):
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.payout-locked")
+        return
+    except PurchaseError:
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.pay-no-subscription")
+        return
+    except PlanError:
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.pay-failed")
+        return
+
+    term = f"{days // 30} мес" if days > 0 and days % 30 == 0 else f"{days} дн"
+    await notifier.notify_user(
+        user=user,
+        payload=MessagePayloadDto(
+            i18n_key="ntf-invite.pay-success",
+            i18n_kwargs={"days": term},
+        ),
+    )
+    await dialog_manager.switch_to(state=MainMenu.INVITE)
 
 
 @inject

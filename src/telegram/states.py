@@ -11,6 +11,8 @@ class MainMenu(StatesGroup):
     DEVICE_CONFIRM_REISSUE = State()
     INVITE = State()
     INVITE_ABOUT = State()
+    INVITE_WITHDRAW = State()
+    INVITE_PAY = State()
 
 
 class Notification(StatesGroup):
@@ -40,6 +42,13 @@ class Subscription(StatesGroup):
 
 class Dashboard(StatesGroup):
     MAIN = State()
+
+
+class DashboardPayouts(StatesGroup):
+    MAIN = State()
+    DETAIL = State()
+    TX_HASH = State()
+    REJECT_REASON = State()
 
 
 class DashboardStatistics(StatesGroup):
