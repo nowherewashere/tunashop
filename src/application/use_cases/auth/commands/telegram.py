@@ -271,9 +271,23 @@ class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
 
             await self.uow.commit()
 
-        # Panel cleanup is best-effort and OUTSIDE the transaction: the DB already
-        # treats these subs as deleted, so a panel hiccup only leaves a logged orphan
-        # to reconcile — never a half-applied merge that could delete a live config.
+        # Panel reconciliation is best-effort and OUTSIDE the transaction: the DB is
+        # the source of truth, so a panel hiccup only leaves stale metadata / a logged
+        # orphan to reconcile — never a half-applied merge that could delete a live config.
+        if best_sub is not None:
+            # The kept panel user was created under the absorbed (bot) account and lacks
+            # the survivor's email. Push the survivor's identity onto it; passing the same
+            # subscription re-writes its plan fields to their current values (no change).
+            try:
+                await self.remnawave.update_user(
+                    actor, best_sub.user_remna_id, subscription=best_sub
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Merge: failed to sync identity onto Remnawave user "
+                    f"{best_sub.user_remna_id}: {e}"
+                )
+
         for remna_id in orphan_remna_ids:
             try:
                 await self.remnawave.delete_user(remna_id)
