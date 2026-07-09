@@ -250,8 +250,6 @@ class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
             actor.purchase_discount = max(actor.purchase_discount, loser.purchase_discount)
 
             best_sub = self._pick_current(actor_sub, loser_sub)
-            if best_sub is not None:
-                actor.current_subscription_id = best_sub.id
 
             updated = await self.user_dao.update(actor)
             if not updated:
@@ -259,6 +257,12 @@ class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="User not found during Telegram link",
                 )
+
+            # Point the survivor at the winning subscription. `current_subscription_id`
+            # is not a UserDto field, so it's set through its dedicated DAO method
+            # rather than as a phantom attribute on the DTO.
+            if best_sub is not None:
+                await self.user_dao.set_current_subscription_by_id(actor.id, best_sub.id)
 
             # The survivor now owns every subscription of both accounts, but only the
             # winning one stays live. Soft-delete the rest in the DB now (inside the
