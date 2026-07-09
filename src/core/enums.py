@@ -161,6 +161,9 @@ class BannerName(StrEnum):
     MENU = auto()
     DASHBOARD = auto()
     SUBSCRIPTION = auto()
+    # Plan-selection ("choose your subscription") screen banner (fix.txt #7); also
+    # the fallback for the per-plan banners below when a plan has no own image.
+    CHOOSE_SUB = auto()
     PROMOCODE = auto()
     REFERRAL = auto()
     DEVICES = auto()

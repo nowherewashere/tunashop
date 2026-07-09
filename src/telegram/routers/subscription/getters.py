@@ -21,6 +21,7 @@ from src.core.utils.i18n_helpers import (
     i18n_format_expire_time,
     i18n_format_traffic_limit,
 )
+from src.telegram.widgets.banner import plan_banner_candidates
 
 
 def _get_gateway_title(i18n: TranslatorRunner, gateway: PaymentGatewayDto) -> str:
@@ -136,6 +137,8 @@ async def plan_getter(
         "name": i18n.get(plan.name),
         "description": i18n.get(plan.description) if plan.description else False,
         "purchase_type": purchase_type,
+        # Per-plan banner (fix.txt #7) — falls back to choose_sub then default.
+        "banner_candidates": plan_banner_candidates(i18n.get(plan.name), plan.id),
     }
 
 
@@ -239,6 +242,8 @@ async def duration_getter(
         "discount_percent": pricing_service.get_effective_discount(user),
         "is_personal_discount": pricing_service.is_largest_discount_personal(user),
         "plan_is_modified": plan_is_modified,
+        # Per-plan banner (fix.txt #7) — falls back to choose_sub then default.
+        "banner_candidates": plan_banner_candidates(i18n.get(plan.name), plan.id),
     }
 
 

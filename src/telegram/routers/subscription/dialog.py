@@ -13,7 +13,7 @@ from src.telegram.keyboards import (
     onboarding_connect_buttons,
 )
 from src.telegram.states import Subscription
-from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
+from src.telegram.widgets import Banner, DataBanner, I18nFormat, IgnoreUpdate
 from src.telegram.widgets.kbd import Button, Column, Group, Row, Select, SwitchTo, Url
 
 from .getters import (
@@ -77,7 +77,7 @@ subscription = Window(
 )
 
 plan = Window(
-    Banner(BannerName.SUBSCRIPTION),
+    DataBanner(),
     I18nFormat("msg-subscription-plan"),
     Column(
         Select(
@@ -97,7 +97,7 @@ plan = Window(
 
 
 plans = Window(
-    Banner(BannerName.SUBSCRIPTION),
+    Banner(BannerName.CHOOSE_SUB),
     I18nFormat("msg-subscription-plans"),
     Column(
         # Plan buttons in the brand blue (spec fix #21). Per-plan colours (e.g. a
@@ -127,7 +127,7 @@ plans = Window(
 )
 
 duration = Window(
-    Banner(BannerName.SUBSCRIPTION),
+    DataBanner(),
     I18nFormat("msg-subscription-duration"),
     Group(
         Select(
@@ -144,6 +144,9 @@ duration = Window(
             items="durations",
             type_factory=int,
             on_click=on_duration_select,
+            # Duration buttons in the brand blue (fix.txt #3); the "return to main
+            # menu" button below stays the default colour.
+            style=Style(ButtonStyle.PRIMARY),
         ),
         # One duration per row (spec fix #6) — the "period | price" label overflows
         # a 2-column layout on narrow phones.
@@ -155,6 +158,7 @@ duration = Window(
             id=f"{PAYMENT_PREFIX}back_plans",
             state=Subscription.PLANS,
             when=~F["only_single_plan"],
+            style=Style(ButtonStyle.PRIMARY),
         ),
     ),
     *back_main_menu_button,

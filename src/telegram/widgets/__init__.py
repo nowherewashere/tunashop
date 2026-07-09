@@ -1,4 +1,4 @@
-from .banner import Banner
+from .banner import Banner, DataBanner
 from .effect import Effect
 from .i18n_format import I18nFormat
 from .ignore_update import IgnoreUpdate
@@ -21,6 +21,7 @@ from .tg_emoji import (
 
 __all__ = [
     "Banner",
+    "DataBanner",
     "Effect",
     "EmojiBack",
     "EmojiButton",

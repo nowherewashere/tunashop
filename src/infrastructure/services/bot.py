@@ -1,12 +1,19 @@
+from pathlib import Path
 from typing import Optional, Union
 from urllib.parse import quote
 
 from aiogram import Bot
+from aiogram.types import FSInputFile
 from aiogram.utils.chat_member import ChatMemberUnion
+from loguru import logger
 
 from src.core.config import AppConfig
 from src.core.constants import T_ME
-from src.core.enums import Deeplink
+from src.core.enums import BannerFormat, Deeplink
+
+# Filename (without extension) of the invite-share banner asset, per fix.txt #6 —
+# lives alongside the other banners in assets/banners/<locale>/ref_banner.<fmt>.
+INVITE_BANNER_NAME = "ref_banner"
 
 
 class BotService:
@@ -17,6 +24,7 @@ class BotService:
         self._can_join_groups: Optional[bool] = None
         self._can_read_all_group_messages: Optional[bool] = None
         self._supports_inline: Optional[bool] = None
+        self._invite_banner_file_id: Optional[str] = None
 
     async def _update_bot_info(self) -> None:
         if self._bot_username is None:
@@ -52,6 +60,52 @@ class BotService:
     async def get_my_name(self) -> str:
         result = await self.bot.get_my_name()
         return result.name
+
+    def _resolve_invite_banner_path(self) -> Optional[Path]:
+        for directory in (
+            self.config.banners_dir / self.config.default_locale,
+            self.config.banners_dir,
+            self.config.default_banners_dir / self.config.default_locale,
+            self.config.default_banners_dir,
+        ):
+            for banner_format in BannerFormat:
+                candidate = directory / f"{INVITE_BANNER_NAME}.{banner_format}"
+                if candidate.exists():
+                    return candidate
+        return None
+
+    async def get_invite_banner_file_id(self) -> Optional[str]:
+        """Telegram file_id of the invite-share banner (fix.txt #6), or None.
+
+        Inline results can only carry media by file_id, so the local asset is
+        uploaded once per process to obtain one. The upload goes to the bot owner
+        as a silent message that is deleted immediately, so nothing lingers; the
+        resulting file_id is cached in memory (file_ids do not expire).
+        """
+        if self._invite_banner_file_id is not None:
+            return self._invite_banner_file_id
+
+        path = self._resolve_invite_banner_path()
+        if path is None:
+            logger.warning(f"Invite banner '{INVITE_BANNER_NAME}' not found in banner dirs")
+            return None
+
+        try:
+            message = await self.bot.send_photo(
+                chat_id=self.config.bot.owner_id,
+                photo=FSInputFile(path),
+                disable_notification=True,
+            )
+            if message.photo:
+                self._invite_banner_file_id = message.photo[-1].file_id
+            await self.bot.delete_message(self.config.bot.owner_id, message.message_id)
+        except Exception as error:
+            # Any failure (owner never started the bot, delete race, etc.) must not
+            # break sharing — the caller falls back to a text-only invite.
+            logger.warning(f"Failed to prepare invite banner file_id: {error}")
+            return None
+
+        return self._invite_banner_file_id
 
     async def get_referral_url(self, referral_code: str) -> str:
         base_url = await self._get_bot_redirect_url()

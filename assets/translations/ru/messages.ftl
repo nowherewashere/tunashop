@@ -9,12 +9,12 @@ msg-main-menu =
     }
 
     <b>{ $is_trial ->
-    [1] 🎁 Пробная подписка
-    *[0] 💳 Подписка{ $has_plan_name ->
+    [1] Пробная подписка
+    *[0] Подписка{ $has_plan_name ->
         [1] { " " }{ $plan_name }
         *[0] { "" }
     }
-    }</b>:
+    }</b>
     { $status ->
     [ACTIVE]
     { $trial_ending ->
@@ -118,16 +118,16 @@ msg-menu-devices-confirm-delete-all =
 # balance) is spec text only for now; the payout backend isn't built, so the ₽ stat
 # lines render as 0 placeholders and no withdraw/balance buttons are shown yet.
 msg-menu-invite =
-    <b>🤝 Реферальная система</b>
-
-    Приглашай и зарабатывай:
+    <b>🤝 Приглашай и зарабатывай</b>
     <blockquote>
-    • 50% с каждого платежа приглашённых — навсегда
-    • Другу — 3 дня бесплатно по твоей ссылке
-    • Выплаты деньгами или оплата подписки балансом
+    1️⃣ Получай 50% с КАЖДОГО платежа друзей
+
+    2️⃣ Друзьям — 3 дня бесплатно по твоей ссылке
+
+    3️⃣ Выплаты реальными деньгами или оплата подписки балансом
     </blockquote>
 
-    <b>🔗 Твои ссылки</b>:
+    <b>🔗 Твои ссылки</b>
     <blockquote>
     Бот: { $referral_url }{ $has_site_link ->
     [1] { "" }
@@ -136,19 +136,20 @@ msg-menu-invite =
     }
     </blockquote>
 
-    <b>📊 Статистика</b>:
+    <b>📊 Статистика</b>
     <blockquote>
     ├ Приглашено: { $referrals }
     ├ Из них платят: { $payments }
-    ├ Твой доход всего: { $income } { $currency }
+    ├ Баланс: { $balance } { $currency }
     ├ Выведено: { $withdrawn } { $currency }
+    ├ Потрачено на VPN: { $spent_on_vpn } { $currency }
     └ Доступно к выводу: { $available } { $currency }
     </blockquote>
 
 msg-menu-invite-about =
     <b>🎁 Подробнее о вознаграждении</b>
 
-    <b>✨ Как получить награду</b>:
+    <b>✨ Как получить награду</b>
     <blockquote>
     { $accrual_strategy ->
     [ON_FIRST_PAYMENT] Награда начисляется за первую покупку подписки приглашенным пользователем.
@@ -157,7 +158,7 @@ msg-menu-invite-about =
     }
     </blockquote>
 
-    <b>💎 Что вы получаете</b>:
+    <b>💎 Что вы получаете</b>
     <blockquote>
     { $max_level -> 
     [1] За приглашенных друзей: { $reward_level_1 }
@@ -262,7 +263,7 @@ msg-statistics-subscriptions =
     • <b>С лимитом трафика</b>: { $total_traffic }  
     • <b>С лимитом устройств</b>: { $total_devices }
     </blockquote>
-    *[HAS] <b>Общий доход</b>:
+    *[HAS] <b>Общий доход</b>
     <blockquote>
     { $all_income }
     </blockquote>
@@ -499,7 +500,7 @@ msg-user-main =
     { hdr-user-profile }
     { frg-user-details }
 
-    <b>💸 Скидка</b>:
+    <b>💸 Скидка</b>
     <blockquote>
     • <b>Персональная</b>: { $personal_discount }%
     • <b>На следующую покупку</b>: { $purchase_discount }%
@@ -805,7 +806,7 @@ msg-user-message =
 msg-remnawave-main =
     <b>🌊 RemnaWave v{ $version }</b>
     
-    <b>🖥️ Система</b>:
+    <b>🖥️ Система</b>
     <blockquote>
     • <b>ЦПУ</b>: { $cpu_cores } { $cpu_cores ->
     [one] ядро
@@ -819,7 +820,7 @@ msg-remnawave-main =
 msg-remnawave-users =
     <b>👥 Пользователи</b>
 
-    <b>📊 Статистика</b>:
+    <b>📊 Статистика</b>
     <blockquote>
     • <b>Всего</b>: { $users_total }
     • <b>Активные</b>: { $users_active }
@@ -828,7 +829,7 @@ msg-remnawave-users =
     • <b>Истекшие</b>: { $users_expired }
     </blockquote>
 
-    <b>🟢 Онлайн</b>:
+    <b>🟢 Онлайн</b>
     <blockquote>
     • <b>За день</b>: { $online_last_day }
     • <b>За неделю</b>: { $online_last_week }
@@ -840,7 +841,7 @@ msg-remnawave-host-details =
     <b>{ $remark } ({ $is_disabled ->
     [1] выключен
     *[0] включен
-    })</b>:
+    })</b>
     <blockquote>
     • <b>Адрес</b>: <code>{ $address }:{ $port }</code>
     { $inbound_uuid ->
@@ -853,7 +854,7 @@ msg-remnawave-node-details =
     <b>{ $country } { $name } ({ $is_connected ->
     [1] подключено
     *[0] отключено
-    })</b>:
+    })</b>
     <blockquote>
     • <b>Адрес</b>: <code>{ $address }{ $port -> 
     [0] { empty }
@@ -1466,10 +1467,10 @@ msg-notifications-system-route-thread-id =
 msg-subscription-main =
     { $has_active_subscription ->
     [1]
-    <b>💳 Твоя подписка</b>:
+    <b>Твоя подписка</b>:
 
     { $subscription_info }
-    *[0] <b>💳 Подписка</b>
+    *[0] <b>Подписка</b>
     }
 msg-subscription-plans =
     <b>Выбери подписку</b>:
@@ -1479,7 +1480,7 @@ msg-subscription-plans =
 # One card per available plan — assembled in plans_getter and injected above.
 # Locations are shared across all plans (APP_PLAN_LOCATIONS) and editable via env.
 frg-plan-card =
-    <b>🐟 { $name }</b>:
+    <b>{ $name }</b>
     <blockquote>
     • <b>Трафик</b>: { $traffic }
     • <b>Устройства</b>: { $devices }
@@ -1508,7 +1509,7 @@ msg-subscription-plan =
     }
     
 msg-subscription-details =
-    <b>{ $plan }</b>:
+    <b>{ $plan }</b>
     <blockquote>
     { $description ->
     [0] { empty }
@@ -1623,7 +1624,7 @@ msg-importer-from-xui =
     
     { $has_exported -> 
     [1]
-    <b>🔍 Найдено</b>:
+    <b>🔍 Найдено</b>
     <blockquote>
     Всего пользователей: { $total }
     С активной подпиской: { $active }
@@ -1645,7 +1646,7 @@ msg-importer-squads =
 msg-importer-import-completed =
     <b>📥 Импорт пользователей завершен</b>
     
-    <b>📃 Информация</b>:
+    <b>📃 Информация</b>
     <blockquote>
     • <b>Всего пользователей</b>: { $total_count }
     • <b>Успешно импортированы</b>: { $success_count }
@@ -1665,7 +1666,7 @@ msg-importer-sync-bot =
 msg-importer-sync-panel-completed =
     <b>📥 Синхронизация панель → бот завершена</b>
 
-    <b>📃 Информация</b>:
+    <b>📃 Информация</b>
     <blockquote>
     Всего пользователей в панели: { $total_panel_users }
     Всего пользователей в боте: { $total_bot_users }
@@ -1680,7 +1681,7 @@ msg-importer-sync-panel-completed =
 msg-importer-sync-bot-completed =
     <b>🔄 Синхронизация бот → панель завершена</b>
 
-    <b>📃 Информация</b>:
+    <b>📃 Информация</b>
     <blockquote>
     Всего пользователей в боте: { $total_bot_users }
 

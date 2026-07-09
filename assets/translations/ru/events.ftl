@@ -93,7 +93,7 @@ event-bot =
 
     { frg-build-info }
 
-    <b>🔓 Доступность</b>:
+    <b>🔓 Доступность</b>
     <blockquote>
     • <b>Режим</b>: { access-mode }
     • <b>Платежи</b>: { $payments_allowed ->
@@ -133,7 +133,7 @@ event-bot =
 
     <b>🔅 Событие: Обнаружено обновление Remnashop!</b>
 
-    <b>📑 Версии</b>:
+    <b>📑 Версии</b>
     <blockquote>
     • <b>Текущая</b>: { $local_version }
     • <b>Последняя</b>: { $remote_version }
@@ -152,7 +152,7 @@ event-user =
     { $referrer_user_id ->
     [0] { empty }
     *[HAS]
-    <b>🤝 Пригласитель</b>:
+    <b>🤝 Пригласитель</b>
     <blockquote>
     { $referrer_telegram_id ->
         [0] • <b>Почта</b>: <code>{ $referrer_email }</code>
@@ -168,7 +168,7 @@ event-user =
     { $ad_link_id ->
     [0] { empty }
     *[HAS]
-    <b>🎯 Рекламная ссылка</b>:
+    <b>🎯 Рекламная ссылка</b>
     <blockquote>
     • <b>Название</b>: { $ad_link_name }
     • <b>Код</b>: <code>{ $ad_link_code }</code>
@@ -445,7 +445,7 @@ event-promocode =
     { hdr-user }
     { frg-user-info }
 
-    <b>🎟 Промокод</b>:
+    <b>🎟 Промокод</b>
     <blockquote>
     • <b>Код</b>: <code>{ $promocode_code }</code>
     • <b>Тип</b>: { promocode-type }

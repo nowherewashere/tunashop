@@ -12,7 +12,7 @@
 msg-onboarding-device =
     <b>🚀 Подключаемся</b>
 
-    На каком устройстве подключаемся? Выбери ниже 👇
+    Выбери свое устройство ниже 👇
 
 # 3-step guided connect (phone / desktop)
 msg-onboarding-connect =

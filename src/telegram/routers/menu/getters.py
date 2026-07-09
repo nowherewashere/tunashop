@@ -298,8 +298,9 @@ async def invite_getter(
         "referral_reset_enabled": int(settings.extra.referral_reset.enabled),
         # Money stats (spec §4.7) — the payout backend isn't built yet, so these are
         # 0 placeholders for now; the copy is in place ahead of the money model.
-        "income": 0,
+        "balance": 0,
         "withdrawn": 0,
+        "spent_on_vpn": 0,
         "available": 0,
         "currency": settings.default_currency.symbol,
     }
