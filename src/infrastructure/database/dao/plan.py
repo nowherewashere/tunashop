@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from src.application.common.dao import PlanDao
 from src.application.dto import PlanDto
+from src.core.constants import PUBLIC_LANDING_PLANS_CACHE_KEY
 from src.core.enums import PlanAvailability
 from src.infrastructure.database.models import Plan, PlanDuration, PlanPrice
 
@@ -50,6 +51,7 @@ class PlanDaoImpl(PlanDao):
 
         self.session.add(db_plan)
         await self.session.flush()
+        await self._invalidate_landing_plans_cache()
 
         logger.debug(f"New plan '{plan.name}' created with '{len(plan.durations)}' durations")
         return self._convert_to_dto(db_plan)
@@ -137,6 +139,13 @@ class PlanDaoImpl(PlanDao):
         logger.debug(f"Plan with public code '{public_code}' not found")
         return None
 
+    async def _invalidate_landing_plans_cache(self) -> None:
+        # The public landing endpoint caches its plan list (see
+        # web/endpoints/public/plans.py). Drop it on any plan mutation so
+        # price/limit/name/status/deletion edits show on the site's next request
+        # instead of waiting out the TTL. The TTL stays as a backstop.
+        await self.redis.delete(PUBLIC_LANDING_PLANS_CACHE_KEY)
+
     async def update(self, plan: PlanDto) -> Optional[PlanDto]:
         stmt = (
             select(Plan)
@@ -167,6 +176,7 @@ class PlanDaoImpl(PlanDao):
         db_plan.durations = new_durations
 
         await self.session.flush()
+        await self._invalidate_landing_plans_cache()
 
         refresh_stmt = (
             select(Plan)
@@ -188,6 +198,7 @@ class PlanDaoImpl(PlanDao):
 
         if db_plan:
             logger.debug(f"Active status for plan '{plan_id}' set to '{is_active}'")
+            await self._invalidate_landing_plans_cache()
             return self._convert_to_dto(db_plan)
 
         logger.warning(f"Failed to update status for plan '{plan_id}': plan not found")
@@ -200,6 +211,7 @@ class PlanDaoImpl(PlanDao):
 
         if deleted_id:
             logger.debug(f"Plan '{plan_id}' and related data deleted")
+            await self._invalidate_landing_plans_cache()
             return True
 
         logger.debug(f"Plan '{plan_id}' not found for deletion")

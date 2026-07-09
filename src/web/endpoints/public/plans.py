@@ -6,7 +6,10 @@ from fastapi import APIRouter
 from redis.asyncio import Redis
 
 from src.application.common.dao import PlanDao
-from src.core.constants import PUBLIC_LANDING_PLANS_CACHE_TTL_SECONDS
+from src.core.constants import (
+    PUBLIC_LANDING_PLANS_CACHE_KEY,
+    PUBLIC_LANDING_PLANS_CACHE_TTL_SECONDS,
+)
 from src.core.enums import Currency, PlanAvailability
 from src.web.schemas import PublicPlanLandingListResponse, PublicPlanLandingResponse
 
@@ -14,7 +17,7 @@ from ._common import _normalize_decimal_str
 
 router = APIRouter(tags=["Public - Plans"])
 
-_CACHE_KEY = "cache:public_landing_plans"
+_CACHE_KEY = PUBLIC_LANDING_PLANS_CACHE_KEY
 
 
 @router.get("/plans/public", response_model=PublicPlanLandingListResponse)

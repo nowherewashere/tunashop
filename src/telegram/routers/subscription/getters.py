@@ -207,7 +207,13 @@ async def duration_getter(
     dialog_manager.dialog_data["is_free"] = False
     durations = []
 
-    for duration in plan.durations:
+    # Deterministic display order for every plan: the admin-controlled order_index
+    # first, then ascending days as the tie-break. New plans (all order_index == 0)
+    # therefore show 1/3/6/12 automatically without any admin reordering, while a
+    # plan whose durations were reordered in the dashboard keeps that order.
+    ordered_durations = sorted(plan.durations, key=lambda d: (d.order_index, d.days))
+
+    for duration in ordered_durations:
         key, kw = i18n_format_days(duration.days)
         price = pricing_service.calculate(user, duration.get_price(currency), currency)
         durations.append(

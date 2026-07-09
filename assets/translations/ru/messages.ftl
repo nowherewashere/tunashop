@@ -119,6 +119,7 @@ msg-menu-devices-confirm-delete-all =
 # lines render as 0 placeholders and no withdraw/balance buttons are shown yet.
 msg-menu-invite =
     <b>🤝 Приглашай и зарабатывай</b>
+
     <blockquote>
     1️⃣ Получай 50% с КАЖДОГО платежа друзей
 
