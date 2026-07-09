@@ -38,10 +38,6 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
     # When the secret is unset, verification is skipped (captcha disabled).
     turnstile_secret: Optional[SecretStr] = Field(default=None, validation_alias="TURNSTILE_SECRET")
     turnstile_site_key: str = Field(default="", validation_alias="TURNSTILE_SITE_KEY")
-    # Chatwoot website live-chat. Both values are public (served to the frontend
-    # via /public/config); empty ⇒ the site widget is disabled. See docs/support.md.
-    chatwoot_base_url: str = Field(default="", validation_alias="CHATWOOT_BASE_URL")
-    chatwoot_website_token: str = Field(default="", validation_alias="CHATWOOT_WEBSITE_TOKEN")
     assets_dir: Path = ASSETS_DIR
     origins: StringList = StringList("")
     swagger_enabled: bool = False
