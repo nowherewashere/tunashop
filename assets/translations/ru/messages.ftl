@@ -150,10 +150,15 @@ msg-menu-invite-withdraw =
     <b>💰 Вывод в крипте</b>
 
     <blockquote>
-    Выведем весь баланс — <b>{ $balance } { $currency }</b> в { $crypto_asset } ({ $crypto_network }).
-    </blockquote>
+    { $can_withdraw ->
+    [1] Выведем весь баланс — <b>{ $balance } { $currency }</b> в { $crypto_asset } ({ $crypto_network }).
 
     Пришли адрес кошелька <b>{ $crypto_asset } · { $crypto_network }</b> сообщением — создадим заявку. Выплаты по понедельникам.
+    *[0] На балансе <b>{ $balance } { $currency }</b>. Вывод в крипту — от <b>{ $payout_min } { $currency }</b>.
+
+    Не хватает ещё <b>{ $remaining_to_min } { $currency }</b>. Приглашай друзей — комиссия падает на баланс. Или оплати балансом свою подписку.
+    }
+    </blockquote>
 
 msg-menu-invite-pay =
     <b>🐟 Оплатить подписку балансом</b>
@@ -167,44 +172,18 @@ msg-menu-invite-pay =
     </blockquote>
 
 msg-menu-invite-about =
-    <b>🎁 Подробнее о вознаграждении</b>
+    <b>🎁 Подробнее о награде</b>
 
-    <b>✨ Как получить награду</b>
+    <b>✨ Как это работает</b>
     <blockquote>
-    { $accrual_strategy ->
-    [ON_FIRST_PAYMENT] Награда начисляется за первую покупку подписки приглашенным пользователем.
-    [ON_EACH_PAYMENT] Награда начисляется за каждую покупку или продление подписки приглашенным пользователем.
-    *[OTHER] { $accrual_strategy }
-    }
+    Делишься своей ссылкой. Друг регистрируется по ней и оформляет подписку — ты получаешь <b>{ $rate }% с каждого его платежа</b>, включая продления. Деньги сразу падают на твой баланс.
     </blockquote>
 
-    <b>💎 Что вы получаете</b>
+    <b>💎 Что получаешь</b>
     <blockquote>
-    { $max_level -> 
-    [1] За приглашенных друзей: { $reward_level_1 }
-    *[MORE]
-    { $identical_reward ->
-    [0]
-    1️⃣ За ваших друзей: { $reward_level_1 }
-    2️⃣ За приглашенных вашими друзьями: { $reward_level_2 }
-    *[1]
-    За ваших друзей и приглашенных вашими друзьями: { $reward_level_1 }
-    }
-    }
-    
-    { $reward_strategy_type ->
-    [AMOUNT] { $reward_type ->
-        [POINTS] { space }
-        [EXTRA_DAYS] <i>(Все дополнительные дни начисляются к вашей текущей подписке)</i>
-        *[OTHER] { $reward_type }
-    }
-    [PERCENT] { $reward_type ->
-        [POINTS] <i>(Процент баллов от стоимости их приобретенной подписки)</i>
-        [EXTRA_DAYS] <i>(Процент доп. дней от их приобретенной подписки)</i>
-        *[OTHER] { $reward_type }
-    }
-    *[OTHER] { $reward_strategy_type }
-    }
+    • <b>{ $rate }%</b> с каждого платежа приглашённых — навсегда
+    • Друзьям — расширенный бесплатный период по твоей ссылке
+    • Баланс можно <b>вывести в крипту</b> (от { $min } ₽, выплаты по понедельникам) или <b>оплатить им свою подписку</b>
     </blockquote>
 
 msg-invite-reward = { $value }{ $reward_strategy_type ->

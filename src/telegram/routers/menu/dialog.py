@@ -311,13 +311,13 @@ invite = Window(
             text=I18nFormat("btn-invite.withdraw"),
             id="withdraw",
             state=MainMenu.INVITE_WITHDRAW,
-            when=F["can_withdraw"],
+            when=~F["has_open_payout"],
         ),
         SwitchTo(
             text=I18nFormat("btn-invite.pay-vpn"),
             id="pay_vpn",
             state=MainMenu.INVITE_PAY,
-            when=F["can_pay"],
+            when=~F["has_open_payout"],
         ),
     ),
     Row(
