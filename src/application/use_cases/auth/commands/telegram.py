@@ -228,6 +228,13 @@ class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
         async with self.uow:
             await self.account_merge.reassign_children(actor.id, loser.id)
 
+            # Delete the absorbed row BEFORE stamping its telegram_id onto the
+            # survivor. ``ix_users_telegram_id`` is a unique index, so the two rows
+            # cannot both carry that telegram_id — not even mid-transaction — and
+            # updating the survivor first raises a UniqueViolationError. The loser's
+            # children were just repointed onto the survivor, so this cascades nothing.
+            await self.user_dao.delete(loser.id)
+
             actor.telegram_id = data.id
             if actor.username is None:
                 actor.username = data.username or loser.username
@@ -247,7 +254,6 @@ class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="User not found during Telegram link",
                 )
-            await self.user_dao.delete(loser.id)
             await self.uow.commit()
         return updated
 
