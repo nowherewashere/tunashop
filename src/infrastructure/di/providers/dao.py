@@ -1,6 +1,7 @@
 from dishka import Provider, Scope, provide
 
 from src.application.common.dao import (
+    AccountMergeDao,
     AdLinkDao,
     AuthSessionDao,
     BroadcastDao,
@@ -22,6 +23,7 @@ from src.application.common.dao import (
     WebhookDao,
 )
 from src.infrastructure.database.dao import (
+    AccountMergeDaoImpl,
     AdLinkDaoImpl,
     BroadcastDaoImpl,
     LifecycleFollowupDaoImpl,
@@ -47,6 +49,7 @@ from src.infrastructure.redis.rate_limit import RedisRateLimiter
 class DaoProvider(Provider):
     scope = Scope.REQUEST
 
+    account_merge = provide(source=AccountMergeDaoImpl, provides=AccountMergeDao)
     ad_link = provide(source=AdLinkDaoImpl, provides=AdLinkDao)
     broadcast = provide(source=BroadcastDaoImpl, provides=BroadcastDao)
     onboarding_nudge = provide(source=OnboardingNudgeDaoImpl, provides=OnboardingNudgeDao)

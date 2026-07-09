@@ -6,10 +6,10 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from src.application.common import Interactor
-from src.application.common.dao import UserDao
+from src.application.common.dao import AccountMergeDao, SubscriptionDao, UserDao
 from src.application.common.policy import Permission
 from src.application.common.uow import UnitOfWork
-from src.application.dto import UserDto
+from src.application.dto import SubscriptionDto, UserDto
 from src.application.use_cases.auth._telegram import (
     parse_webapp_init_data,
     verify_telegram_auth,
@@ -142,12 +142,37 @@ class LinkTelegramData:
 
 
 class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
+    """Attach a Telegram identity to the authenticated (site) account.
+
+    Three outcomes, all keyed off whether that Telegram already owns a row:
+
+    - No existing row  → plain link: stamp ``telegram_id`` onto the actor.
+    - A separate bot account owns it → **merge** it into the actor: repoint its
+      subscription/referrals/history, sum referral points, adopt its Telegram
+      identity, then delete the emptied row. The bot's Remnawave panel user is
+      preserved (we repoint, never recreate), so the existing VPN config keeps
+      working — and because the actor now carries that ``telegram_id``, its
+      ``remna_name`` matches the panel user too.
+    - Both accounts already have an active paid subscription → refuse with
+      ``two_active_subscriptions``; combining two live VPN configs is a support
+      decision, not something we silently destroy.
+    """
+
     required_permission = Permission.PUBLIC
 
-    def __init__(self, config: AppConfig, uow: UnitOfWork, user_dao: UserDao) -> None:
+    def __init__(
+        self,
+        config: AppConfig,
+        uow: UnitOfWork,
+        user_dao: UserDao,
+        subscription_dao: SubscriptionDao,
+        account_merge: AccountMergeDao,
+    ) -> None:
         self.config = config
         self.uow = uow
         self.user_dao = user_dao
+        self.subscription_dao = subscription_dao
+        self.account_merge = account_merge
 
     async def _execute(self, actor: UserDto, data: LinkTelegramData) -> UserDto:
         bot_token = self.config.bot.token.get_secret_value()
@@ -163,16 +188,17 @@ class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
         if actor.telegram_id is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Already linked to a different Telegram account",
+                detail="already_linked_other",
             )
 
         existing = await self.user_dao.get_by_telegram_id(data.id)
-        if existing and existing.id != actor.id:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Telegram account already linked to another user",
-            )
+        if existing is None:
+            return await self._link(actor, data)
+        if existing.id == actor.id:
+            return actor
+        return await self._merge(actor, existing, data)
 
+    async def _link(self, actor: UserDto, data: LinkTelegramData) -> UserDto:
         actor.telegram_id = data.id
         if data.username is not None:
             actor.username = data.username
@@ -186,3 +212,57 @@ class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
                 )
             await self.uow.commit()
         return updated
+
+    async def _merge(self, actor: UserDto, loser: UserDto, data: LinkTelegramData) -> UserDto:
+        if loser.is_blocked:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="account_blocked")
+
+        actor_sub = await self.subscription_dao.get_current(actor.id)
+        loser_sub = await self.subscription_dao.get_current(loser.id)
+        if self._is_active_paid(actor_sub) and self._is_active_paid(loser_sub):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="two_active_subscriptions",
+            )
+
+        async with self.uow:
+            await self.account_merge.reassign_children(actor.id, loser.id)
+
+            actor.telegram_id = data.id
+            if actor.username is None:
+                actor.username = data.username or loser.username
+            actor.points += loser.points
+            actor.is_rules_accepted = actor.is_rules_accepted or loser.is_rules_accepted
+            actor.is_trial_available = actor.is_trial_available and loser.is_trial_available
+            actor.personal_discount = max(actor.personal_discount, loser.personal_discount)
+            actor.purchase_discount = max(actor.purchase_discount, loser.purchase_discount)
+
+            best_sub = self._pick_current(actor_sub, loser_sub)
+            if best_sub is not None:
+                actor.current_subscription_id = best_sub.id
+
+            updated = await self.user_dao.update(actor)
+            if not updated:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found during Telegram link",
+                )
+            await self.user_dao.delete(loser.id)
+            await self.uow.commit()
+        return updated
+
+    @staticmethod
+    def _is_active_paid(sub: "SubscriptionDto | None") -> bool:
+        return sub is not None and not sub.is_expired and not sub.is_trial
+
+    @staticmethod
+    def _pick_current(
+        actor_sub: "SubscriptionDto | None",
+        loser_sub: "SubscriptionDto | None",
+    ) -> "SubscriptionDto | None":
+        # Prefer a still-valid sub over an expired one, a paid sub over a trial,
+        # then the later expiry — so the merged account surfaces its best config.
+        candidates = [s for s in (actor_sub, loser_sub) if s is not None]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda s: (not s.is_expired, not s.is_trial, s.expire_at))
