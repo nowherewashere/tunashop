@@ -1,13 +1,16 @@
 import json
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
 from fastapi import HTTPException, status
+from loguru import logger
 from sqlalchemy.exc import IntegrityError
 
 from src.application.common import Interactor
 from src.application.common.dao import AccountMergeDao, SubscriptionDao, UserDao
 from src.application.common.policy import Permission
+from src.application.common.remnawave import Remnawave
 from src.application.common.uow import UnitOfWork
 from src.application.dto import SubscriptionDto, UserDto
 from src.application.use_cases.auth._telegram import (
@@ -20,7 +23,7 @@ from src.application.use_cases.user.commands.web_registration import (
     RegisterWebUserDto,
 )
 from src.core.config import AppConfig
-from src.core.enums import AuthType
+from src.core.enums import AuthType, SubscriptionStatus
 
 
 @dataclass
@@ -167,12 +170,14 @@ class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
         user_dao: UserDao,
         subscription_dao: SubscriptionDao,
         account_merge: AccountMergeDao,
+        remnawave: Remnawave,
     ) -> None:
         self.config = config
         self.uow = uow
         self.user_dao = user_dao
         self.subscription_dao = subscription_dao
         self.account_merge = account_merge
+        self.remnawave = remnawave
 
     async def _execute(self, actor: UserDto, data: LinkTelegramData) -> UserDto:
         bot_token = self.config.bot.token.get_secret_value()
@@ -228,6 +233,13 @@ class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
         async with self.uow:
             await self.account_merge.reassign_children(actor.id, loser.id)
 
+            # Delete the absorbed row BEFORE stamping its telegram_id onto the
+            # survivor. ``ix_users_telegram_id`` is a unique index, so the two rows
+            # cannot both carry that telegram_id — not even mid-transaction — and
+            # updating the survivor first raises a UniqueViolationError. The loser's
+            # children were just repointed onto the survivor, so this cascades nothing.
+            await self.user_dao.delete(loser.id)
+
             actor.telegram_id = data.id
             if actor.username is None:
                 actor.username = data.username or loser.username
@@ -247,9 +259,42 @@ class LinkTelegram(Interactor[LinkTelegramData, UserDto]):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="User not found during Telegram link",
                 )
-            await self.user_dao.delete(loser.id)
+
+            # The survivor now owns every subscription of both accounts, but only the
+            # winning one stays live. Soft-delete the rest in the DB now (inside the
+            # transaction); their Remnawave panel users are removed after commit.
+            orphan_remna_ids = await self._retire_losing_subscriptions(actor.id, best_sub)
+
             await self.uow.commit()
+
+        # Panel cleanup is best-effort and OUTSIDE the transaction: the DB already
+        # treats these subs as deleted, so a panel hiccup only leaves a logged orphan
+        # to reconcile — never a half-applied merge that could delete a live config.
+        for remna_id in orphan_remna_ids:
+            try:
+                await self.remnawave.delete_user(remna_id)
+            except Exception as e:
+                logger.warning(f"Merge: failed to delete orphan Remnawave user {remna_id}: {e}")
+
         return updated
+
+    async def _retire_losing_subscriptions(
+        self, survivor_id: int, best_sub: "SubscriptionDto | None"
+    ) -> set[UUID]:
+        """Mark every non-winning subscription DELETED; return the distinct Remnawave
+        user ids to remove (all except the winner's, so the panel keeps exactly one)."""
+        if best_sub is None:
+            return set()
+
+        keep = best_sub.user_remna_id
+        orphans: set[UUID] = set()
+        for sub in await self.subscription_dao.get_all_by_user(survivor_id):
+            if sub.user_remna_id == keep:
+                continue
+            orphans.add(sub.user_remna_id)
+            if sub.status != SubscriptionStatus.DELETED:
+                await self.subscription_dao.update_status(sub.id, SubscriptionStatus.DELETED)
+        return orphans
 
     @staticmethod
     def _is_active_paid(sub: "SubscriptionDto | None") -> bool:
