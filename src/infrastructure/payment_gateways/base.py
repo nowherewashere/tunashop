@@ -39,6 +39,11 @@ class BasePaymentGateway(ABC):
         # whose webhook exposes the PSP fee sets this inside ``handle_webhook``; the
         # payments endpoint then persists it onto the transaction. Left None when the
         # gateway's webhook carries no fee — net stays unknown rather than guessed.
+        #
+        # TODO(metrics net_rub): no gateway populates this yet — the real PSP is not
+        # chosen. Once it is, set ``self.settled_amount`` from that provider's webhook
+        # body. The whole downstream pipeline (persist → transactions.net_amount →
+        # payment event ``net``) is already wired; this is the only missing line.
         self.settled_amount: Optional[Decimal] = None
 
         logger.debug(f"{self.__class__.__name__} Initialized")

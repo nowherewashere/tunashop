@@ -15,7 +15,7 @@ no live dashboards.
 | `MetricsEventListener` (maps ~7 business + node events) | `infrastructure/services/metrics.py` |
 | Metric-signal events (`FunnelStepEvent`, `ReferralCommissionRecordedEvent`) | `application/events/metrics.py` |
 | Vocabulary (event types, sources, funnel steps, thresholds) | `core/metrics.py` |
-| `net_rub` capture | gateway seam `payment_gateways/base.py` (`settled_amount`); YooKassa `income_amount`; persisted in `web/endpoints/payments.py` |
+| `net_rub` capture (**seam only — not wired to a gateway yet**, see TODO) | gateway seam `payment_gateways/base.py` (`settled_amount`); persisted in `web/endpoints/payments.py`; column `transactions.net_amount` |
 | `referral_attributed` emit | `use_cases/referral/commands/commission.py` (at the ledger-insert seam) |
 | Funnel — site endpoint | `web/endpoints/public/events.py` → `POST /api/v1/public/events/funnel` |
 | Funnel — bot emits | `telegram/routers/onboarding/{handlers,getters,metrics}.py` |
@@ -67,10 +67,13 @@ Every write is off the user's critical path and swallows its own errors:
 
 ## Coverage & known limits (honest, per spec)
 
-- **`net_rub`**: implemented for **YooKassa** (`income_amount` = amount − commission).
-  Other gateways keep `net = NULL` (excluded from the fee curve, not guessed). To add
-  one: set `self.settled_amount` inside that gateway's `handle_webhook` from its raw
-  body; the endpoint persists it automatically.
+- **`net_rub` — TODO, not wired to any gateway.** The full pipeline is ready
+  (`settled_amount` seam → persist → `transactions.net_amount` → payment event `net`),
+  but no gateway sets `settled_amount`, so `net` is currently always NULL (excluded
+  from the fee curve, not guessed). The real PSP hasn't been chosen. **To finish:**
+  once it is, set `self.settled_amount` inside that provider's `handle_webhook` from
+  its raw webhook body (the settled-after-fee amount) — a one-line change; everything
+  downstream already works.
 - **Probes** are **node-level TCP reachability** (`address:port`) — the honest limit
   of an external probe ("is the node up at all?", §6.4). `protocol`/`operator` are
   left null; per-protocol probing needs the hosts/inbounds inventory
