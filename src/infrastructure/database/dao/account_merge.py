@@ -4,9 +4,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.application.common.dao import AccountMergeDao
 from src.infrastructure.database.models import (
+    BalanceSpend,
     BroadcastMessage,
+    Payout,
     PromocodeActivation,
     Referral,
+    ReferralEvent,
     ReferralReward,
     Subscription,
     Transaction,
@@ -38,12 +41,47 @@ class AccountMergeDaoImpl(AccountMergeDao):
             .where(BroadcastMessage.user_id == loser_id)
             .values(user_id=survivor_id)
         )
+        # Money ledger (referral spec §2). These FKs cascade on user delete, so leaving
+        # them out silently wipes the absorbed account's balance and payout history.
+        await self.session.execute(
+            update(Payout).where(Payout.user_id == loser_id).values(user_id=survivor_id)
+        )
+        await self.session.execute(
+            update(BalanceSpend)
+            .where(BalanceSpend.user_id == loser_id)
+            .values(user_id=survivor_id)
+        )
 
         await self._reassign_referrals(survivor_id, loser_id)
+        await self._reassign_referral_events(survivor_id, loser_id)
         await self._reassign_promocode_activations(survivor_id, loser_id)
         await self._reassign_oauth_providers(survivor_id, loser_id)
 
         logger.debug(f"Reassigned child records from user '{loser_id}' to '{survivor_id}'")
+
+    async def _reassign_referral_events(self, survivor_id: int, loser_id: int) -> None:
+        # Commission rows earned *between* the two accounts must go: repointing them
+        # would mint a self-referral (referrer == referred), i.e. commission farmed from
+        # your own second account. Rows that are already self-referential are left
+        # untouched — real code can never create them (attribution rejects self-referral).
+        await self.session.execute(
+            delete(ReferralEvent).where(
+                ReferralEvent.referrer_id.in_((survivor_id, loser_id)),
+                ReferralEvent.referred_id.in_((survivor_id, loser_id)),
+                ReferralEvent.referrer_id != ReferralEvent.referred_id,
+            )
+        )
+        # payment_id is globally unique, not per-user, so both columns repoint freely.
+        await self.session.execute(
+            update(ReferralEvent)
+            .where(ReferralEvent.referrer_id == loser_id)
+            .values(referrer_id=survivor_id)
+        )
+        await self.session.execute(
+            update(ReferralEvent)
+            .where(ReferralEvent.referred_id == loser_id)
+            .values(referred_id=survivor_id)
+        )
 
     async def _reassign_referrals(self, survivor_id: int, loser_id: int) -> None:
         # Drop any referral edge directly between the two accounts first, so a
