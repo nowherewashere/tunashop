@@ -145,6 +145,11 @@ msg-menu-invite =
     ├ Выведено: { $withdrawn } { $currency }
     └ Потрачено на VPN: { $spent_on_vpn } { $currency }
     </blockquote>
+    { $has_open_payout ->
+    [1] { space }
+    ⏳ <b>Заявка на вывод в обработке.</b> Баланс закреплён за ней — вывод и оплата балансом снова будут доступны после выплаты.
+    *[0] { "" }
+    }
 
 msg-menu-invite-withdraw =
     <b>💰 Вывод в крипте</b>
