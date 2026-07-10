@@ -10,6 +10,10 @@ class AccountMergeDao(Protocol):
         single merge transaction. Rows that would violate a per-user unique
         constraint on the survivor (a second `referred_id`, a promocode the
         survivor already redeemed, an OAuth provider already linked) are dropped
-        rather than repointed.
+        rather than repointed, as are referral commissions earned *between* the two
+        accounts (repointing them would mint a self-referral).
+
+        Every table with a user FK must be covered here: those FKs cascade on user
+        delete, so anything omitted is silently destroyed when the loser row goes.
         """
         ...
