@@ -169,6 +169,10 @@ class ConfirmEmailVerificationRequest(BaseModel):
 class ConfirmEmailVerificationResponse(BaseModel):
     success: bool
     email: str
+    # True when confirming this email absorbed a separate site account into the current
+    # one — the mirror of `TelegramLinkResponse.merged`. The client re-reads /auth/me
+    # afterwards, since a merge can also pull in the absorbed account's Telegram.
+    merged: bool = False
 
 
 class TelegramAuthRequest(BaseModel):
