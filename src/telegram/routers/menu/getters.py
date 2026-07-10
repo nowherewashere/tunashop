@@ -307,8 +307,9 @@ async def invite_getter(
         "referral_reset_enabled": int(settings.extra.referral_reset.enabled),
         # The action buttons are always offered (discoverability); each flow explains
         # when there is nothing to do yet. They only hide while a payout is open, since
-        # that locks both withdraw and pay-with-balance (spec §3.3).
-        "has_open_payout": summary.has_open_payout,
+        # that locks both withdraw and pay-with-balance (spec §3.3) — the screen then
+        # shows a "заявка в обработке" note so the still-shown balance isn't confusing.
+        "has_open_payout": int(summary.has_open_payout),
     }
 
 
