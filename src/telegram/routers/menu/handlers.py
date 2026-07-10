@@ -22,6 +22,8 @@ from src.application.use_cases.referral.commands.balance import (
     PayWithBalanceDto,
 )
 from src.application.use_cases.referral.commands.payout import (
+    ChangeCryptoPayoutWallet,
+    ChangeCryptoWalletDto,
     RequestCryptoPayout,
     RequestCryptoPayoutDto,
     RequestPayoutStars,
@@ -60,7 +62,7 @@ from src.core.exceptions import (
     ReferralError,
 )
 from src.core.utils.i18n_helpers import i18n_format_expire_time
-from src.core.utils.money import kop_to_rub
+from src.core.utils.money import kop_to_rub, mask_wallet
 from src.core.utils.time import get_traffic_reset_delta
 from src.telegram.keyboards import CALLBACK_CHANNEL_CONFIRM, CALLBACK_RULES_ACCEPT
 from src.telegram.states import MainMenu, Subscription
@@ -372,6 +374,44 @@ async def on_withdraw_wallet_input(
         payload=MessagePayloadDto(
             i18n_key="ntf-invite.payout-requested",
             i18n_kwargs={"amount": kop_to_rub(payout.amount_kop)},
+        ),
+    )
+    await dialog_manager.switch_to(state=MainMenu.INVITE)
+
+
+@inject
+async def on_edit_wallet_input(
+    message: Message,
+    widget: MessageInput,
+    dialog_manager: DialogManager,
+    change_crypto_payout_wallet: FromDishka[ChangeCryptoPayoutWallet],
+    notifier: FromDishka[Notifier],
+) -> None:
+    dialog_manager.show_mode = ShowMode.EDIT
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    wallet = (message.text or "").strip()
+    if not wallet:
+        return
+
+    try:
+        payout = await change_crypto_payout_wallet.system(
+            ChangeCryptoWalletDto(user=user, wallet=wallet)
+        )
+    except PayoutLockedError:
+        # The payout was taken into work between opening this screen and sending — the
+        # address is frozen now. Bounce back to the referral screen with an explanation.
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.wallet-edit-locked")
+        await dialog_manager.switch_to(state=MainMenu.INVITE)
+        return
+    except ReferralError:
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.payout-bad-wallet")
+        return
+
+    await notifier.notify_user(
+        user=user,
+        payload=MessagePayloadDto(
+            i18n_key="ntf-invite.wallet-updated",
+            i18n_kwargs={"wallet": mask_wallet(payout.crypto_wallet or "")},
         ),
     )
     await dialog_manager.switch_to(state=MainMenu.INVITE)

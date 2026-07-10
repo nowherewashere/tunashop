@@ -51,6 +51,14 @@ class ReferralLedgerDao(Protocol):
         """Most recent payout carrying a crypto wallet, to prefill repeat payouts."""
         ...
 
+    async def update_open_crypto_wallet(self, user_id: int, wallet: str) -> bool:
+        """Change the wallet on the user's open, still-``requested`` crypto payout.
+
+        Guarded on ``status = requested`` so a concurrent transition to ``processing``
+        (weekly batch / operator) can't be overwritten. Returns ``True`` if a row was
+        updated, ``False`` if there was no editable crypto payout."""
+        ...
+
     # --- operator transitions (each stamps operator_id + processed_at) ---
     async def mark_processing(self, payout_id: int, operator_id: Optional[int]) -> None: ...
 

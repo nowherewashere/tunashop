@@ -31,6 +31,7 @@ from .getters import (
     invite_about_getter,
     invite_getter,
     invite_pay_getter,
+    invite_withdraw_edit_getter,
     invite_withdraw_getter,
     invite_withdraw_method_getter,
     invite_withdraw_stars_getter,
@@ -40,6 +41,7 @@ from .handlers import (
     on_device_delete_all_confirm,
     on_device_delete_confirm,
     on_device_delete_request,
+    on_edit_wallet_input,
     on_get_trial,
     on_invite,
     on_invite_withdraw_click,
@@ -287,6 +289,19 @@ device_confirm_delete_all = Window(
 invite = Window(
     Banner(BannerName.REFERRAL),
     I18nFormat("msg-menu-invite"),
+    # Change-address action (tofix item 11) — full-width red button, first in the
+    # column, shown only while a crypto payout is still editable (requested, not yet
+    # taken into work). Mutually exclusive with the withdraw button below (which hides
+    # once a payout is open).
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-invite.edit-wallet"),
+            id="edit_wallet",
+            state=MainMenu.INVITE_WITHDRAW_EDIT,
+            style=Style(ButtonStyle.DANGER),
+            when=F["payout_editable"],
+        ),
+    ),
     # Money actions — one full-width green button per row (Вывести first). Вывести is
     # a Button (not SwitchTo): below the minimum it answers with a popup instead of
     # opening the screen. Both hide while a payout is open (locked, spec §3.3).
@@ -440,6 +455,22 @@ invite_withdraw = Window(
     getter=invite_withdraw_getter,
 )
 
+invite_withdraw_edit = Window(
+    Banner(BannerName.REFERRAL),
+    I18nFormat("msg-menu-invite-withdraw-edit"),
+    MessageInput(on_edit_wallet_input),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=MainMenu.INVITE,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=MainMenu.INVITE_WITHDRAW_EDIT,
+    getter=invite_withdraw_edit_getter,
+)
+
 invite_withdraw_stars = Window(
     Banner(BannerName.REFERRAL),
     I18nFormat("msg-menu-invite-withdraw-stars"),
@@ -521,6 +552,7 @@ router = Dialog(
     invite_share,
     invite_withdraw_method,
     invite_withdraw,
+    invite_withdraw_edit,
     invite_withdraw_stars,
     invite_pay,
 )

@@ -92,6 +92,7 @@ btn-invite =
     .qr = 🧾 QR-код
     .withdraw-points = 💎 Обменять баллы
     .withdraw = 💰 Вывести
+    .edit-wallet = ✏️ Изменить адрес
     .withdraw-crypto = 🪙 Крипта ({ $crypto_asset })
     .withdraw-stars = ⭐ Telegram Stars
     .confirm-stars = ⭐ Получить Stars

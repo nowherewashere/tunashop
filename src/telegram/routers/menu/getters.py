@@ -8,6 +8,7 @@ from loguru import logger
 
 from src.application.common import BotService, Remnawave, TranslatorRunner
 from src.application.common.dao import (
+    ReferralLedgerDao,
     SettingsDao,
     SubscriptionDao,
     UserConnectionStateDao,
@@ -27,8 +28,12 @@ from src.core.utils.i18n_helpers import (
     i18n_format_expire_time,
     i18n_format_traffic_limit,
 )
-from src.core.utils.money import kop_to_rub, kop_to_stars
+from src.core.utils.money import kop_to_rub, kop_to_stars, mask_wallet
 from src.core.utils.time import datetime_now, get_traffic_reset_delta
+from src.infrastructure.database.models.referral_ledger import (
+    PAYOUT_METHOD_STARS,
+    PAYOUT_REQUESTED,
+)
 
 
 def _term_label(days: int) -> str:
@@ -283,6 +288,7 @@ async def invite_getter(
     bot_service: FromDishka[BotService],
     settings_dao: FromDishka[SettingsDao],
     get_referral_summary: FromDishka[GetReferralSummary],
+    referral_ledger_dao: FromDishka[ReferralLedgerDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
     settings = await settings_dao.get()
@@ -293,7 +299,37 @@ async def invite_getter(
     site_base = config.referral_site_url.strip().rstrip("/")
     site_referral_url = f"{site_base}/r/{user.referral_code}" if site_base else ""
 
+    # Open-payout receipt (tofix item 11): show the amount, destination and payout day
+    # under the "заявка в обработке" note, and let the user edit a crypto wallet while
+    # the payout is still 'requested' (before an operator/batch takes it into work).
+    open_payout = await referral_ledger_dao.get_open_payout(user.id)
+    payout_fields: dict[str, Any] = {
+        "payout_method": "crypto",
+        "payout_amount": "0",
+        "payout_asset": config.payout.crypto_asset,
+        "payout_network": config.payout.crypto_network,
+        "payout_wallet": "",
+        "payout_stars": 0,
+        "payout_editable": 0,
+    }
+    if open_payout:
+        is_stars = open_payout.method == PAYOUT_METHOD_STARS
+        payout_fields.update(
+            {
+                "payout_method": "stars" if is_stars else "crypto",
+                "payout_amount": kop_to_rub(open_payout.amount_kop),
+                "payout_asset": open_payout.crypto_asset or config.payout.crypto_asset,
+                "payout_network": open_payout.crypto_network or config.payout.crypto_network,
+                "payout_wallet": mask_wallet(open_payout.crypto_wallet or ""),
+                "payout_stars": open_payout.stars_amount or 0,
+                "payout_editable": int(
+                    not is_stars and open_payout.status == PAYOUT_REQUESTED
+                ),
+            }
+        )
+
     return {
+        **payout_fields,
         # Stats block (spec §8.1) — real money now, all in ₽ (kopecks derived).
         "referrals": summary.invited,
         "payments": summary.paying,
@@ -327,6 +363,33 @@ async def invite_withdraw_getter(
         "currency": "₽",
         "crypto_asset": config.payout.crypto_asset,
         "crypto_network": config.payout.crypto_network,
+    }
+
+
+@inject
+async def invite_withdraw_edit_getter(
+    dialog_manager: DialogManager,
+    config: AppConfig,
+    user: TelegramUserDto,
+    get_referral_summary: FromDishka[GetReferralSummary],
+    referral_ledger_dao: FromDishka[ReferralLedgerDao],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    # Change-address screen (tofix item 11): show the current (masked) wallet so the
+    # user can confirm they're editing the right request.
+    summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
+    open_payout = await referral_ledger_dao.get_open_payout(user.id)
+    current_wallet = (
+        mask_wallet(open_payout.crypto_wallet)
+        if open_payout and open_payout.crypto_wallet
+        else "—"
+    )
+    return {
+        "balance": kop_to_rub(summary.balance_kop),
+        "currency": "₽",
+        "crypto_asset": config.payout.crypto_asset,
+        "crypto_network": config.payout.crypto_network,
+        "current_wallet": current_wallet,
     }
 
 

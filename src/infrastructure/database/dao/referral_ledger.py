@@ -191,6 +191,20 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
         row = await self.session.scalar(stmt)
         return to_payout_dto(row) if row else None
 
+    async def update_open_crypto_wallet(self, user_id: int, wallet: str) -> bool:
+        result = await self.session.execute(
+            update(Payout)
+            .where(
+                Payout.user_id == user_id,
+                Payout.method == PAYOUT_METHOD_CRYPTO,
+                Payout.status == PAYOUT_REQUESTED,
+            )
+            .values(crypto_wallet=wallet)
+        )
+        updated = (result.rowcount or 0) > 0  # type: ignore[attr-defined]
+        logger.debug(f"Payout wallet change for user id='{user_id}': updated={updated}")
+        return updated
+
     # --- operator transitions ---
     async def mark_processing(self, payout_id: int, operator_id: Optional[int]) -> None:
         await self.session.execute(

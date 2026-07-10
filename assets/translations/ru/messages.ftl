@@ -1,7 +1,7 @@
 # Menu
 msg-main-menu =
     <b>Tuna VPN</b> 🐟
-    Рассекаем волны блокировок.
+    Открытый океан интернета.
 
     👋 { $has_name ->
     [1] Привет, { $name }!
@@ -121,11 +121,11 @@ msg-menu-invite =
     <b>🤝 Приглашай и зарабатывай</b>
 
     <blockquote>
-    1️⃣ Получай 50% с КАЖДОГО платежа друзей
+    1️⃣ Получай 50% с <b>КАЖДОГО</b> платежа друзей
 
-    2️⃣ Друзьям — 3 дня бесплатно по твоей ссылке
+    2️⃣ Друзьям — 3 дня <b>бесплатно</b> по твоей ссылке
 
-    3️⃣ Выплаты реальными деньгами или оплата подписки балансом
+    3️⃣ Выплаты <b>реальными деньгами</b> или оплата подписки балансом
     </blockquote>
 
     <b>🔗 Твои ссылки</b>
@@ -147,7 +147,16 @@ msg-menu-invite =
     </blockquote>
     { $has_open_payout ->
     [1] { space }
-    ⏳ <b>Заявка на вывод в обработке.</b> Баланс закреплён за ней — вывод и оплата балансом снова будут доступны после выплаты.
+    ⏳ <b>Заявка на вывод в обработке</b>
+    <blockquote>
+    { $payout_method ->
+    [stars] Сумма: { $payout_amount } { $currency } → { $payout_stars } ⭐
+    Выплата: в течение дня
+    *[crypto] Сумма: { $payout_amount } { $currency } → { $payout_asset } ({ $payout_network })
+    Адрес: { $payout_wallet }
+    Выплата: в понедельник
+    }
+    </blockquote>
     *[0] { "" }
     }
 
@@ -168,13 +177,25 @@ msg-menu-invite-withdraw-method =
     Выбери способ ниже.
 
 msg-menu-invite-withdraw =
-    <b>💰 Вывод в крипте</b>
+    <b>💰 Вывод средств</b>
 
     <blockquote>
     Выведем весь баланс — <b>{ $balance } { $currency }</b> в { $crypto_asset } ({ $crypto_network }).
+
+    ⚠️ Проверь адрес и сеть ({ $crypto_network }) кошелька перед отправкой. Переводы в крипте необратимы — при неверном адресе средства вернуть нельзя.
     </blockquote>
 
-    Пришли адрес кошелька <b>{ $crypto_asset } · { $crypto_network }</b> сообщением — создадим заявку. Выплаты по понедельникам.
+    Пришли адрес кошелька { $crypto_asset } ({ $crypto_network }) в сообщении — создадим заявку. Выплаты по понедельникам.
+
+msg-menu-invite-withdraw-edit =
+    <b>✏️ Изменить адрес вывода</b>
+
+    <blockquote>
+    Текущий адрес: <code>{ $current_wallet }</code>
+    Сумма: <b>{ $balance } { $currency }</b> в { $crypto_asset } ({ $crypto_network })
+    </blockquote>
+
+    Пришли новый адрес кошелька { $crypto_asset } ({ $crypto_network }) сообщением — обновим заявку. Успеть можно, пока её не взяли в работу.
 
 msg-menu-invite-withdraw-stars =
     <b>⭐ Вывод в Telegram Stars</b>

@@ -14,6 +14,7 @@ class MainMenu(StatesGroup):
     INVITE_SHARE = State()
     INVITE_WITHDRAW_METHOD = State()  # crypto / stars picker (spec §8.3)
     INVITE_WITHDRAW = State()  # crypto wallet input
+    INVITE_WITHDRAW_EDIT = State()  # change wallet on an open (requested) crypto payout
     INVITE_WITHDRAW_STARS = State()  # stars confirm
     INVITE_PAY = State()
 

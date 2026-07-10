@@ -88,6 +88,51 @@ class RequestCryptoPayout(Interactor[RequestCryptoPayoutDto, PayoutDto]):
 
 
 @dataclass(frozen=True)
+class ChangeCryptoWalletDto:
+    user: UserDto
+    wallet: str
+
+
+class ChangeCryptoPayoutWallet(Interactor[ChangeCryptoWalletDto, PayoutDto]):
+    """Change the wallet on an already-requested crypto payout (tofix item 11).
+
+    Allowed only while the payout is still ``requested`` — i.e. before the weekly batch
+    or an operator moves it to ``processing``. The DAO update is guarded on that status,
+    so a concurrent transition can't be clobbered; a lost race surfaces as
+    ``PayoutLockedError``. Returns the updated open payout.
+    """
+
+    required_permission = None
+
+    def __init__(
+        self,
+        uow: UnitOfWork,
+        referral_ledger_dao: ReferralLedgerDao,
+    ) -> None:
+        self.uow = uow
+        self.referral_ledger_dao = referral_ledger_dao
+
+    async def _execute(self, actor: UserDto, data: ChangeCryptoWalletDto) -> PayoutDto:
+        wallet = data.wallet.strip()
+        # Same light sanity check as RequestCryptoPayout; the operator verifies before sending.
+        if len(wallet) < 20 or " " in wallet:
+            raise ReferralError("Invalid crypto wallet address")
+
+        async with self.uow:
+            updated = await self.referral_ledger_dao.update_open_crypto_wallet(data.user.id, wallet)
+            await self.uow.commit()
+        if not updated:
+            raise PayoutLockedError("No editable crypto payout to update")
+
+        payout = await self.referral_ledger_dao.get_open_payout(data.user.id)
+        if payout is None:  # taken into processing right after the update — treat as locked
+            raise PayoutLockedError("Open payout vanished after wallet change")
+
+        logger.info(f"{data.user.log} changed crypto payout wallet to '{wallet[:6]}…'")
+        return payout
+
+
+@dataclass(frozen=True)
 class RequestStarsPayoutDto:
     user: UserDto
     # None → gift the whole balance (bot flow). A specific kopeck amount (≤ balance)
