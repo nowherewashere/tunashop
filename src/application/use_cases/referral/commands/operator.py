@@ -11,6 +11,7 @@ from src.application.events import (
     PayoutPaidEvent,
     PayoutProcessingEvent,
     PayoutRejectedEvent,
+    PayoutStarsPaidEvent,
 )
 from src.application.use_cases.referral.queries.summary import (
     GetReferralSummary,
@@ -19,6 +20,7 @@ from src.application.use_cases.referral.queries.summary import (
 from src.core.exceptions import ReferralError
 from src.core.utils.money import kop_to_rub, mask_wallet
 from src.infrastructure.database.models.referral_ledger import (
+    PAYOUT_METHOD_STARS,
     PAYOUT_OPEN_STATUSES,
     PAYOUT_REQUESTED,
 )
@@ -34,7 +36,8 @@ class PayoutActionDto:
 class CompletePayoutDto:
     payout_id: int
     operator_id: int
-    tx_hash: str
+    # Settlement reference: a tx hash for crypto, a gift reference for stars.
+    settlement_ref: str
 
 
 @dataclass(frozen=True)
@@ -95,7 +98,11 @@ class StartPayout(Interactor[PayoutActionDto, PayoutDto]):
 
 
 class CompletePayout(Interactor[CompletePayoutDto, PayoutDto]):
-    """Operator: mark a payout paid with its tx hash (WITHDRAWN += amount) and notify."""
+    """Operator: mark a payout paid (WITHDRAWN += amount) and notify the user.
+
+    One transition for both methods, branching on ``payout.method``: crypto records
+    the settlement ref as ``tx_hash`` and fires the crypto paid notification; stars
+    records it as ``gift_ref`` and fires the Stars paid notification (spec §8.4)."""
 
     required_permission = None
 
@@ -113,25 +120,48 @@ class CompletePayout(Interactor[CompletePayoutDto, PayoutDto]):
 
     async def _execute(self, actor: UserDto, data: CompletePayoutDto) -> PayoutDto:
         payout = await _load_open_payout(self.referral_ledger_dao, data.payout_id)
-        tx_hash = data.tx_hash.strip()
-        if not tx_hash:
-            raise ReferralError("tx_hash is required to mark a crypto payout paid")
+        ref = data.settlement_ref.strip()
+        is_stars = payout.method == PAYOUT_METHOD_STARS
+        if not ref:
+            raise ReferralError(
+                "gift_ref is required to mark a stars payout paid"
+                if is_stars
+                else "tx_hash is required to mark a crypto payout paid"
+            )
 
         async with self.uow:
-            await self.referral_ledger_dao.mark_paid(data.payout_id, data.operator_id, tx_hash)
+            if is_stars:
+                await self.referral_ledger_dao.mark_paid(
+                    data.payout_id, data.operator_id, gift_ref=ref
+                )
+            else:
+                await self.referral_ledger_dao.mark_paid(
+                    data.payout_id, data.operator_id, tx_hash=ref
+                )
             await self.uow.commit()
 
         user = await self.user_dao.get_by_id(payout.user_id)
         if user:
-            await self.event_publisher.publish(
-                PayoutPaidEvent(
-                    user=user,
-                    amount=kop_to_rub(payout.amount_kop),
-                    wallet_short=mask_wallet(payout.crypto_wallet or ""),
-                    tx_hash=tx_hash,
+            if is_stars:
+                await self.event_publisher.publish(
+                    PayoutStarsPaidEvent(
+                        user=user,
+                        amount=kop_to_rub(payout.amount_kop),
+                        stars=payout.stars_amount or 0,
+                    )
                 )
-            )
-        logger.info(f"{actor.log} completed payout '{data.payout_id}' (tx '{tx_hash[:10]}…')")
+            else:
+                await self.event_publisher.publish(
+                    PayoutPaidEvent(
+                        user=user,
+                        amount=kop_to_rub(payout.amount_kop),
+                        wallet_short=mask_wallet(payout.crypto_wallet or ""),
+                        tx_hash=ref,
+                    )
+                )
+        logger.info(
+            f"{actor.log} completed {payout.method} payout '{data.payout_id}' (ref '{ref[:10]}…')"
+        )
         return payout
 
 

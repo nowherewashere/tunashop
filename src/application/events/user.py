@@ -228,6 +228,35 @@ class PayoutPaidEvent(PayoutEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
+class PayoutStarsPaidEvent(PayoutEvent):
+    """Stars payout settled (spec §8.4): «⭐ Готово! Начислили {stars} ⭐ …».
+
+    Reuses the ``PAYOUT_PAID`` notification type (same transactional category as the
+    crypto paid event) — no new toggle. Renders Stars, not ₽/wallet/hash.
+    """
+
+    notification_type: NotificationType = field(
+        default=UserNotificationType.PAYOUT_PAID,
+        init=True,
+    )
+
+    stars: int
+
+    @property
+    def event_key(self) -> str:
+        return "event-payout.paid-stars"
+
+    def as_payload(self) -> "MessagePayloadDto":
+        return MessagePayloadDto(
+            i18n_key=self.event_key,
+            i18n_kwargs={"stars": self.stars},
+            disable_default_markup=False,
+            delete_after=None,
+            message_effect=MessageEffectId.PARTY,
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
 class PayoutRejectedEvent(PayoutEvent):
     notification_type: NotificationType = field(
         default=UserNotificationType.PAYOUT_REJECTED,

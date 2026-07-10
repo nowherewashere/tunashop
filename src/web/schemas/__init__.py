@@ -42,6 +42,7 @@ from .referral import (
     PayWithBalanceResponse,
     ReferralProgramResponse,
     ReferralRewardLevelResponse,
+    StarsPayoutRequest,
 )
 from .subscription import (
     DeviceDeleteResponse,
@@ -106,6 +107,7 @@ __all__ = [
     "ReferralProgramResponse",
     "ReferralRewardLevelResponse",
     "CryptoPayoutRequest",
+    "StarsPayoutRequest",
     "PayoutResponse",
     "PayWithBalanceRequest",
     "PayWithBalanceResponse",

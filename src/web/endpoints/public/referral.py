@@ -9,6 +9,8 @@ from src.application.use_cases.referral.commands.balance import PayWithBalance, 
 from src.application.use_cases.referral.commands.payout import (
     RequestCryptoPayout,
     RequestCryptoPayoutDto,
+    RequestPayoutStars,
+    RequestStarsPayoutDto,
 )
 from src.application.use_cases.referral.queries.summary import (
     GetReferralSummary,
@@ -21,6 +23,8 @@ from src.core.exceptions import (
     InsufficientBalanceError,
     PayoutBelowMinimumError,
     PayoutLockedError,
+    PayoutMethodUnavailableError,
+    PayoutNoTelegramError,
     PlanError,
     PurchaseError,
     ReferralError,
@@ -33,6 +37,7 @@ from src.web.schemas import (
     PayWithBalanceResponse,
     ReferralProgramResponse,
     ReferralRewardLevelResponse,
+    StarsPayoutRequest,
 )
 
 from ._common import CurrentUser
@@ -111,6 +116,9 @@ async def get_referral_program(
             if last_wallet_payout and last_wallet_payout.crypto_wallet
             else None
         ),
+        # Stars payout is gifted via the bot (Telegram/MTProto); the site only hints at it.
+        stars_payout_enabled=(config.stars.payout_enabled and config.stars.rub_rate > 0),
+        stars_min_kop=config.stars.min_kop,
         #
         reward_type=settings.referral.reward.type.value,
         reward_strategy=settings.referral.reward.strategy.value,
@@ -151,6 +159,45 @@ async def request_crypto_payout(
         method=payout.method,
         crypto_asset=payout.crypto_asset,
         crypto_network=payout.crypto_network,
+    )
+
+
+@router.post("/payout/stars", response_model=PayoutResponse)
+@inject
+async def request_stars_payout(
+    body: StarsPayoutRequest,
+    user: CurrentUser,
+    settings_dao: FromDishka[SettingsDao],
+    request_payout: FromDishka[RequestPayoutStars],
+) -> PayoutResponse:
+    # Stars gifting itself runs bot-side (Telegram/MTProto); this endpoint exists for
+    # parity so a Telegram-linked website user can also enqueue a Stars payout.
+    settings = await settings_dao.get()
+    _require_referral_enabled(user, settings.referral.enable)
+
+    try:
+        payout = await request_payout.system(
+            RequestStarsPayoutDto(user=user, amount_kop=body.amount_kop)
+        )
+    except PayoutMethodUnavailableError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
+    except PayoutNoTelegramError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    except PayoutBelowMinimumError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    except PayoutLockedError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    except BalanceNegativeError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    except ReferralError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    return PayoutResponse(
+        id=payout.id,
+        status=payout.status,
+        amount_kop=payout.amount_kop,
+        method=payout.method,
+        stars_amount=payout.stars_amount,
     )
 
 

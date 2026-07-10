@@ -54,7 +54,16 @@ class ReferralLedgerDao(Protocol):
     # --- operator transitions (each stamps operator_id + processed_at) ---
     async def mark_processing(self, payout_id: int, operator_id: Optional[int]) -> None: ...
 
-    async def mark_paid(self, payout_id: int, operator_id: int, tx_hash: Optional[str]) -> None: ...
+    async def mark_paid(
+        self,
+        payout_id: int,
+        operator_id: int,
+        *,
+        tx_hash: Optional[str] = None,
+        gift_ref: Optional[str] = None,
+    ) -> None:
+        """Settle a payout: crypto stamps ``tx_hash``, stars stamps ``gift_ref``."""
+        ...
 
     async def mark_rejected(self, payout_id: int, operator_id: int, reason: str) -> None: ...
 

@@ -28,6 +28,7 @@ class PayoutDto(BaseDto, TimestampMixin):
     amount_kop: int
     method: str = PAYOUT_METHOD_CRYPTO
     status: str = PAYOUT_REQUESTED
+    recipient_tg: Optional[str] = None  # @username / tg id snapshot (Stars gift target)
     #
     crypto_wallet: Optional[str] = None
     crypto_asset: Optional[str] = None
@@ -36,6 +37,11 @@ class PayoutDto(BaseDto, TimestampMixin):
     fx_rate: Optional[str] = None
     tx_hash: Optional[str] = None
     batch_id: Optional[str] = None
+    #
+    stars_amount: Optional[int] = None  # XTR gifted
+    stars_rate: Optional[int] = None  # kopecks per Star, frozen at request
+    gift_ref: Optional[str] = None  # MTProto gift/charge reference
+    treasury_account: Optional[str] = None
     #
     reject_reason: Optional[str] = None
     processed_at: Optional[datetime] = None

@@ -452,6 +452,13 @@ event-payout =
     Хэш: <code>{ $tx_hash }</code>
     </blockquote>
 
+    .paid-stars =
+    <b>⭐ Готово! Stars начислены</b>
+
+    <blockquote>
+    Начислили { $stars } ⭐ на твой Telegram. Трать внутри Telegram.
+    </blockquote>
+
     .rejected =
     <b>⚠️ Вывод отклонён</b>
 

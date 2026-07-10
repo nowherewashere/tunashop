@@ -12,7 +12,7 @@ from .commands.operator import (
     RunCryptoBatch,
     StartPayout,
 )
-from .commands.payout import RequestCryptoPayout
+from .commands.payout import RequestCryptoPayout, RequestPayoutStars
 from .commands.rewards import AssignReferralRewards, GiveReferrerReward
 from .queries.calculations import CalculateReferralReward
 from .queries.code import GenerateReferralQr, ValidateReferralCode
@@ -29,6 +29,7 @@ REFERRAL_USE_CASES: Final[tuple[type[Interactor], ...]] = (
     GetReferralSummary,
     PayWithBalance,
     RequestCryptoPayout,
+    RequestPayoutStars,
     StartPayout,
     CompletePayout,
     RejectPayout,

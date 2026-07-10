@@ -27,7 +27,7 @@ from src.core.utils.i18n_helpers import (
     i18n_format_expire_time,
     i18n_format_traffic_limit,
 )
-from src.core.utils.money import kop_to_rub
+from src.core.utils.money import kop_to_rub, kop_to_stars
 from src.core.utils.time import datetime_now, get_traffic_reset_delta
 
 
@@ -327,6 +327,54 @@ async def invite_withdraw_getter(
         "currency": "₽",
         "crypto_asset": config.payout.crypto_asset,
         "crypto_network": config.payout.crypto_network,
+    }
+
+
+@inject
+async def invite_withdraw_method_getter(
+    dialog_manager: DialogManager,
+    config: AppConfig,
+    user: TelegramUserDto,
+    get_referral_summary: FromDishka[GetReferralSummary],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    # Payout method picker (spec §8.3): crypto (real cash-out, ≥ crypto min, Monday
+    # batch) vs Telegram Stars (in-ecosystem, ≥ stars min, needs a linked Telegram).
+    summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
+    balance_kop = summary.balance_kop
+    rate = config.stars.rub_rate
+    stars = kop_to_stars(balance_kop, rate)
+    return {
+        "balance": kop_to_rub(balance_kop),
+        "currency": "₽",
+        "crypto_asset": config.payout.crypto_asset,
+        "crypto_network": config.payout.crypto_network,
+        "crypto_min": kop_to_rub(config.referral.payout_min_kop),
+        "stars": stars,
+        "stars_rub": kop_to_rub(stars * rate),
+        "stars_min": kop_to_rub(config.stars.min_kop),
+        "has_telegram": int(user.telegram_id is not None),
+    }
+
+
+@inject
+async def invite_withdraw_stars_getter(
+    dialog_manager: DialogManager,
+    config: AppConfig,
+    user: TelegramUserDto,
+    get_referral_summary: FromDishka[GetReferralSummary],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
+    rate = config.stars.rub_rate
+    stars = kop_to_stars(summary.balance_kop, rate)
+    return {
+        "balance": kop_to_rub(summary.balance_kop),
+        "currency": "₽",
+        "stars": stars,
+        # The RUB value actually paid out (whole Stars × rate) — a sub-Star remainder
+        # stays on the balance, so this can be a touch below the shown balance.
+        "stars_rub": kop_to_rub(stars * rate),
     }
 
 

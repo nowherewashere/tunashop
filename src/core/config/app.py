@@ -21,6 +21,7 @@ from .payout import PayoutConfig
 from .redis import RedisConfig
 from .referral import ReferralConfig
 from .remnawave import RemnawaveConfig
+from .stars import StarsConfig
 from .validators import validate_not_change_me
 
 
@@ -64,6 +65,7 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
     onboarding: OnboardingConfig = Field(default_factory=OnboardingConfig)
     referral: ReferralConfig = Field(default_factory=ReferralConfig)
     payout: PayoutConfig = Field(default_factory=PayoutConfig)
+    stars: StarsConfig = Field(default_factory=StarsConfig)
 
     @property
     def default_assets_dir(self) -> Path:

@@ -92,6 +92,9 @@ btn-invite =
     .qr = 🧾 QR-код
     .withdraw-points = 💎 Обменять баллы
     .withdraw = 💰 Вывести
+    .withdraw-crypto = 🪙 Крипта ({ $crypto_asset })
+    .withdraw-stars = ⭐ Telegram Stars
+    .confirm-stars = ⭐ Получить Stars
     .pay-vpn = 🐟 Оплатить VPN балансом
     .reset-referral = 🔄 Сбросить реф. ссылку
 

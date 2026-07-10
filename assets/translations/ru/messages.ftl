@@ -151,6 +151,22 @@ msg-menu-invite =
     *[0] { "" }
     }
 
+msg-menu-invite-withdraw-method =
+    <b>💰 Как вывести { $balance } { $currency }?</b>
+
+    <blockquote>
+    🪙 <b>Крипта</b> ({ $crypto_asset } · { $crypto_network }) — реальные деньги, от { $crypto_min } ₽. Выплаты по понедельникам.
+    </blockquote>
+
+    <blockquote>
+    ⭐ <b>Telegram Stars</b> — { $stars } ⭐ (≈ { $stars_rub } ₽), сразу на твой Telegram, от { $stars_min } ₽. Тратятся внутри Telegram (в том числе на VPN) — это не вывод в деньги.{ $has_telegram ->
+    [0] { space }Привяжи Telegram, чтобы получать Stars.
+    *[other] { "" }
+    }
+    </blockquote>
+
+    Выбери способ ниже.
+
 msg-menu-invite-withdraw =
     <b>💰 Вывод в крипте</b>
 
@@ -159,6 +175,15 @@ msg-menu-invite-withdraw =
     </blockquote>
 
     Пришли адрес кошелька <b>{ $crypto_asset } · { $crypto_network }</b> сообщением — создадим заявку. Выплаты по понедельникам.
+
+msg-menu-invite-withdraw-stars =
+    <b>⭐ Вывод в Telegram Stars</b>
+
+    <blockquote>
+    Пришлём <b>{ $stars } ⭐</b> (≈ { $stars_rub } { $currency }) на твой аккаунт Telegram — сразу.
+    </blockquote>
+
+    Stars тратятся <b>внутри Telegram</b> (в том числе на VPN), это не вывод в деньги. Подтверди — создадим заявку.
 
 msg-menu-invite-share =
     <b>🤝 Пригласить друга</b>
@@ -236,16 +261,25 @@ msg-payouts-detail =
     Сумма: <b>{ $amount } ₽</b>
     Статус: { $status }
     Пользователь: { $user_label }
-    Email: { $email }
+    Email: { $email }{ $is_stars ->
+    [1] { space }Способ: ⭐ Stars
+    Начислить: <b>{ $stars } ⭐</b>
+    Получатель: <code>{ $recipient }</code>
+    Аккаунт-казна: { $treasury }
+    *[0] { space }Способ: 🪙 Крипта
     Кошелёк: <code>{ $wallet }</code>
     Актив: { $asset } · { $network }
+    }
     </blockquote>
 msg-payouts-tx-hash =
     <b>✅ Подтверждение выплаты</b>
 
-    <blockquote>
-    Сумма: <b>{ $amount } ₽</b> · кошелёк <code>{ $wallet }</code>.
+    <blockquote>{ $is_stars ->
+    [1] { space }Сумма: <b>{ $amount } ₽</b> · получатель <code>{ $recipient }</code> · { $stars } ⭐.
+    Отправь Stars из аккаунта-казны, затем пришли <b>ref подарка</b> (gift_ref) сообщением — отметим выплату и уведомим пользователя.
+    *[0] { space }Сумма: <b>{ $amount } ₽</b> · кошелёк <code>{ $wallet }</code>.
     Пришли <b>хэш транзакции</b> сообщением — отметим выплату и уведомим пользователя.
+    }
     </blockquote>
 msg-payouts-reject =
     <b>❌ Отклонение заявки</b>

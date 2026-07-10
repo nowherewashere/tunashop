@@ -12,6 +12,7 @@ from src.application.use_cases.referral.commands.operator import (
 )
 from src.core.utils.money import kop_to_rub
 from src.infrastructure.database.models.referral_ledger import (
+    PAYOUT_METHOD_STARS,
     PAYOUT_PROCESSING,
     PAYOUT_REQUESTED,
 )
@@ -44,10 +45,14 @@ async def payout_queue_getter(
     for item in list(requested) + list(processing):
         payout = item.payout
         mark = "🆕" if payout.status == PAYOUT_REQUESTED else "⏳"
+        method_mark = "⭐" if payout.method == PAYOUT_METHOD_STARS else "🪙"
         items.append(
             {
                 "id": payout.id,
-                "label": f"{mark} {kop_to_rub(payout.amount_kop)} ₽ · {_user_label(item.user)}",
+                "label": (
+                    f"{mark} {method_mark} {kop_to_rub(payout.amount_kop)} ₽ · "
+                    f"{_user_label(item.user)}"
+                ),
             }
         )
 
@@ -71,17 +76,27 @@ async def payout_detail_getter(
         return {"found": False, "is_requested": False, "is_open": False}
 
     user = await user_dao.get_by_id(payout.user_id)
+    is_stars = payout.method == PAYOUT_METHOD_STARS
     return {
         "found": True,
         "payout_id": payout.id,
         "status": payout.status,
+        "method": payout.method,
+        # int (0/1) so the Fluent [0]/[1] method branch in the message resolves.
+        "is_stars": int(is_stars),
         "is_requested": payout.status == PAYOUT_REQUESTED,
         "is_open": payout.status in (PAYOUT_REQUESTED, PAYOUT_PROCESSING),
         "amount": kop_to_rub(payout.amount_kop),
         "user_label": _user_label(user),
         "email": (user.email if user else None) or "—",
+        # crypto fields
         "wallet": payout.crypto_wallet or "—",
         "asset": payout.crypto_asset or "—",
         "network": payout.crypto_network or "—",
         "tx_hash": payout.tx_hash or "—",
+        # stars fields
+        "stars": payout.stars_amount or 0,
+        "recipient": payout.recipient_tg or (_user_label(user) if is_stars else "—"),
+        "treasury": payout.treasury_account or "—",
+        "gift_ref": payout.gift_ref or "—",
     }

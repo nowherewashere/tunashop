@@ -29,6 +29,10 @@ class ReferralProgramResponse(BaseModel):
     crypto_asset: str = "USDT"
     crypto_network: str = "TRC20"
     last_wallet: Optional[str] = None  # masked, prefill for repeat payouts
+    # Telegram Stars payout (spec §7.2). Gifting needs Telegram/MTProto, so the site
+    # surfaces Stars as "получить в боте" — this flag/threshold only drive that hint.
+    stars_payout_enabled: bool = False
+    stars_min_kop: int = 10_000
 
     # Legacy reward config (vestigial — the active accrual is the money commission).
     reward_type: str
@@ -42,6 +46,11 @@ class CryptoPayoutRequest(BaseModel):
     wallet: str
 
 
+class StarsPayoutRequest(BaseModel):
+    # None → gift the whole balance (default). A specific amount is clamped to balance.
+    amount_kop: Optional[int] = None
+
+
 class PayoutResponse(BaseModel):
     id: int
     status: str
@@ -49,6 +58,7 @@ class PayoutResponse(BaseModel):
     method: str
     crypto_asset: Optional[str] = None
     crypto_network: Optional[str] = None
+    stars_amount: Optional[int] = None  # XTR gifted (stars payouts only)
 
 
 class PayWithBalanceRequest(BaseModel):

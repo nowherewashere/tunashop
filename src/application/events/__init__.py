@@ -26,6 +26,7 @@ from .user import (
     PayoutPaidEvent,
     PayoutProcessingEvent,
     PayoutRejectedEvent,
+    PayoutStarsPaidEvent,
     ReferralAttachedEvent,
     ReferralRewardFailedEvent,
     ReferralRewardReceivedEvent,
@@ -69,6 +70,7 @@ __all__ = [
     "ReferralRewardReceivedEvent",
     "PayoutProcessingEvent",
     "PayoutPaidEvent",
+    "PayoutStarsPaidEvent",
     "PayoutRejectedEvent",
     #
     "TrialActivatedEvent",

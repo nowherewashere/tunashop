@@ -24,6 +24,8 @@ from src.application.use_cases.referral.commands.balance import (
 from src.application.use_cases.referral.commands.payout import (
     RequestCryptoPayout,
     RequestCryptoPayoutDto,
+    RequestPayoutStars,
+    RequestStarsPayoutDto,
 )
 from src.application.use_cases.referral.queries.code import GenerateReferralQr
 from src.application.use_cases.referral.queries.summary import (
@@ -51,6 +53,8 @@ from src.core.exceptions import (
     InsufficientBalanceError,
     PayoutBelowMinimumError,
     PayoutLockedError,
+    PayoutMethodUnavailableError,
+    PayoutNoTelegramError,
     PlanError,
     PurchaseError,
     ReferralError,
@@ -417,6 +421,12 @@ async def on_pay_with_balance_select(
     await dialog_manager.switch_to(state=MainMenu.INVITE)
 
 
+def _stars_enabled(config: AppConfig) -> bool:
+    # Stars payout is live only when explicitly enabled AND a positive rate is set
+    # (an unconfigured rate would gift a wrong amount, so treat it as off).
+    return config.stars.payout_enabled and config.stars.rub_rate > 0
+
+
 @inject
 async def on_invite_withdraw_click(
     callback: CallbackQuery,
@@ -426,8 +436,39 @@ async def on_invite_withdraw_click(
     get_referral_summary: FromDishka[GetReferralSummary],
     i18n: FromDishka[TranslatorRunner],
 ) -> None:
-    # Guard the crypto-withdraw entry: below the minimum, don't open the screen —
-    # answer with a popup so the user learns how much more they need.
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    # When Stars is live, let the user choose the method (spec §8.3). The picker
+    # screen presents both options with their thresholds and guards each choice.
+    if _stars_enabled(config):
+        await dialog_manager.switch_to(state=MainMenu.INVITE_WITHDRAW_METHOD)
+        return
+
+    # Crypto-only: guard the entry — below the minimum, don't open the screen; answer
+    # with a popup so the user learns how much more they need.
+    summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
+    min_kop = config.referral.payout_min_kop
+    if summary.balance_kop < min_kop:
+        await callback.answer(
+            i18n.get(
+                "ntf-invite.withdraw-below-min",
+                remaining=kop_to_rub(min_kop - summary.balance_kop),
+                min=kop_to_rub(min_kop),
+            ),
+            show_alert=True,
+        )
+        return
+    await dialog_manager.switch_to(state=MainMenu.INVITE_WITHDRAW)
+
+
+@inject
+async def on_withdraw_method_crypto(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    config: FromDishka[AppConfig],
+    get_referral_summary: FromDishka[GetReferralSummary],
+    i18n: FromDishka[TranslatorRunner],
+) -> None:
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
     min_kop = config.referral.payout_min_kop
@@ -442,6 +483,63 @@ async def on_invite_withdraw_click(
         )
         return
     await dialog_manager.switch_to(state=MainMenu.INVITE_WITHDRAW)
+
+
+@inject
+async def on_withdraw_method_stars(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    config: FromDishka[AppConfig],
+    get_referral_summary: FromDishka[GetReferralSummary],
+    i18n: FromDishka[TranslatorRunner],
+) -> None:
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    if user.telegram_id is None:
+        await callback.answer(i18n.get("ntf-invite.stars-no-telegram"), show_alert=True)
+        return
+    summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
+    if summary.balance_kop < config.stars.min_kop:
+        await callback.answer(i18n.get("ntf-invite.stars-below-min"), show_alert=True)
+        return
+    await dialog_manager.switch_to(state=MainMenu.INVITE_WITHDRAW_STARS)
+
+
+@inject
+async def on_stars_withdraw_confirm(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    request_payout_stars: FromDishka[RequestPayoutStars],
+    notifier: FromDishka[Notifier],
+) -> None:
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    try:
+        payout = await request_payout_stars.system(RequestStarsPayoutDto(user=user))
+    except PayoutNoTelegramError:
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.stars-no-telegram")
+        return
+    except PayoutBelowMinimumError:
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.stars-below-min")
+        return
+    except PayoutLockedError:
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.payout-locked")
+        return
+    except BalanceNegativeError:
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.payout-negative")
+        return
+    except (PayoutMethodUnavailableError, ReferralError):
+        await notifier.notify_user(user=user, i18n_key="ntf-invite.stars-unavailable")
+        return
+
+    await notifier.notify_user(
+        user=user,
+        payload=MessagePayloadDto(
+            i18n_key="ntf-invite.payout-requested-stars",
+            i18n_kwargs={"stars": payout.stars_amount or 0},
+        ),
+    )
+    await dialog_manager.switch_to(state=MainMenu.INVITE)
 
 
 @inject

@@ -22,8 +22,9 @@ from .timestamp import TimestampMixin
 EVENT_KIND_COMMISSION: Final[str] = "commission"
 EVENT_KIND_ADJUSTMENT: Final[str] = "adjustment"  # chargeback reversal (external workstream)
 
-# payouts.method (Telegram Stars is a later iteration)
+# payouts.method
 PAYOUT_METHOD_CRYPTO: Final[str] = "crypto"
+PAYOUT_METHOD_STARS: Final[str] = "stars"  # buy-and-gift Telegram Stars (spec §7.2)
 
 # payouts.status
 PAYOUT_REQUESTED: Final[str] = "requested"
@@ -62,12 +63,13 @@ class ReferralEvent(BaseSql, TimestampMixin):
 
 
 class Payout(BaseSql, TimestampMixin):
-    """A withdrawal request (crypto in this iteration).
+    """A withdrawal request (crypto or Telegram Stars).
 
     ``WITHDRAWN = Σ amount_kop where status = paid``. Only one open payout
     (``requested``/``processing``) per user is allowed (enforced upstream). Crypto
-    settlement runs in the weekly Monday batch; the operator marks the row
-    ``paid`` (with ``tx_hash``) or ``rejected`` (with ``reject_reason``).
+    settlement runs in the weekly Monday batch; Stars settle immediately (operator
+    gifts from the treasury account). The operator marks the row ``paid`` — with a
+    ``tx_hash`` (crypto) or ``gift_ref`` (stars) — or ``rejected`` (with a reason).
     """
 
     __tablename__ = "payouts"
@@ -79,6 +81,9 @@ class Payout(BaseSql, TimestampMixin):
     method: Mapped[str] = mapped_column(String(16), default=PAYOUT_METHOD_CRYPTO)
     amount_kop: Mapped[int]
     status: Mapped[str] = mapped_column(String(16), default=PAYOUT_REQUESTED, index=True)
+    # @username / tg id snapshot, captured at request time so a Stars gift can still
+    # be delivered even if the user later unlinks Telegram.
+    recipient_tg: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
     # crypto settlement
     crypto_wallet: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
@@ -88,6 +93,14 @@ class Payout(BaseSql, TimestampMixin):
     fx_rate: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # RUB->asset, frozen
     tx_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     batch_id: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
+
+    # stars settlement (buy-and-gift; spec §7.2)
+    stars_amount: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # XTR gifted
+    stars_rate: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True
+    )  # kopecks per Star, frozen at request
+    gift_ref: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # MTProto gift ref
+    treasury_account: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
     # operator bookkeeping
     reject_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

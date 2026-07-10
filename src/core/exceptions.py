@@ -101,4 +101,12 @@ class PayoutLockedError(ReferralError):
 
 
 class PayoutBelowMinimumError(ReferralError):
-    """Balance is below the crypto payout minimum (REFERRAL_PAYOUT_MIN_KOP)."""
+    """Balance is below the payout minimum (REFERRAL_PAYOUT_MIN_KOP / STARS_MIN_KOP)."""
+
+
+class PayoutNoTelegramError(ReferralError):
+    """A Stars payout was requested for a user with no linked telegram_id."""
+
+
+class PayoutMethodUnavailableError(ReferralError):
+    """The chosen payout method is disabled or not configured (e.g. Stars off)."""

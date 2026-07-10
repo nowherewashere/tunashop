@@ -86,8 +86,8 @@ async def on_tx_hash_input(
 ) -> None:
     dialog_manager.show_mode = ShowMode.EDIT
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
-    tx_hash = (message.text or "").strip()
-    if not tx_hash:
+    settlement_ref = (message.text or "").strip()
+    if not settlement_ref:
         return
 
     try:
@@ -95,7 +95,7 @@ async def on_tx_hash_input(
             CompletePayoutDto(
                 payout_id=_payout_id(dialog_manager),
                 operator_id=user.telegram_id,
-                tx_hash=tx_hash,
+                settlement_ref=settlement_ref,
             )
         )
     except ReferralError as e:

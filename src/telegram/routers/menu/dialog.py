@@ -32,6 +32,8 @@ from .getters import (
     invite_getter,
     invite_pay_getter,
     invite_withdraw_getter,
+    invite_withdraw_method_getter,
+    invite_withdraw_stars_getter,
     menu_getter,
 )
 from .handlers import (
@@ -45,7 +47,10 @@ from .handlers import (
     on_reissue_subscription_confirm,
     on_reset_referral_code,
     on_show_qr,
+    on_stars_withdraw_confirm,
     on_text_button_click,
+    on_withdraw_method_crypto,
+    on_withdraw_method_stars,
     on_withdraw_wallet_input,
     show_reason,
 )
@@ -386,6 +391,39 @@ invite_about = Window(
     getter=invite_about_getter,
 )
 
+invite_withdraw_method = Window(
+    Banner(BannerName.REFERRAL),
+    I18nFormat("msg-menu-invite-withdraw-method"),
+    # Both methods are always offered; each button guards its own preconditions
+    # (crypto min / linked Telegram + stars min) with an explanatory popup.
+    Row(
+        Button(
+            text=I18nFormat("btn-invite.withdraw-crypto"),
+            id="wd_crypto",
+            on_click=on_withdraw_method_crypto,
+            style=Style(ButtonStyle.PRIMARY),
+        ),
+    ),
+    Row(
+        Button(
+            text=I18nFormat("btn-invite.withdraw-stars"),
+            id="wd_stars",
+            on_click=on_withdraw_method_stars,
+            style=Style(ButtonStyle.SUCCESS),
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=MainMenu.INVITE,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=MainMenu.INVITE_WITHDRAW_METHOD,
+    getter=invite_withdraw_method_getter,
+)
+
 invite_withdraw = Window(
     Banner(BannerName.REFERRAL),
     I18nFormat("msg-menu-invite-withdraw"),
@@ -400,6 +438,29 @@ invite_withdraw = Window(
     IgnoreUpdate(),
     state=MainMenu.INVITE_WITHDRAW,
     getter=invite_withdraw_getter,
+)
+
+invite_withdraw_stars = Window(
+    Banner(BannerName.REFERRAL),
+    I18nFormat("msg-menu-invite-withdraw-stars"),
+    Row(
+        Button(
+            text=I18nFormat("btn-invite.confirm-stars"),
+            id="confirm_stars",
+            on_click=on_stars_withdraw_confirm,
+            style=Style(ButtonStyle.SUCCESS),
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=MainMenu.INVITE_WITHDRAW_METHOD,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=MainMenu.INVITE_WITHDRAW_STARS,
+    getter=invite_withdraw_stars_getter,
 )
 
 invite_pay = Window(
@@ -458,6 +519,8 @@ router = Dialog(
     invite,
     invite_about,
     invite_share,
+    invite_withdraw_method,
     invite_withdraw,
+    invite_withdraw_stars,
     invite_pay,
 )

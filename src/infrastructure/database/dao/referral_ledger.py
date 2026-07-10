@@ -110,9 +110,13 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
             method=payout.method,
             amount_kop=payout.amount_kop,
             status=payout.status,
+            recipient_tg=payout.recipient_tg,
             crypto_wallet=payout.crypto_wallet,
             crypto_asset=payout.crypto_asset,
             crypto_network=payout.crypto_network,
+            stars_amount=payout.stars_amount,
+            stars_rate=payout.stars_rate,
+            treasury_account=payout.treasury_account,
         )
         self.session.add(db_payout)
         await self.session.flush()
@@ -166,7 +170,16 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
         )
         logger.debug(f"Payout '{payout_id}' -> processing")
 
-    async def mark_paid(self, payout_id: int, operator_id: int, tx_hash: Optional[str]) -> None:
+    async def mark_paid(
+        self,
+        payout_id: int,
+        operator_id: int,
+        *,
+        tx_hash: Optional[str] = None,
+        gift_ref: Optional[str] = None,
+    ) -> None:
+        # One settlement transition for both methods: crypto stamps ``tx_hash``,
+        # stars stamps ``gift_ref`` (the Stars analogue). Only the relevant one is set.
         await self.session.execute(
             update(Payout)
             .where(Payout.id == payout_id)
@@ -174,6 +187,7 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
                 status=PAYOUT_PAID,
                 operator_id=operator_id,
                 tx_hash=tx_hash,
+                gift_ref=gift_ref,
                 processed_at=NOW_FUNC,
             )
         )
@@ -217,6 +231,7 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
             method=row.method,
             amount_kop=row.amount_kop,
             status=row.status,
+            recipient_tg=row.recipient_tg,
             crypto_wallet=row.crypto_wallet,
             crypto_asset=row.crypto_asset,
             crypto_network=row.crypto_network,
@@ -224,6 +239,10 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
             fx_rate=row.fx_rate,
             tx_hash=row.tx_hash,
             batch_id=row.batch_id,
+            stars_amount=row.stars_amount,
+            stars_rate=row.stars_rate,
+            gift_ref=row.gift_ref,
+            treasury_account=row.treasury_account,
             reject_reason=row.reject_reason,
             processed_at=row.processed_at,
             operator_id=row.operator_id,

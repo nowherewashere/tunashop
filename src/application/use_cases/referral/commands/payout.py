@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 from loguru import logger
 
@@ -15,8 +16,12 @@ from src.core.exceptions import (
     BalanceNegativeError,
     PayoutBelowMinimumError,
     PayoutLockedError,
+    PayoutMethodUnavailableError,
+    PayoutNoTelegramError,
     ReferralError,
 )
+from src.core.utils.money import kop_to_stars
+from src.infrastructure.database.models.referral_ledger import PAYOUT_METHOD_STARS
 
 
 @dataclass(frozen=True)
@@ -78,5 +83,94 @@ class RequestCryptoPayout(Interactor[RequestCryptoPayoutDto, PayoutDto]):
         logger.info(
             f"{data.user.log} requested crypto payout '{payout.amount_kop}' kop "
             f"to '{wallet[:6]}…' ({payout.crypto_asset}/{payout.crypto_network})"
+        )
+        return payout
+
+
+@dataclass(frozen=True)
+class RequestStarsPayoutDto:
+    user: UserDto
+    # None → gift the whole balance (bot flow). A specific kopeck amount (≤ balance)
+    # is supported for future partial payouts; it is clamped to the balance.
+    amount_kop: Optional[int] = None
+
+
+class RequestPayoutStars(Interactor[RequestStarsPayoutDto, PayoutDto]):
+    """Request a Telegram Stars payout (spec §3.3 / §7.2).
+
+    Converts the requested RUB amount to whole Stars at ``STARS_RUB_RATE`` (frozen on
+    the row) and enqueues ``payouts{stars, requested}`` with the recipient snapshot.
+    Preconditions: Stars enabled, a linked ``telegram_id`` (website-only users →
+    crypto only), ``Баланс ≥ STARS_MIN_KOP``, balance ≥ 0, and no other open payout.
+    Settlement is operator-assisted in beta (gift from the treasury, §5.5 seam).
+    """
+
+    required_permission = None
+
+    def __init__(
+        self,
+        uow: UnitOfWork,
+        referral_ledger_dao: ReferralLedgerDao,
+        get_referral_summary: GetReferralSummary,
+        config: AppConfig,
+    ) -> None:
+        self.uow = uow
+        self.referral_ledger_dao = referral_ledger_dao
+        self.get_referral_summary = get_referral_summary
+        self.config = config
+
+    async def _execute(self, actor: UserDto, data: RequestStarsPayoutDto) -> PayoutDto:
+        stars_cfg = self.config.stars
+        if not stars_cfg.payout_enabled or stars_cfg.rub_rate <= 0:
+            raise PayoutMethodUnavailableError("Stars payout is disabled or not configured")
+        if data.user.telegram_id is None:
+            raise PayoutNoTelegramError("Stars payout requires a linked Telegram account")
+
+        summary = await self.get_referral_summary.system(GetReferralSummaryDto(data.user.id))
+        if summary.has_open_payout:
+            raise PayoutLockedError("A payout is already in progress")
+        if summary.balance_kop < 0:
+            raise BalanceNegativeError("Balance is negative; payout blocked")
+        if summary.balance_kop < stars_cfg.min_kop:
+            raise PayoutBelowMinimumError(
+                f"Balance {summary.balance_kop} kop < stars min {stars_cfg.min_kop} kop"
+            )
+
+        # Gift whole Stars only; the RUB value actually withdrawn is stars × rate, so a
+        # sub-Star remainder stays on the balance (WITHDRAWN math stays exact).
+        rate = stars_cfg.rub_rate
+        requested_kop = (
+            summary.balance_kop
+            if data.amount_kop is None
+            else min(data.amount_kop, summary.balance_kop)
+        )
+        stars = kop_to_stars(requested_kop, rate)
+        if stars <= 0:
+            raise PayoutBelowMinimumError("Balance is below the price of a single Star")
+        amount_kop = stars * rate
+
+        # Snapshot the gift target: a searchable @username for the operator when there
+        # is one, else the numeric id (still resolvable by MTProto later).
+        recipient = (
+            f"@{data.user.username}" if data.user.username else str(data.user.telegram_id)
+        )
+
+        async with self.uow:
+            payout = await self.referral_ledger_dao.create_payout(
+                PayoutDto(
+                    user_id=data.user.id,
+                    method=PAYOUT_METHOD_STARS,
+                    amount_kop=amount_kop,
+                    stars_amount=stars,
+                    stars_rate=rate,
+                    recipient_tg=recipient,
+                    treasury_account=stars_cfg.treasury_account or None,
+                )
+            )
+            await self.uow.commit()
+
+        logger.info(
+            f"{data.user.log} requested stars payout '{stars}' ⭐ "
+            f"('{amount_kop}' kop @ '{rate}' kop/⭐) to '{recipient}'"
         )
         return payout
