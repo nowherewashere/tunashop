@@ -40,6 +40,7 @@ from .handlers import (
     on_device_delete_request,
     on_get_trial,
     on_invite,
+    on_invite_withdraw_click,
     on_pay_with_balance_select,
     on_reissue_subscription_confirm,
     on_reset_referral_code,
@@ -281,43 +282,40 @@ device_confirm_delete_all = Window(
 invite = Window(
     Banner(BannerName.REFERRAL),
     I18nFormat("msg-menu-invite"),
-    Row(
-        SwitchTo(
-            text=I18nFormat("btn-invite.about"),
-            id="about",
-            state=MainMenu.INVITE_ABOUT,
-        ),
-    ),
-    # "Скопировать ссылку" removed (spec fix #22); QR in blue, Пригласить in green.
+    # Money actions — one full-width green button per row (Вывести first). Вывести is
+    # a Button (not SwitchTo): below the minimum it answers with a popup instead of
+    # opening the screen. Both hide while a payout is open (locked, spec §3.3).
     Row(
         Button(
-            text=I18nFormat("btn-invite.qr"),
-            id="qr",
-            on_click=on_show_qr,
-            style=Style(ButtonStyle.PRIMARY),
-        ),
-        SwitchInlineQueryChosenChatButton(
-            text=I18nFormat("btn-invite.send"),
-            query=Format(INLINE_QUERY_INVITE),
-            allow_user_chats=True,
-            allow_group_chats=True,
-            allow_channel_chats=True,
-            id="send",
+            text=I18nFormat("btn-invite.withdraw"),
+            id="withdraw",
+            on_click=on_invite_withdraw_click,
             style=Style(ButtonStyle.SUCCESS),
+            when=~F["has_open_payout"],
         ),
     ),
     Row(
-        SwitchTo(
-            text=I18nFormat("btn-invite.withdraw"),
-            id="withdraw",
-            state=MainMenu.INVITE_WITHDRAW,
-            when=~F["has_open_payout"],
-        ),
         SwitchTo(
             text=I18nFormat("btn-invite.pay-vpn"),
             id="pay_vpn",
             state=MainMenu.INVITE_PAY,
+            style=Style(ButtonStyle.SUCCESS),
             when=~F["has_open_payout"],
+        ),
+    ),
+    # Blue row: invite (own screen, hides the QR) + about.
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-invite.send"),
+            id="share",
+            state=MainMenu.INVITE_SHARE,
+            style=Style(ButtonStyle.PRIMARY),
+        ),
+        SwitchTo(
+            text=I18nFormat("btn-invite.about"),
+            id="about",
+            state=MainMenu.INVITE_ABOUT,
+            style=Style(ButtonStyle.PRIMARY),
         ),
     ),
     Row(
@@ -338,6 +336,39 @@ invite = Window(
     IgnoreUpdate(),
     state=MainMenu.INVITE,
     getter=invite_getter,
+)
+
+invite_share = Window(
+    Banner(BannerName.REFERRAL),
+    I18nFormat("msg-menu-invite-share"),
+    Row(
+        SwitchInlineQueryChosenChatButton(
+            text=I18nFormat("btn-invite.share-link"),
+            query=Format(INLINE_QUERY_INVITE),
+            allow_user_chats=True,
+            allow_group_chats=True,
+            allow_channel_chats=True,
+            id="send",
+            style=Style(ButtonStyle.SUCCESS),
+        ),
+    ),
+    Row(
+        Button(
+            text=I18nFormat("btn-invite.qr"),
+            id="qr",
+            on_click=on_show_qr,
+            style=Style(ButtonStyle.PRIMARY),
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=MainMenu.INVITE,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=MainMenu.INVITE_SHARE,
 )
 
 invite_about = Window(
@@ -426,6 +457,7 @@ router = Dialog(
     device_confirm_reissue,
     invite,
     invite_about,
+    invite_share,
     invite_withdraw,
     invite_pay,
 )

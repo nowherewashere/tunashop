@@ -321,15 +321,11 @@ async def invite_withdraw_getter(
     **kwargs: Any,
 ) -> dict[str, Any]:
     summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
-    payout_min_kop = config.referral.payout_min_kop
     return {
         "balance": kop_to_rub(summary.balance_kop),
         "currency": "₽",
         "crypto_asset": config.payout.crypto_asset,
         "crypto_network": config.payout.crypto_network,
-        "can_withdraw": int(summary.balance_kop >= payout_min_kop),
-        "payout_min": kop_to_rub(payout_min_kop),
-        "remaining_to_min": kop_to_rub(max(0, payout_min_kop - summary.balance_kop)),
     }
 
 
