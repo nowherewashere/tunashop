@@ -9,6 +9,7 @@ from .payment_gateway import PaymentGateway
 from .plan import Plan, PlanDuration, PlanPrice
 from .promocode import Promocode, PromocodeActivation
 from .referral import Referral, ReferralReward
+from .referral_code_alias import ReferralCodeAlias
 from .referral_ledger import BalanceSpend, Payout, ReferralEvent
 from .settings import Settings
 from .subscription import Subscription
@@ -32,6 +33,7 @@ __all__ = [
     "PlanDuration",
     "PlanPrice",
     "Referral",
+    "ReferralCodeAlias",
     "ReferralReward",
     "BalanceSpend",
     "Payout",

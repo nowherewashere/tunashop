@@ -1,18 +1,16 @@
 import json
 from dataclasses import dataclass
 from typing import Any
-from uuid import UUID
 
 from fastapi import HTTPException, status
-from loguru import logger
 from sqlalchemy.exc import IntegrityError
 
 from src.application.common import Interactor
-from src.application.common.dao import AccountMergeDao, SubscriptionDao, UserDao
+from src.application.common.dao import UserDao
 from src.application.common.policy import Permission
-from src.application.common.remnawave import Remnawave
 from src.application.common.uow import UnitOfWork
-from src.application.dto import SubscriptionDto, UserDto
+from src.application.dto import UserDto
+from src.application.services import AccountMergeService
 from src.application.use_cases.auth._telegram import (
     parse_webapp_init_data,
     verify_telegram_auth,
@@ -23,7 +21,7 @@ from src.application.use_cases.user.commands.web_registration import (
     RegisterWebUserDto,
 )
 from src.core.config import AppConfig
-from src.core.enums import AuthType, SubscriptionStatus
+from src.core.enums import AuthType
 
 
 @dataclass
@@ -156,15 +154,18 @@ class LinkTelegram(Interactor[LinkTelegramData, LinkTelegramResult]):
     Three outcomes, all keyed off whether that Telegram already owns a row:
 
     - No existing row  → plain link: stamp ``telegram_id`` onto the actor.
-    - A separate bot account owns it → **merge** it into the actor: repoint its
-      subscription/referrals/history, sum referral points, adopt its Telegram
-      identity, then delete the emptied row. The bot's Remnawave panel user is
-      preserved (we repoint, never recreate), so the existing VPN config keeps
-      working — and because the actor now carries that ``telegram_id``, its
-      ``remna_name`` matches the panel user too.
+    - A separate bot account owns it → **merge** it into the actor via
+      ``AccountMergeService``: repoint its subscription/referrals/history, sum referral
+      points, adopt its Telegram identity, then delete the emptied row. The bot's
+      Remnawave panel user is preserved (we repoint, never recreate), so the existing
+      VPN config keeps working — and because the actor now carries that
+      ``telegram_id``, its ``remna_name`` matches the panel user too.
     - Both accounts already have an active paid subscription → refuse with
       ``two_active_subscriptions``; combining two live VPN configs is a support
       decision, not something we silently destroy.
+
+    The mirror image — signed in with Telegram, confirming an email that already owns a
+    row — lives in ``ConfirmEmailVerification``. Both call the same merge core.
     """
 
     required_permission = Permission.PUBLIC
@@ -174,16 +175,12 @@ class LinkTelegram(Interactor[LinkTelegramData, LinkTelegramResult]):
         config: AppConfig,
         uow: UnitOfWork,
         user_dao: UserDao,
-        subscription_dao: SubscriptionDao,
-        account_merge: AccountMergeDao,
-        remnawave: Remnawave,
+        account_merge_service: AccountMergeService,
     ) -> None:
         self.config = config
         self.uow = uow
         self.user_dao = user_dao
-        self.subscription_dao = subscription_dao
-        self.account_merge = account_merge
-        self.remnawave = remnawave
+        self.account_merge_service = account_merge_service
 
     async def _execute(self, actor: UserDto, data: LinkTelegramData) -> LinkTelegramResult:
         bot_token = self.config.bot.token.get_secret_value()
@@ -225,113 +222,9 @@ class LinkTelegram(Interactor[LinkTelegramData, LinkTelegramResult]):
         return updated
 
     async def _merge(self, actor: UserDto, loser: UserDto, data: LinkTelegramData) -> UserDto:
-        if loser.is_blocked:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="account_blocked")
+        def stamp_identity(survivor: UserDto, absorbed: UserDto) -> None:
+            survivor.telegram_id = data.id
+            if survivor.username is None:
+                survivor.username = data.username or absorbed.username
 
-        actor_sub = await self.subscription_dao.get_current(actor.id)
-        loser_sub = await self.subscription_dao.get_current(loser.id)
-        if self._is_active_paid(actor_sub) and self._is_active_paid(loser_sub):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="two_active_subscriptions",
-            )
-
-        async with self.uow:
-            await self.account_merge.reassign_children(actor.id, loser.id)
-
-            # Delete the absorbed row BEFORE stamping its telegram_id onto the
-            # survivor. ``ix_users_telegram_id`` is a unique index, so the two rows
-            # cannot both carry that telegram_id — not even mid-transaction — and
-            # updating the survivor first raises a UniqueViolationError. The loser's
-            # children were just repointed onto the survivor, so this cascades nothing.
-            await self.user_dao.delete(loser.id)
-
-            actor.telegram_id = data.id
-            if actor.username is None:
-                actor.username = data.username or loser.username
-            actor.points += loser.points
-            actor.is_rules_accepted = actor.is_rules_accepted or loser.is_rules_accepted
-            actor.is_trial_available = actor.is_trial_available and loser.is_trial_available
-            actor.personal_discount = max(actor.personal_discount, loser.personal_discount)
-            actor.purchase_discount = max(actor.purchase_discount, loser.purchase_discount)
-
-            best_sub = self._pick_current(actor_sub, loser_sub)
-
-            updated = await self.user_dao.update(actor)
-            if not updated:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="User not found during Telegram link",
-                )
-
-            # Point the survivor at the winning subscription. `current_subscription_id`
-            # is not a UserDto field, so it's set through its dedicated DAO method
-            # rather than as a phantom attribute on the DTO.
-            if best_sub is not None:
-                await self.user_dao.set_current_subscription_by_id(actor.id, best_sub.id)
-
-            # The survivor now owns every subscription of both accounts, but only the
-            # winning one stays live. Soft-delete the rest in the DB now (inside the
-            # transaction); their Remnawave panel users are removed after commit.
-            orphan_remna_ids = await self._retire_losing_subscriptions(actor.id, best_sub)
-
-            await self.uow.commit()
-
-        # Panel reconciliation is best-effort and OUTSIDE the transaction: the DB is
-        # the source of truth, so a panel hiccup only leaves stale metadata / a logged
-        # orphan to reconcile — never a half-applied merge that could delete a live config.
-        if best_sub is not None:
-            # The kept panel user was created under the absorbed (bot) account and lacks
-            # the survivor's email. Push the survivor's identity onto it; passing the same
-            # subscription re-writes its plan fields to their current values (no change).
-            try:
-                await self.remnawave.update_user(
-                    actor, best_sub.user_remna_id, subscription=best_sub
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Merge: failed to sync identity onto Remnawave user "
-                    f"{best_sub.user_remna_id}: {e}"
-                )
-
-        for remna_id in orphan_remna_ids:
-            try:
-                await self.remnawave.delete_user(remna_id)
-            except Exception as e:
-                logger.warning(f"Merge: failed to delete orphan Remnawave user {remna_id}: {e}")
-
-        return updated
-
-    async def _retire_losing_subscriptions(
-        self, survivor_id: int, best_sub: "SubscriptionDto | None"
-    ) -> set[UUID]:
-        """Mark every non-winning subscription DELETED; return the distinct Remnawave
-        user ids to remove (all except the winner's, so the panel keeps exactly one)."""
-        if best_sub is None:
-            return set()
-
-        keep = best_sub.user_remna_id
-        orphans: set[UUID] = set()
-        for sub in await self.subscription_dao.get_all_by_user(survivor_id):
-            if sub.user_remna_id == keep:
-                continue
-            orphans.add(sub.user_remna_id)
-            if sub.status != SubscriptionStatus.DELETED:
-                await self.subscription_dao.update_status(sub.id, SubscriptionStatus.DELETED)
-        return orphans
-
-    @staticmethod
-    def _is_active_paid(sub: "SubscriptionDto | None") -> bool:
-        return sub is not None and not sub.is_expired and not sub.is_trial
-
-    @staticmethod
-    def _pick_current(
-        actor_sub: "SubscriptionDto | None",
-        loser_sub: "SubscriptionDto | None",
-    ) -> "SubscriptionDto | None":
-        # Prefer a still-valid sub over an expired one, a paid sub over a trial,
-        # then the later expiry — so the merged account surfaces its best config.
-        candidates = [s for s in (actor_sub, loser_sub) if s is not None]
-        if not candidates:
-            return None
-        return max(candidates, key=lambda s: (not s.is_expired, not s.is_trial, s.expire_at))
+        return await self.account_merge_service.merge(actor, loser, stamp_identity)

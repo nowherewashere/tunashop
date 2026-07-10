@@ -13,7 +13,12 @@ class AccountMergeDao(Protocol):
         rather than repointed, as are referral commissions earned *between* the two
         accounts (repointing them would mint a self-referral).
 
+        Two survivor-side invariants are restored here as well: the loser's referral
+        code is tombstoned onto the survivor (so shared links keep attributing), and
+        the merged payouts are collapsed back to at most one open row.
+
         Every table with a user FK must be covered here: those FKs cascade on user
         delete, so anything omitted is silently destroyed when the loser row goes.
+        Called by every merge direction, so a table added here is covered everywhere.
         """
         ...

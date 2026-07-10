@@ -18,6 +18,7 @@ from src.application.common import (
     XuiDbReader,
 )
 from src.application.services import (
+    AccountMergeService,
     PricingService,
     RemnaWebhookService,
 )
@@ -78,6 +79,9 @@ class ServicesProvider(Provider):
 
     remnawave = provide(source=RemnawaveImpl, provides=Remnawave)
     remna_webhook = provide(source=RemnaWebhookService, scope=Scope.REQUEST)
+    # Shared core of both merge directions. REQUEST scope: it composes onto the
+    # request-scoped uow + DAOs so the whole merge lands in one transaction.
+    account_merge_service = provide(source=AccountMergeService, scope=Scope.REQUEST)
     # First-connection listener (connected_once + on-connect trial-timer restart).
     # REQUEST scope: it uses the request-scoped uow + DAOs, and the event bus
     # resolves listeners from a fresh request container.

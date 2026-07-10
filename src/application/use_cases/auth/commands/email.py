@@ -11,6 +11,7 @@ from src.application.common.email_sender import EmailSender
 from src.application.common.policy import Permission
 from src.application.common.uow import UnitOfWork
 from src.application.dto import UserDto
+from src.application.services import AccountMergeService
 from src.application.use_cases.auth._codes import (
     check_email_resend_cooldown,
     generate_email_verification_code,
@@ -39,10 +40,11 @@ class ChangeEmail(Interactor[ChangeEmailDto, UserDto]):
         self.user_dao = user_dao
 
     async def _execute(self, actor: UserDto, data: ChangeEmailDto) -> UserDto:
-        existing = await self.user_dao.get_by_email(data.email)
-        if existing and existing.id != actor.id:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
-
+        # An email already owned by another account is *not* refused here. `pending_email`
+        # carries no unique index and grants nothing on its own — only a code delivered to
+        # that address can act on it, and confirming one merges the two accounts
+        # (see ConfirmEmailVerification). Refusing here would also make this endpoint an
+        # account-enumeration oracle: "409" would tell any caller the email is registered.
         actor.pending_email = data.email
         actor.is_email_verified = False
         actor.email_verification_code_hash = None
@@ -105,11 +107,9 @@ class RequestEmailVerification(Interactor[RequestEmailVerificationDto, EmailVeri
             )
 
         if requested_email and requested_email != actor.email:
-            existing = await self.user_dao.get_by_email(requested_email)
-            if existing and existing.id != actor.id:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT, detail="Email already exists"
-                )
+            # Deliberately no "already exists" check: the code goes to `requested_email`,
+            # so only its real owner can confirm it, and confirming an email that belongs
+            # to another account merges the two rather than failing. See ChangeEmail.
             actor.pending_email = requested_email
             actor.is_email_verified = False
         elif requested_email and requested_email == actor.email and actor.is_email_verified:
@@ -174,15 +174,42 @@ class ConfirmEmailVerificationDto:
 class EmailVerificationConfirmed:
     user: UserDto
     email: str
+    merged: bool = False  # True only when a separate email account was absorbed
 
 
 class ConfirmEmailVerification(Interactor[ConfirmEmailVerificationDto, EmailVerificationConfirmed]):
+    """Confirm a verification code, and merge if that email already owns an account.
+
+    This is the mirror of ``LinkTelegram``: there you are signed in with email and
+    attach a Telegram that has its own bot account; here you are signed in with
+    Telegram (or an unverified email) and attach an email that has its own site
+    account. Both absorb the other row into the account you are acting from.
+
+    The emailed code is the proof of ownership — it is delivered to the address being
+    claimed, so only that address's owner can complete the merge. Nothing is ever
+    matched on name or display name.
+
+    Refused rather than guessed at (both would destroy a live identity):
+
+    - the absorbed account carries a *different* ``telegram_id`` than the actor
+      (``two_telegram_accounts``) — deleting its row would unbind a live bot account,
+      and the next ``/start`` there would silently mint a third account;
+    - both accounts hold an active paid subscription (``two_active_subscriptions``).
+    """
+
     required_permission = Permission.PUBLIC
 
-    def __init__(self, config: AppConfig, uow: UnitOfWork, user_dao: UserDao) -> None:
+    def __init__(
+        self,
+        config: AppConfig,
+        uow: UnitOfWork,
+        user_dao: UserDao,
+        account_merge_service: AccountMergeService,
+    ) -> None:
         self.config = config
         self.uow = uow
         self.user_dao = user_dao
+        self.account_merge_service = account_merge_service
 
     async def _execute(
         self, actor: UserDto, data: ConfirmEmailVerificationDto
@@ -214,9 +241,8 @@ class ConfirmEmailVerification(Interactor[ConfirmEmailVerificationDto, EmailVeri
         if actor.pending_email:
             existing = await self.user_dao.get_by_email(actor.pending_email)
             if existing and existing.id != actor.id:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT, detail="Email already exists"
-                )
+                merged = await self._merge(actor, existing, verified_email)
+                return EmailVerificationConfirmed(user=merged, email=verified_email, merged=True)
             actor.email = actor.pending_email
 
         actor.pending_email = None
@@ -234,3 +260,34 @@ class ConfirmEmailVerification(Interactor[ConfirmEmailVerificationDto, EmailVeri
             await self.uow.commit()
 
         return EmailVerificationConfirmed(user=updated, email=verified_email)
+
+    async def _merge(self, actor: UserDto, loser: UserDto, verified_email: str) -> UserDto:
+        # Two live Telegram bindings cannot survive one row. Absorbing `loser` would drop
+        # its telegram_id, and its owner's next bot message would create a third account.
+        # `ix_users_telegram_id` is unique, so if both are set they are necessarily different.
+        if actor.telegram_id is not None and loser.telegram_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="two_telegram_accounts",
+            )
+
+        def stamp_identity(survivor: UserDto, absorbed: UserDto) -> None:
+            survivor.email = verified_email
+            survivor.is_email_verified = True
+            survivor.pending_email = None
+            survivor.email_verification_code_hash = None
+            survivor.email_verification_expires_at = None
+            # Carry the password that belonged to this email, so "sign in with email +
+            # password" keeps working for an actor that never had one (e.g. a Telegram
+            # account). The code just proved the address is theirs.
+            if survivor.password_hash is None:
+                survivor.password_hash = absorbed.password_hash
+            # The absorbed row's Telegram is free the moment it is deleted; adopt it so
+            # the merged account keeps both identities. The guard above means this only
+            # runs when the actor has none of its own.
+            if survivor.telegram_id is None and absorbed.telegram_id is not None:
+                survivor.telegram_id = absorbed.telegram_id
+                if survivor.username is None:
+                    survivor.username = absorbed.username
+
+        return await self.account_merge_service.merge(actor, loser, stamp_identity)

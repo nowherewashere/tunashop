@@ -309,4 +309,4 @@ async def confirm_email_verification(
     confirm_verification: FromDishka[ConfirmEmailVerification],
 ) -> ConfirmEmailVerificationResponse:
     result = await confirm_verification(user, ConfirmEmailVerificationDto(code=body.code))
-    return ConfirmEmailVerificationResponse(success=True, email=result.email)
+    return ConfirmEmailVerificationResponse(success=True, email=result.email, merged=result.merged)

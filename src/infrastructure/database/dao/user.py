@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.application.common.dao import UserDao
 from src.application.dto import UserDto
 from src.core.enums import Role, SubscriptionStatus
-from src.infrastructure.database.models import Referral, Subscription, User
+from src.infrastructure.database.models import Referral, ReferralCodeAlias, Subscription, User
 
 
 class UserDaoImpl(UserDao):
@@ -120,6 +120,22 @@ class UserDaoImpl(UserDao):
 
         if db_user:
             logger.debug(f"User with referral code '{referral_code}' found")
+            return self._convert_to_dto(db_user)
+
+        # Codes of accounts absorbed by a merge live on in `referral_code_aliases`,
+        # pointing at the survivor. Resolving them here does double duty: links already
+        # shared with the dead code still credit the merged account, and
+        # `generate_unique_code` — which probes for a free code through this very
+        # method — can never hand the code to an unrelated new user.
+        alias_stmt = (
+            select(User)
+            .join(ReferralCodeAlias, ReferralCodeAlias.user_id == User.id)
+            .where(ReferralCodeAlias.code == referral_code)
+        )
+        db_user = await self.session.scalar(alias_stmt)
+
+        if db_user:
+            logger.debug(f"User with merged referral code '{referral_code}' found via alias")
             return self._convert_to_dto(db_user)
 
         logger.debug(f"User with referral code '{referral_code}' not found")
