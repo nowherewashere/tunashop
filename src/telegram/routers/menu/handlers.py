@@ -26,6 +26,10 @@ from src.application.use_cases.referral.commands.payout import (
     RequestCryptoPayoutDto,
 )
 from src.application.use_cases.referral.queries.code import GenerateReferralQr
+from src.application.use_cases.referral.queries.summary import (
+    GetReferralSummary,
+    GetReferralSummaryDto,
+)
 from src.application.use_cases.remnawave.commands.management import (
     DeleteUserAllDevices,
     DeleteUserDevice,
@@ -38,6 +42,7 @@ from src.application.use_cases.subscription.commands.purchase import (
 )
 from src.application.use_cases.user.commands.profile_edit import ResetOwnReferralCode
 from src.application.use_cases.user.queries.plans import GetAvailableTrial
+from src.core.config import AppConfig
 from src.core.constants import USER_KEY
 from src.core.enums import MediaType
 from src.core.exceptions import (
@@ -410,6 +415,33 @@ async def on_pay_with_balance_select(
         ),
     )
     await dialog_manager.switch_to(state=MainMenu.INVITE)
+
+
+@inject
+async def on_invite_withdraw_click(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    config: FromDishka[AppConfig],
+    get_referral_summary: FromDishka[GetReferralSummary],
+    i18n: FromDishka[TranslatorRunner],
+) -> None:
+    # Guard the crypto-withdraw entry: below the minimum, don't open the screen —
+    # answer with a popup so the user learns how much more they need.
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
+    min_kop = config.referral.payout_min_kop
+    if summary.balance_kop < min_kop:
+        await callback.answer(
+            i18n.get(
+                "ntf-invite.withdraw-below-min",
+                remaining=kop_to_rub(min_kop - summary.balance_kop),
+                min=kop_to_rub(min_kop),
+            ),
+            show_alert=True,
+        )
+        return
+    await dialog_manager.switch_to(state=MainMenu.INVITE_WITHDRAW)
 
 
 @inject

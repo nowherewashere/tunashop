@@ -150,14 +150,16 @@ msg-menu-invite-withdraw =
     <b>💰 Вывод в крипте</b>
 
     <blockquote>
-    { $can_withdraw ->
-    [1] Выведем весь баланс — <b>{ $balance } { $currency }</b> в { $crypto_asset } ({ $crypto_network }).
+    Выведем весь баланс — <b>{ $balance } { $currency }</b> в { $crypto_asset } ({ $crypto_network }).
+    </blockquote>
 
     Пришли адрес кошелька <b>{ $crypto_asset } · { $crypto_network }</b> сообщением — создадим заявку. Выплаты по понедельникам.
-    *[0] На балансе <b>{ $balance } { $currency }</b>. Вывод в крипту — от <b>{ $payout_min } { $currency }</b>.
 
-    Не хватает ещё <b>{ $remaining_to_min } { $currency }</b>. Приглашай друзей — комиссия падает на баланс. Или оплати балансом свою подписку.
-    }
+msg-menu-invite-share =
+    <b>🤝 Пригласить друга</b>
+
+    <blockquote>
+    Отправь другу приглашение кнопкой ниже или покажи QR-код. Друг получит бесплатный доступ, а ты — процент с его платежей на баланс.
     </blockquote>
 
 msg-menu-invite-pay =
