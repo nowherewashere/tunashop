@@ -62,7 +62,7 @@ from src.core.exceptions import (
     ReferralError,
 )
 from src.core.utils.i18n_helpers import i18n_format_expire_time
-from src.core.utils.money import kop_to_rub, mask_wallet
+from src.core.utils.money import kop_to_rub
 from src.core.utils.time import get_traffic_reset_delta
 from src.telegram.keyboards import CALLBACK_CHANNEL_CONFIRM, CALLBACK_RULES_ACCEPT
 from src.telegram.states import MainMenu, Subscription
@@ -411,7 +411,7 @@ async def on_edit_wallet_input(
         user=user,
         payload=MessagePayloadDto(
             i18n_key="ntf-invite.wallet-updated",
-            i18n_kwargs={"wallet": mask_wallet(payout.crypto_wallet or "")},
+            i18n_kwargs={"wallet": payout.crypto_wallet or ""},
         ),
     )
     await dialog_manager.switch_to(state=MainMenu.INVITE)

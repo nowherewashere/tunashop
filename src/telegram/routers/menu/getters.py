@@ -28,12 +28,14 @@ from src.core.utils.i18n_helpers import (
     i18n_format_expire_time,
     i18n_format_traffic_limit,
 )
-from src.core.utils.money import kop_to_rub, kop_to_stars, mask_wallet
+from src.core.utils.money import kop_to_rub, kop_to_stars
+from src.core.utils.text import strip_leading_emoji
 from src.core.utils.time import datetime_now, get_traffic_reset_delta
 from src.infrastructure.database.models.referral_ledger import (
     PAYOUT_METHOD_STARS,
     PAYOUT_REQUESTED,
 )
+from src.telegram.utils import translate_or_literal
 
 
 def _term_label(days: int) -> str:
@@ -156,7 +158,12 @@ async def menu_getter(
             and timedelta(0) < (subscription.expire_at - datetime_now()) <= TRIAL_ENDING_THRESHOLD
         )
 
-        plan_name = i18n.get(subscription.plan_snapshot.name)
+        # The hub is the one surface that drops the plan's emoji (spec: emoji shows
+        # everywhere the plan name renders EXCEPT the main menu). translate_or_literal
+        # resolves a key-or-literal name; strip_leading_emoji removes the 🐟/🦈 prefix.
+        plan_name = strip_leading_emoji(
+            translate_or_literal(i18n, subscription.plan_snapshot.name)
+        )
 
         data.update(
             {
@@ -320,7 +327,8 @@ async def invite_getter(
                 "payout_amount": kop_to_rub(open_payout.amount_kop),
                 "payout_asset": open_payout.crypto_asset or config.payout.crypto_asset,
                 "payout_network": open_payout.crypto_network or config.payout.crypto_network,
-                "payout_wallet": mask_wallet(open_payout.crypto_wallet or ""),
+                # Full wallet (not masked) so the user can double-check the exact address.
+                "payout_wallet": open_payout.crypto_wallet or "",
                 "payout_stars": open_payout.stars_amount or 0,
                 "payout_editable": int(
                     not is_stars and open_payout.status == PAYOUT_REQUESTED
@@ -337,6 +345,8 @@ async def invite_getter(
         "withdrawn": kop_to_rub(summary.withdrawn_kop),
         "spent_on_vpn": kop_to_rub(summary.spent_kop),
         "currency": "₽",
+        # Crypto payout floor, shown on the "Вывести" button so the threshold is upfront.
+        "withdraw_min": kop_to_rub(config.referral.payout_min_kop),
         "referral_url": referral_url,
         "site_referral_url": site_referral_url,
         "has_site_link": int(bool(site_referral_url)),
@@ -375,12 +385,12 @@ async def invite_withdraw_edit_getter(
     referral_ledger_dao: FromDishka[ReferralLedgerDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
-    # Change-address screen (tofix item 11): show the current (masked) wallet so the
-    # user can confirm they're editing the right request.
+    # Change-address screen: show the current full wallet so the user can confirm
+    # they're editing the right request.
     summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
     open_payout = await referral_ledger_dao.get_open_payout(user.id)
     current_wallet = (
-        mask_wallet(open_payout.crypto_wallet)
+        open_payout.crypto_wallet
         if open_payout and open_payout.crypto_wallet
         else "—"
     )
@@ -460,7 +470,7 @@ async def invite_pay_getter(
     for plan in plans:
         if plan.is_trial:
             continue
-        name = i18n.get(plan.name)
+        name = translate_or_literal(i18n, plan.name)
         for duration in sorted(plan.durations, key=lambda d: d.days):
             try:
                 price = duration.get_price(Currency.RUB)

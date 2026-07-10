@@ -22,7 +22,7 @@ platform-icon =
 
 inline-invite =
     .title = Пригласить друга
-    .description = Нажмите, чтобы отправить пригласительную ссылку!
+    .description = Нажми, чтобы отправить пригласительную ссылку!
     .message =
         🐟 <b>{ $bot_name }</b>
 

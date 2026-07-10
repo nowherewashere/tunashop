@@ -42,24 +42,24 @@ msg-main-menu =
     </blockquote>
     [LIMITED]
     <blockquote>
-    • Ваш трафик израсходован.
+    • Твой трафик израсходован.
 
     <i>{ $is_trial ->
     [0] { $traffic_strategy ->
-        [NO_RESET] Продлите подписку, чтобы сбросить трафик и продолжить пользоваться сервисом!
-        *[RESET] Трафик будет восстановлен через { $reset_time }. Вы также можете продлить подписку, чтобы сбросить трафик.
+        [NO_RESET] Продли подписку, чтобы сбросить трафик и снова пользоваться сервисом!
+        *[RESET] Трафик восстановится через { $reset_time }. Ещё можно продлить подписку, чтобы сбросить трафик.
         }
     *[1] { $traffic_strategy ->
-        [NO_RESET] Оформите подписку, чтобы продолжить пользоваться сервисом!
-        *[RESET] Трафик будет восстановлен через { $reset_time }. Вы также можете оформить подписку, чтобы пользоваться сервисом без ограничений.
+        [NO_RESET] Оформи подписку, чтобы продолжить пользоваться сервисом!
+        *[RESET] Трафик восстановится через { $reset_time }. Ещё можно оформить подписку, чтобы пользоваться сервисом без ограничений.
         }
     }</i>
     </blockquote>
     [DISABLED]
     <blockquote>
-    • Ваша подписка отключена.
+    • Твоя подписка отключена.
 
-    <i>Свяжитесь с поддержкой для выяснения причины!</i>
+    <i>Свяжись с поддержкой, чтобы выяснить причину!</i>
     </blockquote>
     *[NONE]
     <blockquote>
@@ -81,14 +81,14 @@ msg-menu-devices =
     { $has_devices ->
     [0] { "" }
     *[HAS] { $device_single_enabled ->
-        [0] Для отвязки устройства обратитесь в техподдержку.
-        *[OTHER] Нажмите на устройство, чтобы удалить его.
+        [0] Чтобы отвязать устройство, напиши в поддержку.
+        *[OTHER] Нажми на устройство, чтобы удалить его.
         }
     }
 
     { $max_count ->
     [0] { "" }
-    *[LIMIT] Если не хватает лимита устройств — измените подписку.
+    *[LIMIT] Если не хватает лимита устройств — измени подписку.
     }
 
 msg-menu-devices-confirm-reissue =
@@ -96,14 +96,14 @@ msg-menu-devices-confirm-reissue =
 
     ⚠️ После сброса старая ссылка <b>перестанет работать</b> и все устройства придется заново переподключать.
 
-    Вам потребуется:
+    Что нужно сделать:
     • Удалить старую подписку из приложения
     • Добавить новую ссылку из раздела «{ btn-menu.connect }»
 
-    Вы уверены, что хотите сбросить ссылку?
+    Точно сбросить ссылку?
 
 msg-menu-devices-confirm-delete =
-    🗑 <b>Подтвердите удаление устройства</b>
+    🗑 <b>Подтверди удаление устройства</b>
 
     <b>{ $device_model }</b>
     <blockquote>
@@ -112,7 +112,7 @@ msg-menu-devices-confirm-delete =
     </blockquote>
 
 msg-menu-devices-confirm-delete-all =
-    🗑 <b>Подтвердите удаление всех устройств</b>
+    🗑 <b>Подтверди удаление всех устройств</b>
 
 # Referral screen — copy per UX spec v2 §4.7. The money model (50% / payouts /
 # balance) is spec text only for now; the payout backend isn't built, so the ₽ stat
@@ -153,7 +153,7 @@ msg-menu-invite =
     [stars] Сумма: { $payout_amount } { $currency } → { $payout_stars } ⭐
     Выплата: в течение дня
     *[crypto] Сумма: { $payout_amount } { $currency } → { $payout_asset } ({ $payout_network })
-    Адрес: { $payout_wallet }
+    Адрес: <code>{ $payout_wallet }</code>
     Выплата: в понедельник
     }
     </blockquote>
@@ -1582,13 +1582,13 @@ frg-plan-card =
     • <b>Устройства</b>: { $devices }
     • <b>Локации</b>: { $locations }
     </blockquote>
-msg-subscription-new-success = Чтобы начать пользоваться нашим сервисом, нажмите кнопку <code>`{ btn-subscription.connect }`</code> и следуйте инструкциям!
-msg-subscription-renew-success = Ваша подписка продлена на { $added_duration }.
+msg-subscription-new-success = Чтобы начать пользоваться сервисом, нажми кнопку <code>`{ btn-subscription.connect }`</code> и следуй инструкциям!
+msg-subscription-renew-success = Твоя подписка продлена на { $added_duration }.
 
 msg-subscription-plan = 
     <b>📦 Доступный план по ссылке</b>
     
-    Вам доступен план <b>{ $name }</b> по ссылке. Нажмите кнопку ниже чтобы перейти к выбору длительности и способа оплаты.
+    Тебе доступен план <b>{ $name }</b> по ссылке. Нажми кнопку ниже, чтобы перейти к выбору длительности и способа оплаты.
 
     { $description ->
     [0] { space }
@@ -1629,8 +1629,8 @@ msg-subscription-details =
     [0] { empty }
     *[HAS]
     <blockquote>
-    <i>Цены указаны с учетом { $is_personal_discount ->
-        [1] вашей персональной скидки { $discount_percent }%
+    <i>Цены указаны с учётом { $is_personal_discount ->
+        [1] твоей персональной скидки { $discount_percent }%
         *[0] разовой скидки { $discount_percent }%
         }</i>
     </blockquote>
@@ -1656,7 +1656,7 @@ frg-duration-line = • { $period } — { $amount } { $currency }{ $discount ->
     }
 
 msg-subscription-payment-method =
-    <b>💳 Выберите способ оплаты</b>
+    <b>💳 Выбери способ оплаты</b>
 
     { msg-subscription-details }
 
@@ -1702,16 +1702,16 @@ msg-subscription-success =
 
     Спасибо, что остаёшься с Tuna 🐟
 
-msg-subscription-change-success = 
-    Ваша подписка была изменена.
+msg-subscription-change-success =
+    Твоя подписка изменена.
 
     <b>{ $plan_name }</b>
     { frg-subscription }
 
-msg-subscription-failed = 
+msg-subscription-failed =
     <b>❌ Произошла ошибка!</b>
 
-    Не волнуйтесь, техподдержка уже уведомлена и свяжется с вами в ближайшее время. Приносим извинения за неудобства.
+    Не переживай — поддержка уже в курсе и скоро свяжется с тобой. Извини за неудобства.
 
 
 # Importer
@@ -1903,12 +1903,12 @@ msg-promocode-input-max-activations =
 msg-promocode-input =
     <b>🎟 Промокод</b>
 
-    Введите промокод.
+    Введи промокод.
 
 msg-promocode-confirm =
     <b>🎟 Промокод <code>{ $promo_code }</code></b>
 
-    🎁 Вы получите: { $reward_type ->
+    🎁 Ты получишь: { $reward_type ->
         [DURATION] { $reward ->
             [0] текущая подписка станет <b>бессрочной</b>.
             *[OTHER] <b>{ $reward } { $reward ->
@@ -1932,7 +1932,7 @@ msg-promocode-confirm =
         [SUBSCRIPTION] <b>новый план</b> подписки.
         [PERSONAL_DISCOUNT] постоянную <b>скидку { $reward }%</b> на все покупки.
         [PURCHASE_DISCOUNT] <b>скидку { $reward }%</b> на следующую покупку.
-        *[OTHER] награду на ваш аккаунт.
+        *[OTHER] награду на твой аккаунт.
     }
     
     { $show_reset_warning ->
@@ -1940,11 +1940,11 @@ msg-promocode-confirm =
        *[0] { space }
     }
     { $will_replace_subscription ->
-        [1] ⚠️ <i>У вас уже есть активная подписка. Она будет заменена новым планом, текущий остаток дней и трафик будут сброшены.</i>
+        [1] ⚠️ <i>У тебя уже есть активная подписка. Она будет заменена новым планом, текущий остаток дней и трафик сбросятся.</i>
        *[0] { space }
     }
 
-    Нажмите <b>Подтвердить</b> для активации.
+    Нажми <b>Подтвердить</b> для активации.
 
 
 # Ad Links
