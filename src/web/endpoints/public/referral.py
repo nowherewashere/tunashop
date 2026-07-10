@@ -3,7 +3,7 @@ from dishka.integrations.fastapi import inject
 from fastapi import APIRouter, HTTPException, status
 
 from src.application.common import BotService
-from src.application.common.dao import ReferralLedgerDao, SettingsDao, SubscriptionDao
+from src.application.common.dao import ReferralLedgerDao, SettingsDao
 from src.application.dto import UserDto
 from src.application.use_cases.referral.commands.balance import PayWithBalance, PayWithBalanceDto
 from src.application.use_cases.referral.commands.payout import (
@@ -17,7 +17,6 @@ from src.application.use_cases.referral.queries.summary import (
     GetReferralSummaryDto,
 )
 from src.core.config import AppConfig
-from src.core.enums import SubscriptionStatus
 from src.core.exceptions import (
     BalanceNegativeError,
     InsufficientBalanceError,
@@ -46,10 +45,13 @@ router = APIRouter(prefix="/referral", tags=["Public - Referral"])
 
 
 def _require_referral_enabled(user: UserDto, enabled: bool) -> None:
-    if not user.is_email_verified:
+    # A verified identity is enough: a confirmed email OR a linked Telegram account
+    # (Telegram sign-in already proves ownership). Demanding a verified email locked
+    # out telegram-authenticated cabinet users entirely.
+    if not user.is_email_verified and user.telegram_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Referral program is available only for users with verified email",
+            detail="Referral program requires a verified email or a linked Telegram account",
         )
     if not enabled:
         raise HTTPException(
@@ -66,18 +68,13 @@ async def get_referral_program(
     bot_service: FromDishka[BotService],
     settings_dao: FromDishka[SettingsDao],
     referral_ledger_dao: FromDishka[ReferralLedgerDao],
-    subscription_dao: FromDishka[SubscriptionDao],
     get_referral_summary: FromDishka[GetReferralSummary],
 ) -> ReferralProgramResponse:
     settings = await settings_dao.get()
+    # No active-subscription gate: the balance is money the user already earned, so a
+    # lapsed subscription must not hide it or block a withdrawal. (Pay-with-balance
+    # still needs a live subscription — PayWithBalance enforces that itself.)
     _require_referral_enabled(user, settings.referral.enable)
-
-    current_subscription = await subscription_dao.get_current(user.id)
-    if not current_subscription or current_subscription.current_status != SubscriptionStatus.ACTIVE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Referral program is available only for users with active subscription",
-        )
 
     summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
     last_wallet_payout = await referral_ledger_dao.get_last_crypto_wallet(user.id)
