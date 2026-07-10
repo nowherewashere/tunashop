@@ -4,7 +4,7 @@ from aiogram.types import CallbackQuery
 from aiogram_dialog import DialogManager, StartMode
 from aiogram_dialog.widgets.kbd import Button
 
-from src.application.common import TranslatorRunner
+from src.application.common import EventPublisher, TranslatorRunner
 from src.application.common.dao import UserConnectionStateDao
 from src.application.dto import TelegramUserDto
 from src.application.use_cases.onboarding.commands import (
@@ -14,9 +14,11 @@ from src.application.use_cases.onboarding.commands import (
     ScheduleOnboardingNudgesDto,
 )
 from src.core.constants import CONTAINER_KEY, USER_KEY
+from src.core.metrics import FunnelStep
 from src.telegram.states import MainMenu, Onboarding
 
 from .getters import is_tv_platform
+from .metrics import emit_funnel_step
 
 _PLATFORM_PREFIX = "platform_"
 
@@ -38,6 +40,10 @@ async def on_dialog_start(start_data: Any, manager: DialogManager) -> None:
     schedule = await container.get(ScheduleOnboardingNudges)
     await schedule.system(ScheduleOnboardingNudgesDto(telegram_id=user.telegram_id))
 
+    # Funnel top: the user opened the connect flow (spec §5 `start`).
+    publisher = await container.get(EventPublisher)
+    await emit_funnel_step(publisher, FunnelStep.START, telegram_id=user.telegram_id)
+
 
 async def on_platform_selected(
     callback: CallbackQuery,
@@ -50,6 +56,14 @@ async def on_platform_selected(
     """
     platform = (widget.widget_id or "").removeprefix(_PLATFORM_PREFIX)
     dialog_manager.dialog_data["platform"] = platform
+
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    container = dialog_manager.middleware_data[CONTAINER_KEY]
+    publisher = await container.get(EventPublisher)
+    await emit_funnel_step(
+        publisher, FunnelStep.DEVICE_SELECTED, telegram_id=user.telegram_id, platform=platform
+    )
+
     target = Onboarding.TV_CONNECT if is_tv_platform(platform) else Onboarding.CONNECT
     await dialog_manager.switch_to(target)
 

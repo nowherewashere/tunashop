@@ -5,6 +5,7 @@ from src.application.common.dao import (
     AdLinkDao,
     AuthSessionDao,
     BroadcastDao,
+    EventsDao,
     LifecycleFollowupDao,
     OnboardingNudgeDao,
     PaymentGatewayDao,
@@ -27,6 +28,7 @@ from src.infrastructure.database.dao import (
     AccountMergeDaoImpl,
     AdLinkDaoImpl,
     BroadcastDaoImpl,
+    EventsDaoImpl,
     LifecycleFollowupDaoImpl,
     OnboardingNudgeDaoImpl,
     PaymentGatewayDaoImpl,
@@ -54,6 +56,7 @@ class DaoProvider(Provider):
     account_merge = provide(source=AccountMergeDaoImpl, provides=AccountMergeDao)
     ad_link = provide(source=AdLinkDaoImpl, provides=AdLinkDao)
     broadcast = provide(source=BroadcastDaoImpl, provides=BroadcastDao)
+    events = provide(source=EventsDaoImpl, provides=EventsDao)
     onboarding_nudge = provide(source=OnboardingNudgeDaoImpl, provides=OnboardingNudgeDao)
     lifecycle_followup = provide(
         source=LifecycleFollowupDaoImpl, provides=LifecycleFollowupDao

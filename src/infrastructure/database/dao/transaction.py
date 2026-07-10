@@ -133,6 +133,14 @@ class TransactionDaoImpl(TransactionDao):
         logger.warning(f"Failed to update transaction '{payment_id}': not found")
         return None
 
+    async def set_net_amount(self, payment_id: UUID, net_amount: Decimal) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.payment_id == payment_id)
+            .values(net_amount=net_amount)
+        )
+        logger.debug(f"Transaction '{payment_id}' net_amount set to '{net_amount}'")
+
     async def transition_status(
         self,
         payment_id: UUID,

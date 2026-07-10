@@ -123,12 +123,30 @@ class YookassaGateway(BasePaymentGateway):
         match status:
             case "succeeded":
                 transaction_status = TransactionStatus.COMPLETED
+                # `income_amount` = amount minus YooKassa's commission, i.e. the real
+                # net we settle (metrics spec §4). Present on succeeded payments;
+                # best-effort — a parse miss just leaves net unknown.
+                self.settled_amount = self._extract_income_amount(payment_object)
             case "canceled":
                 transaction_status = TransactionStatus.CANCELED
             case _:
                 raise ValueError(f"Unsupported status: {status}")
 
         return payment_id, transaction_status
+
+    @staticmethod
+    def _extract_income_amount(payment_object: dict[str, Any]) -> Union[Decimal, None]:
+        income = payment_object.get("income_amount")
+        if not isinstance(income, dict):
+            return None
+        value = income.get("value")
+        if value is None:
+            return None
+        try:
+            return Decimal(str(value))
+        except (ArithmeticError, ValueError):
+            logger.warning(f"Could not parse YooKassa income_amount: '{value}'")
+            return None
 
     async def _create_payment_payload(self, amount: str, details: str) -> dict[str, Any]:
         return {

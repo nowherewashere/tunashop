@@ -1,15 +1,22 @@
 import base64
-from typing import Any, Final
+from typing import Any, Final, Optional
 
 from aiogram_dialog import DialogManager
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 
-from src.application.common import BotService, TranslatorRunner
+from src.application.common import BotService, EventPublisher, TranslatorRunner
 from src.application.common.dao import SubscriptionDao
 from src.application.dto import TelegramUserDto
 from src.core.config import AppConfig
 from src.core.constants import API_V1
+from src.core.metrics import FunnelStep
+
+from .metrics import emit_funnel_step
+
+# dialog_data flag: emit the connect-screen funnel steps once per dialog, not on
+# every re-render (Back navigation), so counts stay one-per-step (spec §5).
+_FUNNEL_CONNECT_FLAG = "funnel_connect_emitted"
 
 # Human-readable platform names used inside "Скачать Happ для …" (iOS/macOS share
 # the App Store listing, so they are merged into one "ios" option).
@@ -52,12 +59,38 @@ def _happ_open_url(domain: str, sub_url: str) -> str:
     return f"https://{domain}{API_V1}/connect/happ/{payload}"
 
 
+async def _emit_connect_funnel(
+    dialog_manager: DialogManager,
+    publisher: EventPublisher,
+    telegram_id: Optional[int],
+    platform: str,
+    has_config: bool,
+) -> None:
+    """Emit the connect-screen funnel steps once per dialog (spec §5).
+
+    On the bot the install instructions and the config link live on one screen, so
+    ``app_install_shown`` and ``config_issued`` fire together — an honest reflection
+    of a single-screen flow (the site can space them across screens)."""
+    if dialog_manager.dialog_data.get(_FUNNEL_CONNECT_FLAG):
+        return
+    dialog_manager.dialog_data[_FUNNEL_CONNECT_FLAG] = True
+
+    await emit_funnel_step(
+        publisher, FunnelStep.APP_INSTALL_SHOWN, telegram_id=telegram_id, platform=platform
+    )
+    if has_config:
+        await emit_funnel_step(
+            publisher, FunnelStep.CONFIG_ISSUED, telegram_id=telegram_id, platform=platform
+        )
+
+
 @inject
 async def connect_getter(
     dialog_manager: DialogManager,
     config: AppConfig,
     user: TelegramUserDto,
     subscription_dao: FromDishka[SubscriptionDao],
+    event_publisher: FromDishka[EventPublisher],
     **kwargs: Any,
 ) -> dict[str, Any]:
     current_subscription = await subscription_dao.get_current(user.id)
@@ -65,6 +98,10 @@ async def connect_getter(
 
     platform = str(dialog_manager.dialog_data.get("platform", "ios"))
     open_url = _happ_open_url(config.domain.get_secret_value(), sub_url)
+
+    await _emit_connect_funnel(
+        dialog_manager, event_publisher, user.telegram_id, platform, bool(sub_url)
+    )
 
     return {
         "platform": platform,
@@ -84,12 +121,17 @@ async def tv_connect_getter(
     config: AppConfig,
     user: TelegramUserDto,
     subscription_dao: FromDishka[SubscriptionDao],
+    event_publisher: FromDishka[EventPublisher],
     **kwargs: Any,
 ) -> dict[str, Any]:
     current_subscription = await subscription_dao.get_current(user.id)
     sub_url = current_subscription.url if current_subscription else ""
 
     platform = str(dialog_manager.dialog_data.get("platform", "apple_tv"))
+
+    await _emit_connect_funnel(
+        dialog_manager, event_publisher, user.telegram_id, platform, bool(sub_url)
+    )
 
     return {
         "platform": platform,

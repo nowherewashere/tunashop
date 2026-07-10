@@ -3,6 +3,7 @@ from .activity import RecentActivityDao
 from .ad_link import AdLinkDao
 from .auth import AuthSessionDao
 from .broadcast import BroadcastDao
+from .event import EventsDao
 from .lifecycle_followup import LifecycleFollowupDao
 from .oauth_provider import UserOAuthProviderDao
 from .onboarding_nudge import OnboardingNudgeDao
@@ -26,6 +27,7 @@ __all__ = [
     "AdLinkDao",
     "AuthSessionDao",
     "BroadcastDao",
+    "EventsDao",
     "LifecycleFollowupDao",
     "UserOAuthProviderDao",
     "OnboardingNudgeDao",

@@ -1,6 +1,7 @@
 from .ad_link import AdLink
 from .base import BaseSql
 from .broadcast import Broadcast, BroadcastMessage
+from .event import Event
 from .lifecycle_followup import LifecycleFollowup
 from .oauth_provider import UserOAuthProvider
 from .onboarding_nudge import OnboardingNudge
@@ -22,6 +23,7 @@ __all__ = [
     "PromocodeActivation",
     "Broadcast",
     "BroadcastMessage",
+    "Event",
     "LifecycleFollowup",
     "UserOAuthProvider",
     "OnboardingNudge",

@@ -13,6 +13,7 @@ from src.application.dto import (
     SubscriptionDto,
     UserDto,
 )
+from src.application.dto.metrics import NodeInfoDto
 
 T = TypeVar("T", SubscriptionDto, RemnaSubscriptionDto)
 
@@ -69,6 +70,8 @@ class Remnawave(Protocol):
     async def get_internal_squads(self) -> List[SquadInfoDto]: ...
 
     async def get_external_squads(self) -> List[SquadInfoDto]: ...
+
+    async def get_nodes(self) -> List[NodeInfoDto]: ...
 
     def apply_sync(
         self,

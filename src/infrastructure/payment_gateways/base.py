@@ -35,6 +35,12 @@ class BasePaymentGateway(ABC):
         self.config = config
         self._bot_username: Optional[str] = None
 
+        # Settled-after-fee amount for the metrics payment event (spec §4). A gateway
+        # whose webhook exposes the PSP fee sets this inside ``handle_webhook``; the
+        # payments endpoint then persists it onto the transaction. Left None when the
+        # gateway's webhook carries no fee — net stays unknown rather than guessed.
+        self.settled_amount: Optional[Decimal] = None
+
         logger.debug(f"{self.__class__.__name__} Initialized")
 
     @abstractmethod

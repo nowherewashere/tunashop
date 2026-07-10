@@ -9,6 +9,7 @@ from src.application.use_cases.broadcast import BROADCAST_USE_CASES
 from src.application.use_cases.followup import FOLLOWUP_USE_CASES
 from src.application.use_cases.gateways import GATEWAYS_USE_CASES
 from src.application.use_cases.importer import IMPORTER_USE_CASES
+from src.application.use_cases.metrics import METRICS_USE_CASES
 from src.application.use_cases.misc import MISC_USE_CASES
 from src.application.use_cases.onboarding import ONBOARDING_USE_CASES
 from src.application.use_cases.plan import PLAN_USE_CASES
@@ -34,6 +35,7 @@ class UseCasesProvider(Provider):
         *FOLLOWUP_USE_CASES,
         *GATEWAYS_USE_CASES,
         *IMPORTER_USE_CASES,
+        *METRICS_USE_CASES,
         *MISC_USE_CASES,
         *ONBOARDING_USE_CASES,
         *PLAN_USE_CASES,

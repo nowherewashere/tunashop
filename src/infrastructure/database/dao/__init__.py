@@ -1,6 +1,7 @@
 from .account_merge import AccountMergeDaoImpl
 from .ad_link import AdLinkDaoImpl
 from .broadcast import BroadcastDaoImpl
+from .event import EventsDaoImpl
 from .lifecycle_followup import LifecycleFollowupDaoImpl
 from .oauth_provider import UserOAuthProviderDaoImpl
 from .onboarding_nudge import OnboardingNudgeDaoImpl
@@ -21,6 +22,7 @@ __all__ = [
     "AccountMergeDaoImpl",
     "AdLinkDaoImpl",
     "BroadcastDaoImpl",
+    "EventsDaoImpl",
     "LifecycleFollowupDaoImpl",
     "UserOAuthProviderDaoImpl",
     "OnboardingNudgeDaoImpl",

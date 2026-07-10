@@ -3,10 +3,11 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from loguru import logger
 
-from src.application.common import Interactor
+from src.application.common import EventPublisher, Interactor
 from src.application.common.dao import ReferralDao, ReferralLedgerDao, SettingsDao
 from src.application.common.uow import UnitOfWork
 from src.application.dto import ReferralEventDto, TransactionDto, UserDto
+from src.application.events.metrics import ReferralCommissionRecordedEvent
 from src.core.config import AppConfig
 from src.core.enums import Currency
 
@@ -38,12 +39,14 @@ class RecordReferralCommission(Interactor[RecordReferralCommissionDto, None]):
         settings_dao: SettingsDao,
         referral_dao: ReferralDao,
         referral_ledger_dao: ReferralLedgerDao,
+        event_publisher: EventPublisher,
         config: AppConfig,
     ) -> None:
         self.uow = uow
         self.settings_dao = settings_dao
         self.referral_dao = referral_dao
         self.referral_ledger_dao = referral_ledger_dao
+        self.event_publisher = event_publisher
         self.config = config
 
     async def _execute(self, actor: UserDto, data: RecordReferralCommissionDto) -> None:
@@ -99,12 +102,24 @@ class RecordReferralCommission(Interactor[RecordReferralCommissionDto, None]):
             await self.uow.commit()
 
         if inserted:
-            # METRICS HOOK — this is the `referral_attributed` moment (metrics spec §4:
-            # "referred user pays", carrying referrer_ref + payout_rub). When the metrics
-            # layer lands, emit the event here (or add an @on_event listener) — the data
-            # (referrer, referred, commission_kop) is all in scope.
             logger.info(
                 f"Referral commission '{commission_kop}' kop recorded for referrer "
                 f"'{referral.referrer.remna_name}' from '{data.user.log}' "
                 f"(payment '{tx.payment_id}')"
+            )
+            # METRICS HOOK — the `referral_attributed` moment (metrics spec §4:
+            # "referred user pays", carrying referrer_ref + payout_rub). Published
+            # only when the ledger row is freshly inserted, so the metric mirrors the
+            # idempotent ledger exactly (no double count on a retried webhook). Fire-
+            # and-forget: the bus fans out on a background task; MetricsEventListener
+            # resolves both remnawave_uuids and writes the row.
+            await self.event_publisher.publish(
+                ReferralCommissionRecordedEvent(
+                    referrer_id=referral.referrer.id,
+                    referred_id=data.user.id,
+                    payment_id=str(tx.payment_id),
+                    payment_kop=payment_kop,
+                    commission_kop=commission_kop,
+                    referred_telegram_id=data.user.telegram_id,
+                )
             )

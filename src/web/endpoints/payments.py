@@ -71,6 +71,25 @@ async def _sync_platega_payment_method(
         await uow.commit()
 
 
+async def _persist_settled_net(
+    gateway: BasePaymentGateway,
+    payment_id: UUID,
+    transaction_dao: TransactionDao,
+    uow: UnitOfWork,
+) -> None:
+    """Record the PSP-settled (after-fee) amount the gateway extracted from the raw
+    webhook body (metrics spec §4). Fire-and-forget: a failure here must never
+    affect the payment or the webhook response — net just stays unknown."""
+    if gateway.settled_amount is None:
+        return
+    try:
+        async with uow:
+            await transaction_dao.set_net_amount(payment_id, gateway.settled_amount)
+            await uow.commit()
+    except Exception:
+        logger.exception(f"Failed to persist settled net for payment '{payment_id}'")
+
+
 async def _process_payment_webhook(
     gateway_type: str,
     request: Request,
@@ -106,6 +125,8 @@ async def _process_payment_webhook(
         payment_id, payment_status = result
         if gateway_enum == PaymentGatewayType.PLATEGA:
             await _sync_platega_payment_method(gateway, payment_id, transaction_dao, uow)
+        if gateway is not None:
+            await _persist_settled_net(gateway, payment_id, transaction_dao, uow)
         enqueue_error = await _enqueue_payment_task(
             payment_id, payment_status, gateway_enum, gateway_type, config, event_publisher
         )

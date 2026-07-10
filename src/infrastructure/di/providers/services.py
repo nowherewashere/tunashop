@@ -33,6 +33,7 @@ from src.infrastructure.services import (
     EventBusImpl,
     HealthService,
     LifecycleFollowupHandler,
+    MetricsEventListener,
     NotificationQueue,
     NotificationService,
     NotificationWorker,
@@ -83,6 +84,10 @@ class ServicesProvider(Provider):
     trial_connection = provide(source=TrialConnectionHandler, scope=Scope.REQUEST)
     # Win-back arming listener (chain E on subscription expiry).
     lifecycle_followup = provide(source=LifecycleFollowupHandler, scope=Scope.REQUEST)
+    # Metrics/analytics listener — maps domain events to the append-only `events`
+    # table (metrics spec §4–§6). REQUEST scope: fresh uow + DAOs per event, like the
+    # other listeners. Auto-subscribes via its @on_event methods (no extra wiring).
+    metrics_listener = provide(source=MetricsEventListener, scope=Scope.REQUEST)
 
     notification_queue = provide(source=NotificationQueue)
     notification_worker = provide(source=NotificationWorker)

@@ -8,6 +8,7 @@ from .file_downloader import AiogramFileDownloader
 from .health import HealthService
 from .http_client import AiohttpClient
 from .lifecycle_followup import LifecycleFollowupHandler
+from .metrics import MetricsEventListener
 from .notification import NotificationService
 from .notification_queue import NotificationQueue, NotificationWorker
 from .password_hasher import PasswordHasherImpl
@@ -37,6 +38,7 @@ __all__ = [
     "PaymentNotificationDispatcherImpl",
     "RedirectImpl",
     "LifecycleFollowupHandler",
+    "MetricsEventListener",
     "RemnawaveImpl",
     "TrialConnectionHandler",
     "TurnstileVerifierImpl",

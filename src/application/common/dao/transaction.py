@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Iterable, Optional, Protocol, runtime_checkable
 from uuid import UUID
 
@@ -25,6 +26,11 @@ class TransactionDao(Protocol):
         payment_id: UUID,
         status: TransactionStatus,
     ) -> Optional[TransactionDto]: ...
+
+    async def set_net_amount(self, payment_id: UUID, net_amount: Decimal) -> None:
+        """Record the PSP-settled (after-fee) amount extracted from the webhook
+        (metrics spec §4). Best-effort enrichment — never gates the payment."""
+        ...
 
     async def transition_status(
         self,

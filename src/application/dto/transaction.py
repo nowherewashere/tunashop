@@ -45,6 +45,9 @@ class TransactionDto(BaseDto, TrackableMixin, TimestampMixin):
     currency: Currency
     plan_snapshot: "PlanSnapshotDto"
 
+    # PSP-settled amount after fees (metrics spec §4); None until the webhook fills it.
+    net_amount: Optional[Decimal] = None
+
     @property
     def is_completed(self) -> bool:
         return self.status == TransactionStatus.COMPLETED
