@@ -1,10 +1,10 @@
-from typing import Final
-
 from loguru import logger
 from sqlalchemy import delete, exists, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.application.common.dao import AccountMergeDao
+from src.application.dto import PayoutDto
+from src.core.constants import MERGE_SUPERSEDED_PAYOUT_REASON
 from src.infrastructure.database.models import (
     BalanceSpend,
     BroadcastMessage,
@@ -26,15 +26,14 @@ from src.infrastructure.database.models.referral_ledger import (
 )
 from src.infrastructure.database.models.timestamp import NOW_FUNC
 
-# Operator-visible bookkeeping for the payout an account merge had to close.
-MERGE_SUPERSEDED_REASON: Final[str] = "Superseded by account merge"
+from .referral_ledger import to_payout_dto
 
 
 class AccountMergeDaoImpl(AccountMergeDao):
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def reassign_children(self, survivor_id: int, loser_id: int) -> None:
+    async def reassign_children(self, survivor_id: int, loser_id: int) -> list[PayoutDto]:
         # Plain repoints — these user_id columns carry no per-user unique constraint.
         await self.session.execute(
             update(Subscription)
@@ -72,9 +71,10 @@ class AccountMergeDaoImpl(AccountMergeDao):
         await self._reassign_referral_code(survivor_id, loser_id)
         # Runs last: it reconciles the survivor's payouts *after* the loser's have
         # been repointed onto it, which is the only moment two can be open at once.
-        await self._collapse_open_payouts(survivor_id)
+        superseded = await self._collapse_open_payouts(survivor_id)
 
         logger.debug(f"Reassigned child records from user '{loser_id}' to '{survivor_id}'")
+        return superseded
 
     async def _reassign_referral_code(self, survivor_id: int, loser_id: int) -> None:
         # The loser's `users.referral_code` dies with its row, so tombstone it onto the
@@ -97,14 +97,15 @@ class AccountMergeDaoImpl(AccountMergeDao):
                 insert(ReferralCodeAlias).values(code=loser_code, user_id=survivor_id)
             )
 
-    async def _collapse_open_payouts(self, survivor_id: int) -> None:
+    async def _collapse_open_payouts(self, survivor_id: int) -> list[PayoutDto]:
         """Restore the single-open-payout invariant after both accounts' payouts merged.
 
-        Keep exactly one open row and reject the rest. Preference: a ``processing``
-        payout outranks a ``requested`` one (an operator is already settling it — closing
-        it could double-pay), then the oldest, which has waited longest. ``id`` breaks the
-        remaining tie, because ``created_at`` defaults to the transaction clock and two
-        rows written in one transaction share it exactly.
+        Keep exactly one open row and reject the rest; return the rejected ones so the
+        caller can tell their owner once the merge has committed. Preference: a
+        ``processing`` payout outranks a ``requested`` one (an operator is already
+        settling it — closing it could double-pay), then the oldest, which has waited
+        longest. ``id`` breaks the remaining tie, because ``created_at`` defaults to the
+        transaction clock and two rows written in one transaction share it exactly.
 
         Rejecting destroys no money: ``balance = earned − spent − withdrawn(paid)`` and a
         rejected payout is none of those, so the survivor can immediately re-request the
@@ -125,22 +126,26 @@ class AccountMergeDaoImpl(AccountMergeDao):
             )
         ).all()
         if len(open_ids) < 2:
-            return
+            return []
 
-        superseded = open_ids[1:]
-        await self.session.execute(
-            update(Payout)
-            .where(Payout.id.in_(superseded))
-            .values(
-                status=PAYOUT_REJECTED,
-                reject_reason=MERGE_SUPERSEDED_REASON,
-                processed_at=NOW_FUNC,
+        superseded_ids = open_ids[1:]
+        rows = (
+            await self.session.scalars(
+                update(Payout)
+                .where(Payout.id.in_(superseded_ids))
+                .values(
+                    status=PAYOUT_REJECTED,
+                    reject_reason=MERGE_SUPERSEDED_PAYOUT_REASON,
+                    processed_at=NOW_FUNC,
+                )
+                .returning(Payout)
             )
-        )
+        ).all()
         logger.info(
             f"Merge: kept open payout '{open_ids[0]}' for user '{survivor_id}', "
-            f"rejected superseded '{superseded}'"
+            f"rejected superseded '{superseded_ids}'"
         )
+        return [to_payout_dto(row) for row in rows]
 
     async def _reassign_referral_events(self, survivor_id: int, loser_id: int) -> None:
         # Commission rows earned *between* the two accounts must go: repointing them

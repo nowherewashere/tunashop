@@ -22,6 +22,36 @@ from src.infrastructure.database.models.timestamp import NOW_FUNC
 from .base import BaseDaoImpl
 
 
+def to_payout_dto(row: Payout) -> PayoutDto:
+    """Module-level so the merge DAO — which closes payouts of its own — maps rows
+    through exactly the same function rather than growing a second copy."""
+    return PayoutDto(
+        id=row.id,
+        user_id=row.user_id,
+        method=row.method,
+        amount_kop=row.amount_kop,
+        status=row.status,
+        recipient_tg=row.recipient_tg,
+        crypto_wallet=row.crypto_wallet,
+        crypto_asset=row.crypto_asset,
+        crypto_network=row.crypto_network,
+        crypto_amount=row.crypto_amount,
+        fx_rate=row.fx_rate,
+        tx_hash=row.tx_hash,
+        batch_id=row.batch_id,
+        stars_amount=row.stars_amount,
+        stars_rate=row.stars_rate,
+        gift_ref=row.gift_ref,
+        treasury_account=row.treasury_account,
+        reject_reason=row.reject_reason,
+        processed_at=row.processed_at,
+        operator_id=row.operator_id,
+        note=row.note,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
 class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
     # --- earning side (referral_events) ---
     async def add_commission(self, event: ReferralEventDto) -> bool:
@@ -102,7 +132,7 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
             .limit(1)
         )
         row = await self.session.scalar(stmt)
-        return self._to_payout_dto(row) if row else None
+        return to_payout_dto(row) if row else None
 
     async def create_payout(self, payout: PayoutDto) -> PayoutDto:
         db_payout = Payout(
@@ -124,11 +154,11 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
             f"Payout '{payout.amount_kop}' kop ({payout.method}) requested for "
             f"user id='{payout.user_id}'"
         )
-        return self._to_payout_dto(db_payout)
+        return to_payout_dto(db_payout)
 
     async def get_payout(self, payout_id: int) -> Optional[PayoutDto]:
         row = await self.session.get(Payout, payout_id)
-        return self._to_payout_dto(row) if row else None
+        return to_payout_dto(row) if row else None
 
     async def list_payouts_by_status(
         self, status: str, limit: int = 50, offset: int = 0
@@ -141,7 +171,7 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
             .offset(offset)
         )
         result = await self.session.scalars(stmt)
-        return [self._to_payout_dto(row) for row in result.all()]
+        return [to_payout_dto(row) for row in result.all()]
 
     async def count_payouts_by_status(self, status: str) -> int:
         stmt = select(func.count()).select_from(Payout).where(Payout.status == status)
@@ -159,7 +189,7 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
             .limit(1)
         )
         row = await self.session.scalar(stmt)
-        return self._to_payout_dto(row) if row else None
+        return to_payout_dto(row) if row else None
 
     # --- operator transitions ---
     async def mark_processing(self, payout_id: int, operator_id: Optional[int]) -> None:
@@ -218,35 +248,6 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
         result = await self.session.scalars(
             select(Payout).where(Payout.batch_id == batch_id).order_by(Payout.created_at)
         )
-        payouts = [self._to_payout_dto(row) for row in result.all()]
+        payouts = [to_payout_dto(row) for row in result.all()]
         logger.debug(f"Crypto batch '{batch_id}' collected '{len(payouts)}' payouts")
         return payouts
-
-    # --- mapping ---
-    @staticmethod
-    def _to_payout_dto(row: Payout) -> PayoutDto:
-        return PayoutDto(
-            id=row.id,
-            user_id=row.user_id,
-            method=row.method,
-            amount_kop=row.amount_kop,
-            status=row.status,
-            recipient_tg=row.recipient_tg,
-            crypto_wallet=row.crypto_wallet,
-            crypto_asset=row.crypto_asset,
-            crypto_network=row.crypto_network,
-            crypto_amount=row.crypto_amount,
-            fx_rate=row.fx_rate,
-            tx_hash=row.tx_hash,
-            batch_id=row.batch_id,
-            stars_amount=row.stars_amount,
-            stars_rate=row.stars_rate,
-            gift_ref=row.gift_ref,
-            treasury_account=row.treasury_account,
-            reject_reason=row.reject_reason,
-            processed_at=row.processed_at,
-            operator_id=row.operator_id,
-            note=row.note,
-            created_at=row.created_at,
-            updated_at=row.updated_at,
-        )

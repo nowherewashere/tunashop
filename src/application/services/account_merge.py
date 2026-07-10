@@ -4,12 +4,20 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from loguru import logger
 
+from src.application.common import EventPublisher
 from src.application.common.dao import AccountMergeDao, SubscriptionDao, UserDao
 from src.application.common.dao.auth import AuthSessionDao
 from src.application.common.remnawave import Remnawave
 from src.application.common.uow import UnitOfWork
-from src.application.dto import SubscriptionDto, UserDto
+from src.application.dto import PayoutDto, SubscriptionDto, UserDto
+from src.application.events import PayoutRejectedEvent
+from src.application.use_cases.referral.queries.summary import (
+    GetReferralSummary,
+    GetReferralSummaryDto,
+)
+from src.core.constants import MERGE_SUPERSEDED_PAYOUT_REASON
 from src.core.enums import SubscriptionStatus
+from src.core.utils.money import kop_to_rub
 
 # Stamps the absorbed account's identity onto the survivor. Called *after* the loser
 # row is deleted, which is the only point at which a unique identity column
@@ -52,6 +60,8 @@ class AccountMergeService:
         account_merge: AccountMergeDao,
         remnawave: Remnawave,
         auth_session: AuthSessionDao,
+        event_publisher: EventPublisher,
+        get_referral_summary: GetReferralSummary,
     ) -> None:
         self.uow = uow
         self.user_dao = user_dao
@@ -59,6 +69,8 @@ class AccountMergeService:
         self.account_merge = account_merge
         self.remnawave = remnawave
         self.auth_session = auth_session
+        self.event_publisher = event_publisher
+        self.get_referral_summary = get_referral_summary
 
     async def merge(
         self,
@@ -78,7 +90,7 @@ class AccountMergeService:
             )
 
         async with self.uow:
-            await self.account_merge.reassign_children(survivor.id, loser.id)
+            superseded_payouts = await self.account_merge.reassign_children(survivor.id, loser.id)
 
             # Delete the absorbed row BEFORE stamping its identity onto the survivor.
             # `ix_users_email` and `ix_users_telegram_id` are unique indexes, so the two
@@ -148,8 +160,46 @@ class AccountMergeService:
             except Exception as e:
                 logger.warning(f"Merge: failed to delete orphan Remnawave user {remna_id}: {e}")
 
+        await self._notify_superseded_payouts(updated, superseded_payouts)
+
         logger.info(f"Merged user '{loser.id}' into '{survivor.id}'")
         return updated
+
+    async def _notify_superseded_payouts(
+        self, survivor: UserDto, payouts: list[PayoutDto]
+    ) -> None:
+        """Tell the survivor about each payout the merge had to close.
+
+        Closing a withdrawal request without a word is the kind of silence that reads as
+        lost money, even though the balance is untouched — so say it, exactly as
+        ``RejectPayout`` does when an operator rejects one by hand.
+
+        Post-commit and best-effort: the merge has already landed, and a failure to build
+        the summary or reach the bus must not turn a committed merge into a 500 for the
+        caller. Web-only survivors are dropped downstream by the notifier.
+        """
+        if not payouts:
+            return
+
+        try:
+            # The one source of truth for the balance formula; read *after* commit so it
+            # reflects the merged ledger the user will actually see.
+            summary = await self.get_referral_summary.system(GetReferralSummaryDto(survivor.id))
+            balance = kop_to_rub(summary.balance_kop)
+            for payout in payouts:
+                await self.event_publisher.publish(
+                    PayoutRejectedEvent(
+                        user=survivor,
+                        amount=kop_to_rub(payout.amount_kop),
+                        reason=MERGE_SUPERSEDED_PAYOUT_REASON,
+                        balance=balance,
+                    )
+                )
+        except Exception as e:
+            logger.warning(
+                f"Merge: failed to notify user {survivor.id} about "
+                f"{len(payouts)} superseded payout(s): {e}"
+            )
 
     @staticmethod
     def _merge_scalars(survivor: UserDto, loser: UserDto) -> None:

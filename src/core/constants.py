@@ -114,3 +114,9 @@ EMAIL_VERIFICATION_BODY_TEMPLATE: Final[str] = (
 )
 WEB_PASSWORD_LEN: Final[int] = 8
 WEB_PASSWORD_ALPHABET: Final[str] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+# Reason stamped on the payout an account merge had to close, and read back to its owner
+# through `event-payout.rejected` ("Вывод { $amount } ₽ отклонён: { $reason }."). Free
+# text and lowercase for that sentence position — exactly like the reason an operator
+# types when rejecting by hand, and in the same language, since the bot ships only `ru`.
+MERGE_SUPERSEDED_PAYOUT_REASON: Final[str] = "аккаунты объединены"
