@@ -155,6 +155,7 @@ async def tips_getter(
 @inject
 async def not_working_getter(
     dialog_manager: DialogManager,
+    config: AppConfig,
     bot_service: FromDishka[BotService],
     i18n: FromDishka[TranslatorRunner],
     **kwargs: Any,
@@ -163,7 +164,14 @@ async def not_working_getter(
     # reached inside the funnel — drives which Back target the screen shows.
     start_data = dialog_manager.start_data
     from_menu = bool(isinstance(start_data, dict) and start_data.get("from_menu"))
+    # Legal links point at the public site's /oferta and /privacy pages (same base as
+    # the cabinet link). Shown only when the site URL is configured, so we never render
+    # a Url button with an empty href.
+    site_base = config.web_cabinet_url.strip().rstrip("/")
     return {
         "support_url": bot_service.get_support_url(text=i18n.get("message.help")),
         "from_menu": from_menu,
+        "has_legal": bool(site_base),
+        "oferta_url": f"{site_base}/oferta" if site_base else "",
+        "privacy_url": f"{site_base}/privacy" if site_base else "",
     }

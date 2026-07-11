@@ -200,6 +200,24 @@ not_working = Window(
             style=Style(ButtonStyle.PRIMARY),
         ),
     ),
+    # Legal links to the site's public documents — green, one row, only when the
+    # site URL is configured (getter gates this via has_legal).
+    Row(
+        Url(
+            text=I18nFormat("btn-onboarding.oferta"),
+            url=Format("{oferta_url}"),
+            id="oferta",
+            style=Style(ButtonStyle.SUCCESS),
+            when=F["has_legal"],
+        ),
+        Url(
+            text=I18nFormat("btn-onboarding.privacy"),
+            url=Format("{privacy_url}"),
+            id="privacy",
+            style=Style(ButtonStyle.SUCCESS),
+            when=F["has_legal"],
+        ),
+    ),
     Row(
         # From the menu Support button: Back returns to the main menu.
         Start(
