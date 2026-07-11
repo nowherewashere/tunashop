@@ -67,11 +67,25 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
         samesite="lax",
         max_age=REFRESH_TOKEN_TTL_SECONDS,
     )
+    # Non-httpOnly "a session exists" hint, written by the same code that owns the auth
+    # cookies (single source of truth — no drift). The SPA reads it to skip the /auth/me
+    # probe for anonymous visitors, so public pages issue no 401s (clean console →
+    # Best-Practices). Carries NO secret: only the fact that a session is likely present.
+    # Mirrors the refresh TTL and rolls forward on every refresh (all paths pass here).
+    response.set_cookie(
+        "has_session",
+        "1",
+        httponly=False,
+        secure=True,
+        samesite="lax",
+        max_age=REFRESH_TOKEN_TTL_SECONDS,
+    )
 
 
 def clear_auth_cookies(response: Response) -> None:
     response.delete_cookie("access_token", httponly=True, secure=True, samesite="lax")
     response.delete_cookie("refresh_token", httponly=True, secure=True, samesite="lax")
+    response.delete_cookie("has_session", secure=True, samesite="lax")
 
 
 async def issue_session(
