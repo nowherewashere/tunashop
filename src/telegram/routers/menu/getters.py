@@ -8,6 +8,7 @@ from loguru import logger
 
 from src.application.common import BotService, Remnawave, TranslatorRunner
 from src.application.common.dao import (
+    PlanDao,
     ReferralLedgerDao,
     SettingsDao,
     SubscriptionDao,
@@ -21,7 +22,7 @@ from src.application.use_cases.referral.queries.summary import (
 )
 from src.application.use_cases.user.queries.plans import GetAvailablePlans
 from src.core.config import AppConfig
-from src.core.enums import Currency
+from src.core.enums import Currency, PlanAvailability
 from src.core.exceptions import MenuRenderError, PriceNotFoundError
 from src.core.utils.i18n_helpers import (
     i18n_format_device_limit,
@@ -288,6 +289,19 @@ async def device_confirm_delete_getter(
 
 
 @inject
+async def _invited_trial_days(plan_dao: PlanDao) -> int | None:
+    """Duration (days) of the active INVITED trial plan — what referred friends get.
+    Same source as the site's /config referred_trial_days, so the two stay in sync."""
+    plans = await plan_dao.get_active_trial_plans()
+    invited = sorted(
+        (p for p in plans if p.availability == PlanAvailability.INVITED),
+        key=lambda p: p.order_index,
+    )
+    if invited and invited[0].durations:
+        return invited[0].durations[0].days
+    return None
+
+
 async def invite_getter(
     dialog_manager: DialogManager,
     config: AppConfig,
@@ -296,6 +310,7 @@ async def invite_getter(
     settings_dao: FromDishka[SettingsDao],
     get_referral_summary: FromDishka[GetReferralSummary],
     referral_ledger_dao: FromDishka[ReferralLedgerDao],
+    plan_dao: FromDishka[PlanDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
     settings = await settings_dao.get()
@@ -336,8 +351,11 @@ async def invite_getter(
             }
         )
 
+    trial_days = (await _invited_trial_days(plan_dao)) or 0
     return {
         **payout_fields,
+        "trial_days": trial_days,
+        "rate": config.referral.rate_bp // 100,
         # Stats block (spec §8.1) — real money now, all in ₽ (kopecks derived).
         "referrals": summary.invited,
         "payments": summary.paying,
@@ -498,10 +516,12 @@ async def invite_pay_getter(
 async def invite_about_getter(
     dialog_manager: DialogManager,
     config: AppConfig,
+    plan_dao: FromDishka[PlanDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
     # Money model (spec §1): rate% recurring, crypto payout from the min, or pay-VPN.
     return {
         "rate": config.referral.rate_bp // 100,
         "min": kop_to_rub(config.referral.payout_min_kop),
+        "trial_days": (await _invited_trial_days(plan_dao)) or 0,
     }
