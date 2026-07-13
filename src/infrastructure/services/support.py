@@ -2,10 +2,16 @@ import html
 from typing import Any, Awaitable, Callable, Optional
 
 from aiogram import Bot
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from loguru import logger
 
 from src.application.common import Notifier, SupportService
-from src.application.common.dao import SupportDao, UserDao
+from src.application.common.dao import (
+    SubscriptionDao,
+    SupportDao,
+    TransactionDao,
+    UserDao,
+)
 from src.application.common.uow import UnitOfWork
 from src.application.dto import (
     MessagePayloadDto,
@@ -14,6 +20,8 @@ from src.application.dto import (
     UserDto,
 )
 from src.core.config import AppConfig
+from src.core.constants import SUPPORT_CB_CLOSE, SUPPORT_CB_DEVICES
+from src.core.enums import TransactionStatus
 from src.core.exceptions import SupportUnavailableError
 from src.core.utils.time import datetime_now
 from src.infrastructure.database.models.support import (
@@ -45,6 +53,8 @@ class SupportServiceImpl(SupportService):
         uow: UnitOfWork,
         support_dao: SupportDao,
         user_dao: UserDao,
+        subscription_dao: SubscriptionDao,
+        transaction_dao: TransactionDao,
         config: AppConfig,
     ) -> None:
         self.bot = bot
@@ -52,6 +62,8 @@ class SupportServiceImpl(SupportService):
         self.uow = uow
         self.support_dao = support_dao
         self.user_dao = user_dao
+        self.subscription_dao = subscription_dao
+        self.transaction_dao = transaction_dao
         self.config = config
 
     @property
@@ -197,19 +209,56 @@ class SupportServiceImpl(SupportService):
             lines.append(f"Telegram ID: <code>{user.telegram_id}</code>")
         if user.email:
             lines.append(f"Email: {html.escape(user.email)}")
-        cabinet = self.config.web_cabinet_url
-        if cabinet:
-            lines.append(f'<a href="{html.escape(cabinet)}">Кабинет пользователя</a>')
+        lines.append("————")
+        lines.append(await self._render_subscription(user.id))
+        lines.append(await self._render_payments(user.id))
 
         try:
             await self.bot.send_message(
                 chat_id=self._group_id,
                 message_thread_id=topic_id,
                 text="\n".join(lines),
+                reply_markup=self._operator_keyboard(),
                 disable_web_page_preview=True,
             )
         except Exception as error:
             logger.warning(f"Support: failed to post topic header for user {user.id}: {error}")
+
+    @staticmethod
+    def _operator_keyboard() -> InlineKeyboardMarkup:
+        return InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="🖥 Устройства", callback_data=SUPPORT_CB_DEVICES),
+                    InlineKeyboardButton(text="🔒 Закрыть", callback_data=SUPPORT_CB_CLOSE),
+                ]
+            ]
+        )
+
+    async def _render_subscription(self, user_id: int) -> str:
+        subscription = await self.subscription_dao.get_current(user_id)
+        if subscription is None:
+            return "💳 Подписка: нет"
+        if subscription.is_expired:
+            state = "истекла"
+        elif subscription.is_trial:
+            state = "триал"
+        else:
+            state = "активна"
+        plan = html.escape(subscription.plan_snapshot.name or "—")
+        return f"💳 {plan} · {state} · до {subscription.expire_at:%d.%m.%Y}"
+
+    async def _render_payments(self, user_id: int) -> str:
+        transactions = await self.transaction_dao.get_by_user(user_id)
+        completed = [t for t in transactions if t.status == TransactionStatus.COMPLETED]
+        completed.sort(key=lambda t: t.created_at or datetime_now(), reverse=True)
+        if not completed:
+            return "💰 Платежи: нет"
+        rows = [f"💰 Платежи (последние {min(3, len(completed))}):"]
+        for t in completed[:3]:
+            when = f"{t.created_at:%d.%m.%y}" if t.created_at else "—"
+            rows.append(f" • {when} · {t.pricing.final_amount:.0f} {t.currency.value}")
+        return "\n".join(rows)
 
     async def _relay_to_topic(self, topic_id: int, text: str) -> None:
         try:

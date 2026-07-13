@@ -1,14 +1,19 @@
+from typing import Optional
+
 from aiogram import F, Router
 from aiogram.enums import ChatType
 from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from dishka import FromDishka
 from loguru import logger
 
 from src.application.common import BotService, SupportService
+from src.application.common.dao import SupportDao
 from src.application.dto import TelegramUserDto
+from src.application.use_cases.user.queries.profile import GetUserDevices
 from src.core.config import AppConfig
+from src.core.constants import SUPPORT_CB_CLOSE, SUPPORT_CB_DEVICES
 from src.core.exceptions import SupportUnavailableError
 from src.infrastructure.database.models.support import CHANNEL_TELEGRAM
 from src.telegram.states import Support
@@ -140,3 +145,63 @@ async def on_operator_group_message(
     )
     if not delivered:
         logger.debug(f"Support: reply in unmapped topic {thread_id}, ignored")
+
+
+# --- operator inline buttons on the topic header -----------------------------
+
+
+def _support_callback_target(
+    callback: CallbackQuery, config: AppConfig
+) -> Optional[tuple[Message, int]]:
+    """The (topic message, topic id) of a valid operator-group callback, else None."""
+    message = callback.message
+    if not config.support.is_active or not isinstance(message, Message):
+        return None
+    if message.chat.id != config.support.group_id or message.message_thread_id is None:
+        return None
+    return message, message.message_thread_id
+
+
+@router.callback_query(F.data == SUPPORT_CB_DEVICES)
+async def on_support_devices(
+    callback: CallbackQuery,
+    config: FromDishka[AppConfig],
+    support_dao: FromDishka[SupportDao],
+    get_user_devices: FromDishka[GetUserDevices],
+) -> None:
+    target = _support_callback_target(callback, config)
+    if target is None:
+        await callback.answer()
+        return
+    message, thread_id = target
+    conversation = await support_dao.get_by_topic_id(thread_id)
+    if conversation is None:
+        await callback.answer("Диалог не найден")
+        return
+    try:
+        result = await get_user_devices.system(conversation.user_id)
+    except Exception:
+        await callback.answer("Устройства недоступны")
+        return
+
+    lines = [f"🖥 Устройства: {result.current_count}/{result.max_count}"]
+    for device in result.devices[:10]:
+        lines.append(f" • {device.device_model or device.platform or 'устройство'}")
+    if not result.devices:
+        lines.append(" • нет активных")
+    await message.answer("\n".join(lines), message_thread_id=thread_id)
+    await callback.answer()
+
+
+@router.callback_query(F.data == SUPPORT_CB_CLOSE)
+async def on_support_close_button(
+    callback: CallbackQuery,
+    config: FromDishka[AppConfig],
+    support: FromDishka[SupportService],
+) -> None:
+    target = _support_callback_target(callback, config)
+    if target is None:
+        await callback.answer()
+        return
+    closed = await support.close_by_topic(target[1])
+    await callback.answer("Диалог закрыт" if closed else "Диалог не найден")

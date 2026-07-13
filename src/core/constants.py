@@ -48,6 +48,10 @@ PAYMENT_PREFIX: Final[str] = "payment_"
 GOTO_PREFIX: Final[str] = "gt_"
 ENCRYPTED_PREFIX: Final[str] = "enc_"
 
+# Support operator-topic inline buttons (callback data).
+SUPPORT_CB_DEVICES: Final[str] = "support:devices"
+SUPPORT_CB_CLOSE: Final[str] = "support:close"
+
 # goto targets (see routers/extra/goto.py) that open the onboarding funnel from a
 # plain notification button; must match the Onboarding state strings in
 # telegram/states.py. ENTRY is the funnel start (O0); HELP is the fail branch.
