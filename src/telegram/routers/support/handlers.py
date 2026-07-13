@@ -1,8 +1,10 @@
-from aiogram import F, Router
+from typing import Any, Awaitable, Callable
+
+from aiogram import BaseMiddleware, F, Router
 from aiogram.enums import ChatType
 from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, TelegramObject
 from dishka import FromDishka
 from loguru import logger
 
@@ -14,6 +16,34 @@ from src.infrastructure.database.models.support import CHANNEL_TELEGRAM
 from src.telegram.states import Support
 
 router = Router(name=__name__)
+
+
+class _SupportDiagMiddleware(BaseMiddleware):
+    """TEMP diagnostic: log the chat of every message, then pass it through unchanged.
+
+    Runs as an outer middleware on the (first-registered) support router, so it sees
+    every message before handler resolution and never alters routing. Used to pin down
+    where operators' replies actually arrive (private vs the support supergroup topic).
+    Remove once support delivery is confirmed.
+    """
+
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: dict[str, Any],
+    ) -> Any:
+        if isinstance(event, Message):
+            logger.info(
+                f"SUPPORT-DIAG chat.type={event.chat.type!r} chat.id={event.chat.id} "
+                f"thread_id={event.message_thread_id} is_topic={event.is_topic_message} "
+                f"from={event.from_user.id if event.from_user else None} "
+                f"text={(event.text or event.caption)!r}"
+            )
+        return await handler(event, data)
+
+
+router.message.outer_middleware(_SupportDiagMiddleware())
 
 # ?start=support deep link — lets any "contact support" button funnel into the in-bot
 # chat instead of the operator's private @username.
