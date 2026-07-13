@@ -86,40 +86,56 @@ def _is_operator_group(message: Message, config: AppConfig) -> bool:
     return config.support.is_active and message.chat.id == config.support.group_id
 
 
-@router.message(
-    F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}),
-    F.message_thread_id,
-    Command("close"),
-)
-async def on_operator_close(
+# One handler for every message in the operator group (string chat-type literals to
+# avoid any enum/str set-membership subtlety). We resolve the topic INSIDE — matching
+# on message_thread_id in the decorator silently dropped replies whose thread id was
+# not populated, and left nothing in the log to see why.
+@router.message(F.chat.type.in_({"group", "supergroup"}))
+async def on_operator_group_message(
     message: Message,
     config: FromDishka[AppConfig],
     support: FromDishka[SupportService],
 ) -> None:
-    if not _is_operator_group(message, config) or message.message_thread_id is None:
+    if not _is_operator_group(message, config):
         return
-    if await support.close_by_topic(message.message_thread_id):
-        await message.answer("✅ Диалог закрыт. Новое сообщение пользователя откроет его снова.")
 
-
-@router.message(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}), F.message_thread_id)
-async def on_operator_reply(
-    message: Message,
-    config: FromDishka[AppConfig],
-    support: FromDishka[SupportService],
-) -> None:
-    if not _is_operator_group(message, config) or message.message_thread_id is None:
-        return
-    if message.from_user is None:
-        return
+    thread_id = message.message_thread_id
     text = message.text or message.caption
-    if not text or text.startswith("/"):
+    logger.info(
+        f"Support: operator group msg chat_id={message.chat.id} thread_id={thread_id} "
+        f"is_topic={message.is_topic_message} "
+        f"from={message.from_user.id if message.from_user else None} text={text!r}"
+    )
+
+    if thread_id is None:
+        # A message outside any topic (the group's General tab) can't be routed to a
+        # user. Only nudge when the operator clearly tried to reply to a relayed message,
+        # so normal General chatter isn't spammed.
+        replied = message.reply_to_message
+        if replied is not None and replied.from_user is not None and replied.from_user.is_bot:
+            await message.answer(
+                "⚠️ Отвечайте внутри темы пользователя — сообщения в General не доходят."
+            )
         return
+
+    if message.from_user is None or not text:
+        return
+
+    stripped = text.strip()
+    if stripped.startswith("/"):
+        # /close (and /close@botname) closes the conversation behind this topic.
+        if stripped.split()[0].split("@")[0] == "/close":
+            if await support.close_by_topic(thread_id):
+                await message.answer(
+                    "✅ Диалог закрыт. Новое сообщение пользователя откроет его снова."
+                )
+        return
+
     delivered = await support.ingest_from_operator(
-        message.message_thread_id,
+        thread_id,
         operator_telegram_id=message.from_user.id,
-        text=text.strip(),
+        text=stripped,
         telegram_message_id=message.message_id,
     )
     if not delivered:
-        logger.debug(f"Support: reply in unmapped topic {message.message_thread_id}, ignored")
+        logger.debug(f"Support: reply in unmapped topic {thread_id}, ignored")
