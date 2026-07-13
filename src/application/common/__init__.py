@@ -10,6 +10,7 @@ from .notifier import Notifier
 from .password_hasher import PasswordHasher
 from .redirect import Redirect
 from .remnawave import Remnawave
+from .support import SupportService
 from .translator import TranslatorHub, TranslatorRunner
 from .turnstile import TurnstileVerifier
 from .xui_reader import XuiDbReader
@@ -29,6 +30,7 @@ __all__ = [
     "PaymentNotificationDispatcher",
     "Redirect",
     "Remnawave",
+    "SupportService",
     "TranslatorHub",
     "TranslatorRunner",
     "TurnstileVerifier",

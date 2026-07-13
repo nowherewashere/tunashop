@@ -15,6 +15,8 @@ from src.infrastructure.database.models import (
     ReferralEvent,
     ReferralReward,
     Subscription,
+    SupportConversation,
+    SupportMessage,
     Transaction,
     User,
     UserOAuthProvider,
@@ -69,6 +71,7 @@ class AccountMergeDaoImpl(AccountMergeDao):
         await self._reassign_promocode_activations(survivor_id, loser_id)
         await self._reassign_oauth_providers(survivor_id, loser_id)
         await self._reassign_referral_code(survivor_id, loser_id)
+        await self._reassign_support(survivor_id, loser_id)
         # Runs last: it reconciles the survivor's payouts *after* the loser's have
         # been repointed onto it, which is the only moment two can be open at once.
         superseded = await self._collapse_open_payouts(survivor_id)
@@ -146,6 +149,45 @@ class AccountMergeDaoImpl(AccountMergeDao):
             f"rejected superseded '{superseded_ids}'"
         )
         return [to_payout_dto(row) for row in rows]
+
+    async def _reassign_support(self, survivor_id: int, loser_id: int) -> None:
+        # support_conversations.user_id CASCADEs on user delete, so leaving it out wipes
+        # the absorbed account's support history. There is at most one conversation per
+        # user (unique user_id): if both accounts have one, fold the loser's messages
+        # into the survivor's conversation and drop the loser's row (its forum topic is
+        # left orphaned in Telegram for the operator to delete); otherwise repoint.
+        # Operator attribution (operator_user_id) also points at users, so repoint it too
+        # — it is ON DELETE SET NULL, not a data-loss risk, but keep the credit.
+        await self.session.execute(
+            update(SupportMessage)
+            .where(SupportMessage.operator_user_id == loser_id)
+            .values(operator_user_id=survivor_id)
+        )
+
+        loser_conv = await self.session.scalar(
+            select(SupportConversation.id).where(SupportConversation.user_id == loser_id)
+        )
+        if loser_conv is None:
+            return
+
+        survivor_conv = await self.session.scalar(
+            select(SupportConversation.id).where(SupportConversation.user_id == survivor_id)
+        )
+        if survivor_conv is None:
+            await self.session.execute(
+                update(SupportConversation)
+                .where(SupportConversation.id == loser_conv)
+                .values(user_id=survivor_id)
+            )
+        else:
+            await self.session.execute(
+                update(SupportMessage)
+                .where(SupportMessage.conversation_id == loser_conv)
+                .values(conversation_id=survivor_conv)
+            )
+            await self.session.execute(
+                delete(SupportConversation).where(SupportConversation.id == loser_conv)
+            )
 
     async def _reassign_referral_events(self, survivor_id: int, loser_id: int) -> None:
         # Commission rows earned *between* the two accounts must go: repointing them

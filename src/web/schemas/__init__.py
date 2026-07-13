@@ -20,7 +20,7 @@ from .auth import (
     TelegramWebAppAuthRequest,
     VerifyEmailLoginCodeRequest,
 )
-from .config import PublicConfigResponse
+from .config import PublicConfigResponse, SupportConfigResponse
 from .health import (
     DatabaseStatusSchema,
     HealthChecks,
@@ -64,6 +64,11 @@ from .subscription import (
     TrialActivateResponse,
     TrialPurchaseRequest,
 )
+from .support import (
+    SendSupportMessageRequest,
+    SupportHistoryResponse,
+    SupportMessageResponse,
+)
 
 __all__ = [
     # health
@@ -95,6 +100,7 @@ __all__ = [
     "VerifyEmailLoginCodeRequest",
     # config
     "PublicConfigResponse",
+    "SupportConfigResponse",
     # onboarding
     "OnboardingConfigResponse",
     "OnboardingStoreLinks",
@@ -130,4 +136,8 @@ __all__ = [
     "SubscriptionOffersResponse",
     "TrialActivateResponse",
     "TrialPurchaseRequest",
+    # support
+    "SendSupportMessageRequest",
+    "SupportHistoryResponse",
+    "SupportMessageResponse",
 ]

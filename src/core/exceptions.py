@@ -85,6 +85,10 @@ class EmailDeliveryError(Exception): ...
 class EmailDeliveryDisabledError(Exception): ...
 
 
+class SupportUnavailableError(Exception):
+    """Support is disabled (SUPPORT_ENABLED=false) or its operator group is unset."""
+
+
 class ReferralError(Exception): ...
 
 

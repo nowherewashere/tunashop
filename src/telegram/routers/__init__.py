@@ -1,11 +1,15 @@
 from aiogram import Router
 
-from . import dashboard, extra, menu, onboarding, subscription
+from . import dashboard, extra, menu, onboarding, subscription, support
 
 
 def setup_routers(router: Router) -> None:
     # WARNING: The order of router registration matters!
     routers = [
+        # First: the support deep-link/entry (its CommandStart(magic) must beat menu's
+        # generic /start) and the operator-group topic handlers.
+        support.handlers.router,
+        #
         extra.payment.router,
         extra.notification.router,
         extra.test.router,

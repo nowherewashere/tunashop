@@ -14,6 +14,7 @@ from .notification_queue import NotificationQueue, NotificationWorker
 from .password_hasher import PasswordHasherImpl
 from .redirect import RedirectImpl
 from .remnawave import RemnawaveImpl
+from .support import SupportServiceImpl
 from .translator import TranslatorHubImpl
 from .trial_connection import TrialConnectionHandler
 from .turnstile import TurnstileVerifierImpl
@@ -40,6 +41,7 @@ __all__ = [
     "LifecycleFollowupHandler",
     "MetricsEventListener",
     "RemnawaveImpl",
+    "SupportServiceImpl",
     "TrialConnectionHandler",
     "TurnstileVerifierImpl",
     "TranslatorHubImpl",

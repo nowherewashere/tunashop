@@ -23,6 +23,12 @@ class Notification(StatesGroup):
     CLOSE = State()
 
 
+class Support(StatesGroup):
+    # The user is in the in-bot support chat: their messages are relayed to the
+    # operator topic until they leave (/stop or /start).
+    CHAT = State()
+
+
 class Onboarding(StatesGroup):
     DEVICE_CHOICE = State()
     CONNECT = State()

@@ -14,6 +14,7 @@ from src.application.common import (
     PaymentNotificationDispatcher,
     Redirect,
     Remnawave,
+    SupportService,
     TurnstileVerifier,
     XuiDbReader,
 )
@@ -43,6 +44,7 @@ from src.infrastructure.services import (
     RedirectImpl,
     RemnawaveImpl,
     SmtpEmailSender,
+    SupportServiceImpl,
     TrialConnectionHandler,
     TurnstileVerifierImpl,
     WebhookService,
@@ -82,6 +84,11 @@ class ServicesProvider(Provider):
     # Shared core of both merge directions. REQUEST scope: it composes onto the
     # request-scoped uow + DAOs so the whole merge lands in one transaction.
     account_merge_service = provide(source=AccountMergeService, scope=Scope.REQUEST)
+    # Unified support bridge (site + bot -> operator forum topics). REQUEST scope: it
+    # composes onto the request-scoped uow + DAOs, like the other stateful services.
+    support_service = provide(
+        source=SupportServiceImpl, scope=Scope.REQUEST, provides=SupportService
+    )
     # First-connection listener (connected_once + on-connect trial-timer restart).
     # REQUEST scope: it uses the request-scoped uow + DAOs, and the event bus
     # resolves listeners from a fresh request container.

@@ -367,6 +367,7 @@ class Command(Enum):
     PAYSUPPORT = BotCommand(command="paysupport", description="command.paysupport")
     RULES = BotCommand(command="rules", description="command.rules")
     HELP = BotCommand(command="help", description="command.help")
+    SUPPORT = BotCommand(command="support", description="command.support")
 
 
 # https://docs.aiogram.dev/en/latest/api/types/update.html

@@ -17,6 +17,7 @@ from src.application.common.dao import (
     ReferralLedgerDao,
     SettingsDao,
     SubscriptionDao,
+    SupportDao,
     TransactionDao,
     UserConnectionStateDao,
     UserDao,
@@ -38,6 +39,7 @@ from src.infrastructure.database.dao import (
     ReferralLedgerDaoImpl,
     SettingsDaoImpl,
     SubscriptionDaoImpl,
+    SupportDaoImpl,
     TransactionDaoImpl,
     UserConnectionStateDaoImpl,
     UserDaoImpl,
@@ -71,6 +73,7 @@ class DaoProvider(Provider):
     referral_ledger = provide(source=ReferralLedgerDaoImpl, provides=ReferralLedgerDao)
     settings = provide(source=SettingsDaoImpl, provides=SettingsDao)
     subscription = provide(source=SubscriptionDaoImpl, provides=SubscriptionDao)
+    support = provide(source=SupportDaoImpl, provides=SupportDao)
     transaction = provide(source=TransactionDaoImpl, provides=TransactionDao)
     user = provide(source=UserDaoImpl, provides=UserDao)
     oauth_provider = provide(source=UserOAuthProviderDaoImpl, provides=UserOAuthProviderDao)

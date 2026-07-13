@@ -13,6 +13,7 @@ from .referral_code_alias import ReferralCodeAlias
 from .referral_ledger import BalanceSpend, Payout, ReferralEvent
 from .settings import Settings
 from .subscription import Subscription
+from .support import SupportConversation, SupportMessage
 from .transaction import Transaction
 from .user import User
 from .user_connection_state import UserConnectionState
@@ -40,6 +41,8 @@ __all__ = [
     "ReferralEvent",
     "Settings",
     "Subscription",
+    "SupportConversation",
+    "SupportMessage",
     "Transaction",
     "User",
     "UserConnectionState",

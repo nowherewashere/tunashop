@@ -41,6 +41,7 @@ command =
     .paysupport = Возврат средств
     .rules = Условия использования
     .help = Помощь
+    .support = Поддержка
 
 hdr-user = <b>👤 Пользователь</b>:
 hdr-user-profile = <b>👤 Профиль</b>:
