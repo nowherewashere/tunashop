@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 from src.application.common.dao import SupportDao
 from src.application.dto import SupportConversationDto, SupportMessageDto
 from src.infrastructure.database.models.support import (
+    CONVERSATION_CLOSED,
     CONVERSATION_OPEN,
     SupportConversation,
     SupportMessage,
@@ -98,6 +99,21 @@ class SupportDaoImpl(BaseDaoImpl, SupportDao):
             .where(SupportConversation.id == conversation_id)
             .values(status=status)
         )
+
+    async def close_idle(self, before: datetime) -> list[SupportConversationDto]:
+        rows = (
+            await self.session.scalars(
+                update(SupportConversation)
+                .where(
+                    SupportConversation.status == CONVERSATION_OPEN,
+                    SupportConversation.last_message_at.is_not(None),
+                    SupportConversation.last_message_at < before,
+                )
+                .values(status=CONVERSATION_CLOSED)
+                .returning(SupportConversation)
+            )
+        ).all()
+        return [to_conversation_dto(row) for row in rows]
 
     async def touch(self, conversation_id: int, channel: str, at: datetime) -> None:
         await self.session.execute(

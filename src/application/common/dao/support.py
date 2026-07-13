@@ -31,6 +31,12 @@ class SupportDao(Protocol):
 
     async def set_status(self, conversation_id: int, status: str) -> None: ...
 
+    async def close_idle(self, before: datetime) -> list[SupportConversationDto]:
+        """Close every OPEN conversation whose last message is older than ``before``;
+        return the rows that were closed (with their topic ids), so the caller can
+        close their forum topics."""
+        ...
+
     async def touch(self, conversation_id: int, channel: str, at: datetime) -> None:
         """Record the last inbound message time + the channel it came from."""
         ...

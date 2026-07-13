@@ -41,6 +41,11 @@ class SupportService(Protocol):
         """Mark the conversation behind a topic closed. Returns False if unmapped."""
         ...
 
+    async def close_idle(self) -> int:
+        """Auto-close conversations idle past the configured threshold; close their
+        forum topics. Returns how many were closed. A new user message reopens one."""
+        ...
+
     async def list_messages(
         self, user: UserDto, after_id: int = 0
     ) -> tuple[Optional[SupportConversationDto], list[SupportMessageDto]]:

@@ -22,6 +22,9 @@ class SupportConfig(BaseConfig, env_prefix="SUPPORT_"):
     # The forum-enabled operator supergroup (a negative -100... chat id). Required
     # when enabled.
     group_id: Optional[int] = None
+    # Auto-close a conversation this many minutes after the user's last message (a new
+    # message reopens it). 0 disables auto-close.
+    idle_close_minutes: int = 60
 
     @property
     def is_active(self) -> bool:

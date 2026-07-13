@@ -1,4 +1,5 @@
 import html
+from datetime import timedelta
 from typing import Any, Awaitable, Callable, Optional
 
 from aiogram import Bot
@@ -162,6 +163,23 @@ class SupportServiceImpl(SupportService):
             await self.uow.commit()
         await self._safe_topic_op(self.bot.close_forum_topic, topic_id)
         return True
+
+    async def close_idle(self) -> int:
+        if not self.config.support.is_active:
+            return 0
+        minutes = self.config.support.idle_close_minutes
+        if minutes <= 0:
+            return 0
+        before = datetime_now() - timedelta(minutes=minutes)
+        async with self.uow:
+            closed = await self.support_dao.close_idle(before)
+            await self.uow.commit()
+        for conv in closed:
+            if conv.telegram_topic_id is not None:
+                await self._safe_topic_op(self.bot.close_forum_topic, conv.telegram_topic_id)
+        if closed:
+            logger.info(f"Support: auto-closed {len(closed)} idle conversation(s)")
+        return len(closed)
 
     async def list_messages(
         self, user: UserDto, after_id: int = 0
