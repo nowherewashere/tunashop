@@ -199,6 +199,15 @@ class SupportServiceImpl(SupportService):
         conv = await self.support_dao.get_by_user(user.id)
         if conv is None:
             return None, []
+        # A closed conversation presents as a fresh chat on the initial load (after_id
+        # == 0): the site then renders a clean new conversation (its static greeting),
+        # not the previous, closed session's history — mirroring "no conversation yet".
+        # The next user message reopens the same thread server-side
+        # (ingest_from_user), and live polling (after_id > 0) still streams the open
+        # conversation, so an operator closing it mid-session is reflected normally.
+        # The DB keeps every message; this only shapes what the initial load renders.
+        if after_id == 0 and conv.status == CONVERSATION_CLOSED:
+            return None, []
         messages = await self.support_dao.list_messages(conv.id, after_id=after_id)
         return conv, messages
 
