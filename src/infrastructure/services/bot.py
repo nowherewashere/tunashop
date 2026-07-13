@@ -119,6 +119,12 @@ class BotService:
         base_url = await self._get_bot_redirect_url()
         return Deeplink.ADVERTISING.build_url(base_url, code)
 
+    async def get_user_card_url(self, user_id: int) -> str:
+        # Operator-only deep link that opens the full admin user card (DashboardUser
+        # dialog) in the operator's private chat — see the support "🗂 Карточка" button.
+        base_url = await self._get_bot_redirect_url()
+        return Deeplink.USERCARD.build_url(base_url, str(user_id))
+
     def get_support_url(self, text: Optional[str] = None) -> str:
         # When the in-bot support chat is on, funnel every "contact support" button into
         # this bot's ?start=support deep link (handled by on_support_entry) instead of the

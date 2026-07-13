@@ -2,9 +2,10 @@ from typing import Optional
 
 from aiogram import F, Router
 from aiogram.enums import ChatType
-from aiogram.filters import Command, CommandStart, StateFilter
+from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram_dialog import DialogManager, ShowMode, StartMode
 from dishka import FromDishka
 from loguru import logger
 
@@ -13,10 +14,11 @@ from src.application.common.dao import SupportDao
 from src.application.dto import TelegramUserDto
 from src.application.use_cases.user.queries.profile import GetUserDevices
 from src.core.config import AppConfig
-from src.core.constants import SUPPORT_CB_CLOSE, SUPPORT_CB_DEVICES
+from src.core.constants import SUPPORT_CB_CLOSE, SUPPORT_CB_DEVICES, TARGET_USER_ID
+from src.core.enums import Deeplink
 from src.core.exceptions import SupportUnavailableError
 from src.infrastructure.database.models.support import CHANNEL_TELEGRAM
-from src.telegram.states import Support
+from src.telegram.states import DashboardUser, Support
 
 router = Router(name=__name__)
 
@@ -31,6 +33,7 @@ _ENTER_TEXT = (
 )
 _LEAVE_TEXT = "Вы вышли из чата поддержки. Отправьте /start, чтобы вернуться в меню."
 _UNAVAILABLE_TEXT = "Поддержка сейчас недоступна, попробуйте позже."
+_CARD_NO_ACCESS_TEXT = "🚫 Карточка пользователя доступна только администраторам."
 
 
 # --- user side (private chat) ------------------------------------------------
@@ -52,6 +55,46 @@ async def on_support_entry(
         return
     await state.set_state(Support.CHAT)
     await message.answer(_ENTER_TEXT)
+
+
+# ?start=usercard_<id> deep link — the operator's "🗂 Карточка" button (posted in the
+# support topic) opens the full admin user dialog here, in the operator's own private
+# chat, since an aiogram-dialog card cannot run inside a shared group topic. Same idiom
+# as the other start-deeplinks in routers/extra/goto.py.
+@router.message(
+    F.chat.type == ChatType.PRIVATE,
+    CommandStart(deep_link=True, ignore_case=True),
+    F.text.contains(Deeplink.USERCARD),
+)
+async def on_user_card_entry(
+    message: Message,
+    command: CommandObject,
+    user: TelegramUserDto,
+    dialog_manager: DialogManager,
+) -> None:
+    args = command.args or ""
+    prefix = Deeplink.USERCARD.with_underscore
+    raw_id = args.removeprefix(prefix) if args.startswith(prefix) else ""
+    if not raw_id.isdigit():
+        logger.warning(f"{user.log} Bad usercard deep link args '{args}'")
+        return
+    # Gate on admin (role >= ADMIN) — the same bar as the dialog's USER_EDITOR permission.
+    if not user.is_privileged:
+        logger.warning(f"{user.log} Non-admin usercard deep link attempt for '{raw_id}'")
+        await message.answer(_CARD_NO_ACCESS_TEXT)
+        return
+
+    target_user_id = int(raw_id)
+    logger.info(f"{user.log} Opening admin card for user '{target_user_id}' via support")
+    await dialog_manager.bg(
+        user_id=user.telegram_id,
+        chat_id=user.telegram_id,
+    ).start(
+        state=DashboardUser.MAIN,
+        data={TARGET_USER_ID: target_user_id},
+        mode=StartMode.RESET_STACK,
+        show_mode=ShowMode.DELETE_AND_SEND,
+    )
 
 
 @router.message(StateFilter(Support.CHAT), Command("stop"))

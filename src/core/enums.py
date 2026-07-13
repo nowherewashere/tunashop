@@ -18,6 +18,9 @@ class Deeplink(StrEnum):
     INVITE = "invite"
     ADVERTISING = "ad"
     PROMOCODE = "promo"
+    # Operator-only: opens the full admin user card in the operator's private chat
+    # from a support forum topic (support "🗂 Карточка" button). Payload is the user id.
+    USERCARD = "usercard"
 
     def build_url(self, base_url: str, data: Optional[str]) -> str:
         if not data:

@@ -1,6 +1,6 @@
 import html
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, Optional
 
 from aiogram import Bot
@@ -8,8 +8,9 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from loguru import logger
 from redis.asyncio import Redis
 
-from src.application.common import Notifier, SupportService
+from src.application.common import BotService, Notifier, SupportService
 from src.application.common.dao import (
+    ReferralDao,
     SubscriptionDao,
     SupportDao,
     TransactionDao,
@@ -28,8 +29,12 @@ from src.application.dto import (
     UserDto,
 )
 from src.core.config import AppConfig
-from src.core.constants import SUPPORT_CB_CLOSE, SUPPORT_CB_DEVICES
-from src.core.enums import TransactionStatus
+from src.core.constants import (
+    SUPPORT_CB_CLOSE,
+    SUPPORT_CB_DEVICES,
+    UNLIMITED_EXPIRE_YEAR,
+)
+from src.core.enums import Role, TransactionStatus
 from src.core.exceptions import SupportUnavailableError
 from src.core.utils.time import datetime_now
 from src.infrastructure.database.models.support import (
@@ -46,6 +51,44 @@ from src.infrastructure.database.models.support import (
 # Telegram forum-topic name hard limit.
 _TOPIC_NAME_MAX = 128
 
+# Role → RU label, mirroring the admin card's `role` fluent (utils.ftl). The card is a
+# hand-built HTML message (no DialogManager/translator here), so labels live inline.
+_ROLE_LABELS_RU: dict[Role, str] = {
+    Role.OWNER: "Владелец",
+    Role.DEV: "Разработчик",
+    Role.ADMIN: "Администратор",
+    Role.PREVIEW: "Наблюдатель",
+    Role.USER: "Пользователь",
+    Role.SYSTEM: "Система",
+}
+
+
+def _fmt_traffic_limit(gb: int) -> str:
+    # Matches i18n_format_traffic_limit semantics (0 = unlimited), in GB.
+    return "∞" if not gb else f"{gb} ГБ"
+
+
+def _fmt_device_limit(count: int) -> str:
+    # Matches i18n_format_device_limit semantics (0 = unlimited).
+    return "∞" if not count else str(count)
+
+
+def _fmt_remaining(expire_at: datetime) -> str:
+    # Compact "осталось" mirroring i18n_format_expire_time (unlimited/expired/д·ч·мин).
+    if expire_at.year == UNLIMITED_EXPIRE_YEAR:
+        return "∞"
+    delta = expire_at - datetime_now()
+    if delta.total_seconds() <= 0:
+        return "истекла"
+    days = delta.days
+    hours, remainder = divmod(delta.seconds, 3600)
+    minutes = remainder // 60
+    if days:
+        return f"{days} д" + (f" {hours} ч" if hours else "")
+    if hours:
+        return f"{hours} ч" + (f" {minutes} мин" if minutes else "")
+    return f"{minutes} мин"
+
 
 class SupportServiceImpl(SupportService):
     """Bridges site/bot users and operators through Telegram forum topics.
@@ -58,22 +101,28 @@ class SupportServiceImpl(SupportService):
     def __init__(
         self,
         bot: Bot,
+        bot_service: BotService,
         notifier: Notifier,
         uow: UnitOfWork,
         support_dao: SupportDao,
         user_dao: UserDao,
         subscription_dao: SubscriptionDao,
         transaction_dao: TransactionDao,
+        referral_dao: ReferralDao,
         config: AppConfig,
         redis: Redis,
     ) -> None:
         self.bot = bot
+        # BotService builds the operator's "🗂 Карточка" deep link (resolves the bot
+        # username the same way get_support_url does).
+        self.bot_service = bot_service
         self.notifier = notifier
         self.uow = uow
         self.support_dao = support_dao
         self.user_dao = user_dao
         self.subscription_dao = subscription_dao
         self.transaction_dao = transaction_dao
+        self.referral_dao = referral_dao
         self.config = config
         # Live push: operator replies + status changes are announced on a per-user
         # channel that the site's SSE endpoint subscribes to (see support_events_channel).
@@ -284,6 +333,10 @@ class SupportServiceImpl(SupportService):
         return f"{user.name} · #{user.id}"[:_TOPIC_NAME_MAX]
 
     async def _post_header(self, topic_id: int, user: UserDto) -> None:
+        # Mirrors the admin user card (msg-user-main + msg-user-statistics): identity,
+        # profile (role/language/registration/discounts), "invited by", subscription
+        # details and recent payments — assembled as HTML since a DialogManager/translator
+        # is not available here (the card is a hand-built message).
         lines = [f"🎫 <b>{html.escape(user.name)}</b> · <code>#{user.id}</code>"]
         if user.username:
             lines.append(f"Telegram: @{html.escape(user.username)}")
@@ -292,30 +345,72 @@ class SupportServiceImpl(SupportService):
         if user.email:
             lines.append(f"Email: {html.escape(user.email)}")
         lines.append("————")
+        lines.append(self._render_profile(user))
+        referrer_line = await self._render_referrer(user.id)
+        if referrer_line:
+            lines.append(referrer_line)
+        lines.append("————")
         lines.append(await self._render_subscription(user.id))
         lines.append(await self._render_payments(user.id))
+
+        # A failed username lookup must not drop the card: fall back to the two-button
+        # keyboard (без «🗂 Карточка») rather than losing the whole header.
+        try:
+            card_url: Optional[str] = await self.bot_service.get_user_card_url(user.id)
+        except Exception as error:
+            logger.warning(f"Support: failed to build user-card deep link for {user.id}: {error}")
+            card_url = None
 
         try:
             await self.bot.send_message(
                 chat_id=self._group_id,
                 message_thread_id=topic_id,
                 text="\n".join(lines),
-                reply_markup=self._operator_keyboard(),
+                reply_markup=self._operator_keyboard(card_url),
                 disable_web_page_preview=True,
             )
         except Exception as error:
             logger.warning(f"Support: failed to post topic header for user {user.id}: {error}")
 
     @staticmethod
-    def _operator_keyboard() -> InlineKeyboardMarkup:
-        return InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="🖥 Устройства", callback_data=SUPPORT_CB_DEVICES),
-                    InlineKeyboardButton(text="🔒 Закрыть", callback_data=SUPPORT_CB_CLOSE),
-                ]
+    def _operator_keyboard(card_url: Optional[str] = None) -> InlineKeyboardMarkup:
+        rows = [
+            [
+                InlineKeyboardButton(text="🖥 Устройства", callback_data=SUPPORT_CB_DEVICES),
+                InlineKeyboardButton(text="🔒 Закрыть", callback_data=SUPPORT_CB_CLOSE),
             ]
-        )
+        ]
+        # "🗂 Карточка" is a start deep link that opens the full admin user dialog in the
+        # operator's private chat (an aiogram-dialog card cannot run inside a group topic).
+        if card_url:
+            rows.append([InlineKeyboardButton(text="🗂 Карточка", url=card_url)])
+        return InlineKeyboardMarkup(inline_keyboard=rows)
+
+    def _render_profile(self, user: UserDto) -> str:
+        role_label = _ROLE_LABELS_RU.get(user.role, str(user.role))
+        lines = [
+            f"👤 Роль: {role_label} · Язык: {user.language.value.upper()}",
+            f"💸 Скидки: персональная {user.personal_discount}% · "
+            f"на покупку {user.purchase_discount}%",
+        ]
+        if user.created_at is not None:
+            lines.append(f"📅 Регистрация: {user.created_at:%d.%m.%Y}")
+        return "\n".join(lines)
+
+    async def _render_referrer(self, user_id: int) -> Optional[str]:
+        referral = await self.referral_dao.get_by_referred_id(user_id)
+        if referral is None:
+            return None
+        referrer = referral.referrer
+        if referrer.username:
+            who = f"@{html.escape(referrer.username)}"
+        elif referrer.telegram_id is not None:
+            who = f"<code>{referrer.telegram_id}</code>"
+        elif referrer.email:
+            who = html.escape(referrer.email)
+        else:
+            who = f"#{referrer.id}"
+        return f"👥 Пригласил: {who} · <code>#{referrer.id}</code>"
 
     async def _render_subscription(self, user_id: int) -> str:
         subscription = await self.subscription_dao.get_current(user_id)
@@ -328,7 +423,14 @@ class SupportServiceImpl(SupportService):
         else:
             state = "активна"
         plan = html.escape(subscription.plan_snapshot.name or "—")
-        return f"💳 {plan} · {state} · до {subscription.expire_at:%d.%m.%Y}"
+        return "\n".join(
+            [
+                f"💳 <b>{plan}</b> · {state} · до {subscription.expire_at:%d.%m.%Y}",
+                f" • Трафик: {_fmt_traffic_limit(subscription.traffic_limit)}",
+                f" • Устройства: {_fmt_device_limit(subscription.device_limit)}",
+                f" • Осталось: {_fmt_remaining(subscription.expire_at)}",
+            ]
+        )
 
     async def _render_payments(self, user_id: int) -> str:
         transactions = await self.transaction_dao.get_by_user(user_id)
