@@ -1,6 +1,42 @@
-from typing import Optional, Protocol, runtime_checkable
+from typing import Any, Optional, Protocol, runtime_checkable
 
 from src.application.dto import SupportConversationDto, SupportMessageDto, UserDto
+
+# ---------------------------------------------------------------------------
+# Real-time transport contract (Redis pub/sub -> SSE).
+#
+# Operator replies (and conversation status changes) are published on a per-user
+# Redis channel; the site's SSE endpoint (`GET /support/stream`) subscribes to it
+# and forwards each event, so the cabinet no longer polls `GET /support/messages`
+# every few seconds. Both the publisher (infrastructure support service) and the
+# consumer (web SSE endpoint) share this contract — keeping the channel name and
+# the on-the-wire envelope defined in exactly one place. The builders take plain
+# primitives so neither layer has to import the other's models.
+# ---------------------------------------------------------------------------
+
+# Envelope discriminator (the `type` field) — the SSE client switches on it.
+SUPPORT_EVENT_MESSAGE = "message"
+SUPPORT_EVENT_STATUS = "status"
+
+_SUPPORT_EVENTS_CHANNEL_PREFIX = "support:events:"
+
+
+def support_events_channel(user_id: int) -> str:
+    """Per-user pub/sub channel carrying that user's live support events."""
+    return f"{_SUPPORT_EVENTS_CHANNEL_PREFIX}{user_id}"
+
+
+def build_message_event(*, id: int, author: str, text: str, created_at: str) -> dict[str, Any]:
+    """A new-message event (mirrors the SupportMessageResponse shape under `message`)."""
+    return {
+        "type": SUPPORT_EVENT_MESSAGE,
+        "message": {"id": id, "author": author, "text": text, "created_at": created_at},
+    }
+
+
+def build_status_event(status: str) -> dict[str, Any]:
+    """A conversation-status change event (open / closed)."""
+    return {"type": SUPPORT_EVENT_STATUS, "status": status}
 
 
 @runtime_checkable

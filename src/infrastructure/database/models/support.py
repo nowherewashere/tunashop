@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Final, Optional
+from typing import Final, Literal, Optional
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -37,6 +37,19 @@ DIRECTION_OUTBOUND: Final[str] = "outbound"  # operator -> user
 SENDER_USER: Final[str] = "user"
 SENDER_OPERATOR: Final[str] = "operator"
 SENDER_SYSTEM: Final[str] = "system"
+
+
+def author_for_sender(sender: str) -> Literal["user", "operator", "system"]:
+    """Map an internal ``sender`` to the three author roles the widget renders.
+
+    Single source of truth for the mapping, shared by the HTTP history endpoint and
+    the pub/sub publisher so the site sees one consistent `author` on every surface.
+    """
+    if sender == SENDER_OPERATOR:
+        return "operator"
+    if sender == SENDER_SYSTEM:
+        return "system"
+    return "user"
 
 
 class SupportConversation(BaseSql, TimestampMixin):

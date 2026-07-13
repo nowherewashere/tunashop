@@ -1,10 +1,12 @@
 import html
+import json
 from datetime import timedelta
 from typing import Any, Awaitable, Callable, Optional
 
 from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from loguru import logger
+from redis.asyncio import Redis
 
 from src.application.common import Notifier, SupportService
 from src.application.common.dao import (
@@ -12,6 +14,11 @@ from src.application.common.dao import (
     SupportDao,
     TransactionDao,
     UserDao,
+)
+from src.application.common.support import (
+    build_message_event,
+    build_status_event,
+    support_events_channel,
 )
 from src.application.common.uow import UnitOfWork
 from src.application.dto import (
@@ -33,6 +40,7 @@ from src.infrastructure.database.models.support import (
     DIRECTION_OUTBOUND,
     SENDER_OPERATOR,
     SENDER_USER,
+    author_for_sender,
 )
 
 # Telegram forum-topic name hard limit.
@@ -57,6 +65,7 @@ class SupportServiceImpl(SupportService):
         subscription_dao: SubscriptionDao,
         transaction_dao: TransactionDao,
         config: AppConfig,
+        redis: Redis,
     ) -> None:
         self.bot = bot
         self.notifier = notifier
@@ -66,6 +75,9 @@ class SupportServiceImpl(SupportService):
         self.subscription_dao = subscription_dao
         self.transaction_dao = transaction_dao
         self.config = config
+        # Live push: operator replies + status changes are announced on a per-user
+        # channel that the site's SSE endpoint subscribes to (see support_events_channel).
+        self.redis = redis
 
     @property
     def _group_id(self) -> int:
@@ -91,12 +103,18 @@ class SupportServiceImpl(SupportService):
 
         conv = await self._ensure_topic(conv, user)
 
-        if reopened and conv.telegram_topic_id is not None:
-            # The operator had closed the topic; a new message reopens the same thread
-            # so history stays in one place, and a fresh user card is posted so the
-            # operator sees the current state at the start of every new session.
-            await self._safe_topic_op(self.bot.reopen_forum_topic, conv.telegram_topic_id)
-            await self._post_header(conv.telegram_topic_id, user)
+        if reopened:
+            if conv.telegram_topic_id is not None:
+                # The operator had closed the topic; a new message reopens the same
+                # thread so history stays in one place, and a fresh user card is posted
+                # so the operator sees the current state at the start of every session.
+                await self._safe_topic_op(
+                    self.bot.reopen_forum_topic, conv.telegram_topic_id
+                )
+                await self._post_header(conv.telegram_topic_id, user)
+            # Mirror the reopen to any open cabinet tab so its "closed" banner clears
+            # live (the tab that sent already knows; this keeps other tabs in sync).
+            await self._publish(user.id, build_status_event(CONVERSATION_OPEN))
 
         async with self.uow:
             message = await self.support_dao.add_message(
@@ -127,7 +145,7 @@ class SupportServiceImpl(SupportService):
 
         operator = await self.user_dao.get_by_telegram_id(operator_telegram_id)
         async with self.uow:
-            await self.support_dao.add_message(
+            message = await self.support_dao.add_message(
                 conv.id,
                 direction=DIRECTION_OUTBOUND,
                 sender=SENDER_OPERATOR,
@@ -137,6 +155,18 @@ class SupportServiceImpl(SupportService):
                 telegram_message_id=telegram_message_id,
             )
             await self.uow.commit()
+
+        # Push the stored reply to the site in real time (the SSE stream forwards it),
+        # so an open cabinet updates instantly instead of waiting for the next poll.
+        await self._publish(
+            conv.user_id,
+            build_message_event(
+                id=message.id,
+                author=author_for_sender(message.sender),
+                text=message.text,
+                created_at=message.created_at.isoformat() if message.created_at else "",
+            ),
+        )
 
         # Site users read the reply by polling (it is already stored). Telegram users
         # also get it as a DM — deliver only to the channel the user last wrote from so
@@ -164,6 +194,7 @@ class SupportServiceImpl(SupportService):
             await self.support_dao.set_status(conv.id, CONVERSATION_CLOSED)
             await self.uow.commit()
         await self._safe_topic_op(self.bot.close_forum_topic, topic_id)
+        await self._publish(conv.user_id, build_status_event(CONVERSATION_CLOSED))
         return True
 
     async def close_idle(self) -> int:
@@ -179,6 +210,7 @@ class SupportServiceImpl(SupportService):
         for conv in closed:
             if conv.telegram_topic_id is not None:
                 await self._safe_topic_op(self.bot.close_forum_topic, conv.telegram_topic_id)
+            await self._publish(conv.user_id, build_status_event(CONVERSATION_CLOSED))
         if closed:
             logger.info(f"Support: auto-closed {len(closed)} idle conversation(s)")
         return len(closed)
@@ -212,6 +244,17 @@ class SupportServiceImpl(SupportService):
         return conv, messages
 
     # --- internals ---------------------------------------------------------
+
+    async def _publish(self, user_id: int, event: dict[str, Any]) -> None:
+        """Best-effort real-time fan-out to the user's SSE stream.
+
+        A pub/sub failure must never break the operator flow: the message/status is
+        already persisted, the site keeps its polling fallback, so we only log.
+        """
+        try:
+            await self.redis.publish(support_events_channel(user_id), json.dumps(event))
+        except Exception as error:
+            logger.warning(f"Support: failed to publish event for user {user_id}: {error}")
 
     async def _ensure_topic(
         self, conv: SupportConversationDto, user: UserDto

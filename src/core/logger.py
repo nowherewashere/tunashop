@@ -34,6 +34,42 @@ class LogBuffer:
 log_buffer = LogBuffer()
 
 
+# Access-log paths whose routine 2xx/3xx lines are noise: the support chat's history
+# poll (fallback) and the SSE stream open one request per client and, at ~4s cadence,
+# flooded uvicorn's INFO access log in prod. We drop only their successful GET lines —
+# any 4xx/5xx on these paths is still logged so real failures stay visible.
+_QUIET_ACCESS_SUFFIXES: Final[tuple[str, ...]] = (
+    "/support/messages",
+    "/support/stream",
+)
+
+
+class QuietAccessPathsFilter(logging.Filter):
+    """Suppress successful GET access lines for the chatty support poll/stream paths.
+
+    Uvicorn's access record carries its parts in ``record.args`` as
+    ``(client_addr, method, full_path, http_version, status_code)``; we key off those
+    instead of the formatted string. Anything we don't recognise passes through.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if not isinstance(args, tuple) or len(args) < 5:
+            return True
+        method, full_path, status_code = args[1], args[2], args[4]
+        if (
+            method != "GET"
+            or not isinstance(full_path, str)
+            or not isinstance(status_code, int)
+        ):
+            return True
+        path = full_path.split("?", 1)[0]
+        if not path.endswith(_QUIET_ACCESS_SUFFIXES):
+            return True
+        # Keep errors (>=400); drop only the routine successes.
+        return status_code >= 400
+
+
 class InterceptHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
@@ -93,6 +129,10 @@ def setup_logger(config: AppConfig) -> None:
         "fastapi",
     ):
         logging.getLogger(logger_name).handlers = [intercept_handler]
+
+    # Drop the support poll/stream access-log flood (routine 2xx GETs only). Attached to
+    # the logger so the record is discarded before it reaches any handler or propagates.
+    logging.getLogger("uvicorn.access").addFilter(QuietAccessPathsFilter())
 
     # logging.getLogger("httpx").propagate = False
     # logging.getLogger("httpx").level = logging.WARNING
