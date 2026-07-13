@@ -4,7 +4,13 @@ from aiogram import BaseMiddleware, F, Router
 from aiogram.enums import ChatType
 from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, TelegramObject
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    TelegramObject,
+)
 from dishka import FromDishka
 from loguru import logger
 
@@ -35,15 +41,23 @@ class _SupportDiagMiddleware(BaseMiddleware):
     ) -> Any:
         if isinstance(event, Message):
             logger.info(
-                f"SUPPORT-DIAG chat.type={event.chat.type!r} chat.id={event.chat.id} "
+                f"SUPPORT-DIAG Message chat.type={event.chat.type!r} chat.id={event.chat.id} "
                 f"thread_id={event.message_thread_id} is_topic={event.is_topic_message} "
                 f"from={event.from_user.id if event.from_user else None} "
                 f"text={(event.text or event.caption)!r}"
+            )
+        elif isinstance(event, CallbackQuery):
+            chat = event.message.chat if event.message else None
+            logger.info(
+                f"SUPPORT-DIAG CallbackQuery data={event.data!r} "
+                f"from={event.from_user.id} "
+                f"chat.type={chat.type if chat else None} chat.id={chat.id if chat else None}"
             )
         return await handler(event, data)
 
 
 router.message.outer_middleware(_SupportDiagMiddleware())
+router.callback_query.outer_middleware(_SupportDiagMiddleware())
 
 # ?start=support deep link — lets any "contact support" button funnel into the in-bot
 # chat instead of the operator's private @username.
