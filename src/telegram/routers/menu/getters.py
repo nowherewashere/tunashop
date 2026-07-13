@@ -288,10 +288,12 @@ async def device_confirm_delete_getter(
     }
 
 
-@inject
 async def _invited_trial_days(plan_dao: PlanDao) -> int | None:
     """Duration (days) of the active INVITED trial plan — what referred friends get.
-    Same source as the site's /config referred_trial_days, so the two stay in sync."""
+    Same source as the site's /config referred_trial_days, so the two stay in sync.
+
+    Not an aiogram-dialog getter and never dishka-injected — every caller
+    (invite_getter / invite_about_getter) passes its own injected ``plan_dao``."""
     plans = await plan_dao.get_active_trial_plans()
     invited = sorted(
         (p for p in plans if p.availability == PlanAvailability.INVITED),
@@ -302,6 +304,7 @@ async def _invited_trial_days(plan_dao: PlanDao) -> int | None:
     return None
 
 
+@inject
 async def invite_getter(
     dialog_manager: DialogManager,
     config: AppConfig,
