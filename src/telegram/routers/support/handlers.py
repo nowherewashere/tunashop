@@ -200,7 +200,9 @@ async def on_support_devices(
         lines.append(f" • {device.device_model or device.platform or 'устройство'}")
     if not result.devices:
         lines.append(" • нет активных")
-    await message.answer("\n".join(lines), message_thread_id=thread_id)
+    # message is the topic header — Message.answer already targets its topic; passing
+    # message_thread_id again raises "got multiple values for keyword ...".
+    await message.answer("\n".join(lines))
     await callback.answer()
 
 
