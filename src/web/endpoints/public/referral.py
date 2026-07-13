@@ -99,6 +99,9 @@ async def get_referral_program(
         site_referral_url=site_referral_url,
         invited_count=summary.invited,
         invited_with_payment_count=summary.paying,
+        # Same source as the bot's invite getter (rate_bp // 100), so the two surfaces
+        # never disagree on the advertised commission.
+        commission_percent=config.referral.rate_bp // 100,
         #
         balance_kop=summary.balance_kop,
         withdrawn_kop=summary.withdrawn_kop,

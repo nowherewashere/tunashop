@@ -18,6 +18,11 @@ class ReferralProgramResponse(BaseModel):
     invited_count: int
     invited_with_payment_count: int
 
+    # Commission the inviter earns on every referred payment, as a whole percent
+    # (config.referral.rate_bp // 100). Drives the "N% с каждого платежа" headline the
+    # bot's invite screen shows — mirrored here so the site is not a poorer relation.
+    commission_percent: int = 0
+
     # --- money referral (spec §2): amounts in kopecks; ₽ formatting is view-side. ---
     balance_kop: int = 0
     withdrawn_kop: int = 0
