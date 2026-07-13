@@ -112,6 +112,16 @@ class PlanDaoImpl(PlanDao):
         logger.info(f"Retrieved '{len(db_plans)}' active trial plans")
         return self._convert_to_dto_list(list(db_plans))
 
+    async def get_invited_trial_days(self) -> Optional[int]:
+        """Trial length (days) a referred friend gets: the first active INVITED trial
+        plan's first duration. The single source shared by the bot invite screens, the
+        inline share card and the site's /config referred_trial_days — so the advertised
+        length can never drift between them. None when no INVITED trial plan is active."""
+        for plan in await self.get_active_trial_plans():  # already order_index-ordered
+            if plan.availability == PlanAvailability.INVITED and plan.durations:
+                return plan.durations[0].days
+        return None
+
     async def get_all(self) -> list[PlanDto]:
         stmt = (
             select(Plan)

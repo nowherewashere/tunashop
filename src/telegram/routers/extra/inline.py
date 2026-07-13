@@ -16,7 +16,7 @@ from dishka.integrations.aiogram_dialog import inject
 from loguru import logger
 
 from src.application.common import BotService, TranslatorRunner
-from src.application.common.dao import UserDao
+from src.application.common.dao import PlanDao, UserDao
 from src.core.constants import INLINE_QUERY_INVITE
 
 router = Router(name=__name__)
@@ -28,6 +28,7 @@ async def handle_inline_query(
     inline_query: InlineQuery,
     user_dao: FromDishka[UserDao],
     bot_service: FromDishka[BotService],
+    plan_dao: FromDishka[PlanDao],
     i18n: FromDishka[TranslatorRunner],
 ) -> None:
     user = await user_dao.get_by_telegram_id(inline_query.from_user.id)
@@ -43,7 +44,10 @@ async def handle_inline_query(
     result_id = hashlib.md5(inline_query.query.strip().encode()).hexdigest()
     referral_url = await bot_service.get_referral_url(user.referral_code)
     bot_name = await bot_service.get_my_name()
-    message_text = i18n.get("inline-invite.message", bot_name=bot_name)
+    # Real length of the INVITED trial plan (Trial+), not a hardcoded number — same
+    # single source as the invite screen and the site /config.
+    trial_days = (await plan_dao.get_invited_trial_days()) or 0
+    message_text = i18n.get("inline-invite.message", bot_name=bot_name, trial_days=trial_days)
 
     builder = InlineKeyboardBuilder()
     builder.row(

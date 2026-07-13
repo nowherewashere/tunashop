@@ -22,7 +22,7 @@ from src.application.use_cases.referral.queries.summary import (
 )
 from src.application.use_cases.user.queries.plans import GetAvailablePlans
 from src.core.config import AppConfig
-from src.core.enums import Currency, PlanAvailability
+from src.core.enums import Currency
 from src.core.exceptions import MenuRenderError, PriceNotFoundError
 from src.core.utils.i18n_helpers import (
     i18n_format_device_limit,
@@ -288,22 +288,6 @@ async def device_confirm_delete_getter(
     }
 
 
-async def _invited_trial_days(plan_dao: PlanDao) -> int | None:
-    """Duration (days) of the active INVITED trial plan — what referred friends get.
-    Same source as the site's /config referred_trial_days, so the two stay in sync.
-
-    Not an aiogram-dialog getter and never dishka-injected — every caller
-    (invite_getter / invite_about_getter) passes its own injected ``plan_dao``."""
-    plans = await plan_dao.get_active_trial_plans()
-    invited = sorted(
-        (p for p in plans if p.availability == PlanAvailability.INVITED),
-        key=lambda p: p.order_index,
-    )
-    if invited and invited[0].durations:
-        return invited[0].durations[0].days
-    return None
-
-
 @inject
 async def invite_getter(
     dialog_manager: DialogManager,
@@ -354,7 +338,7 @@ async def invite_getter(
             }
         )
 
-    trial_days = (await _invited_trial_days(plan_dao)) or 0
+    trial_days = (await plan_dao.get_invited_trial_days()) or 0
     return {
         **payout_fields,
         "trial_days": trial_days,
@@ -526,5 +510,5 @@ async def invite_about_getter(
     return {
         "rate": config.referral.rate_bp // 100,
         "min": kop_to_rub(config.referral.payout_min_kop),
-        "trial_days": (await _invited_trial_days(plan_dao)) or 0,
+        "trial_days": (await plan_dao.get_invited_trial_days()) or 0,
     }
