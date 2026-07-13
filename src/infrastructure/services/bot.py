@@ -120,6 +120,13 @@ class BotService:
         return Deeplink.ADVERTISING.build_url(base_url, code)
 
     def get_support_url(self, text: Optional[str] = None) -> str:
+        # When the in-bot support chat is on, funnel every "contact support" button into
+        # this bot's ?start=support deep link (handled by on_support_entry) instead of the
+        # operator's private @username, so site and bot users land in the same operator
+        # topics. `_bot_username` is warmed at startup (is_inline_enabled); fall back to the
+        # @username link if support is off or the username is not resolved yet.
+        if self.config.support.is_active and self._bot_username:
+            return f"{T_ME}{self._bot_username}?start=support"
         base_url = f"{T_ME}{self.config.bot.support_username.get_secret_value()}"
         encoded_text = quote(text or "")
         return f"{base_url}?text={encoded_text}"

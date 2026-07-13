@@ -101,10 +101,11 @@ async def on_operator_group_message(
 
     thread_id = message.message_thread_id
     text = message.text or message.caption
-    logger.info(
+    # No message content in the log (privacy) — just enough to trace routing.
+    logger.debug(
         f"Support: operator group msg chat_id={message.chat.id} thread_id={thread_id} "
         f"is_topic={message.is_topic_message} "
-        f"from={message.from_user.id if message.from_user else None} text={text!r}"
+        f"from={message.from_user.id if message.from_user else None}"
     )
 
     if thread_id is None:
