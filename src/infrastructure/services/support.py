@@ -93,8 +93,10 @@ class SupportServiceImpl(SupportService):
 
         if reopened and conv.telegram_topic_id is not None:
             # The operator had closed the topic; a new message reopens the same thread
-            # so the whole history stays in one place.
+            # so history stays in one place, and a fresh user card is posted so the
+            # operator sees the current state at the start of every new session.
             await self._safe_topic_op(self.bot.reopen_forum_topic, conv.telegram_topic_id)
+            await self._post_header(conv.telegram_topic_id, user)
 
         async with self.uow:
             message = await self.support_dao.add_message(
@@ -180,6 +182,16 @@ class SupportServiceImpl(SupportService):
         if closed:
             logger.info(f"Support: auto-closed {len(closed)} idle conversation(s)")
         return len(closed)
+
+    async def post_card(self, topic_id: int) -> bool:
+        conv = await self.support_dao.get_by_topic_id(topic_id)
+        if conv is None:
+            return False
+        user = await self.user_dao.get_by_id(conv.user_id)
+        if user is None:
+            return False
+        await self._post_header(topic_id, user)
+        return True
 
     async def list_messages(
         self, user: UserDto, after_id: int = 0

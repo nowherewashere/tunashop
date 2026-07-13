@@ -41,6 +41,10 @@ class SupportService(Protocol):
         """Mark the conversation behind a topic closed. Returns False if unmapped."""
         ...
 
+    async def post_card(self, topic_id: int) -> bool:
+        """(Re)post the user card into a topic. Returns False if the topic is unmapped."""
+        ...
+
     async def close_idle(self) -> int:
         """Auto-close conversations idle past the configured threshold; close their
         forum topics. Returns how many were closed. A new user message reopens one."""

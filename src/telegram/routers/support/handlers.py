@@ -129,12 +129,10 @@ async def on_operator_group_message(
 
     stripped = text.strip()
     if stripped.startswith("/"):
-        # /close (and /close@botname) closes the conversation behind this topic.
-        if stripped.split()[0].split("@")[0] == "/close":
-            if await support.close_by_topic(thread_id):
-                await message.answer(
-                    "✅ Диалог закрыт. Новое сообщение пользователя откроет его снова."
-                )
+        # Operator commands inside the topic (/close, /card; also /cmd@botname).
+        await _handle_operator_command(
+            stripped.split()[0].split("@")[0], thread_id, message, support
+        )
         return
 
     delivered = await support.ingest_from_operator(
@@ -145,6 +143,19 @@ async def on_operator_group_message(
     )
     if not delivered:
         logger.debug(f"Support: reply in unmapped topic {thread_id}, ignored")
+
+
+async def _handle_operator_command(
+    command: str, thread_id: int, message: Message, support: SupportService
+) -> None:
+    if command == "/close":
+        if await support.close_by_topic(thread_id):
+            await message.answer(
+                "✅ Диалог закрыт. Новое сообщение пользователя откроет его снова."
+            )
+    elif command == "/card":
+        if not await support.post_card(thread_id):
+            await message.answer("Карточка недоступна.")
 
 
 # --- operator inline buttons on the topic header -----------------------------
