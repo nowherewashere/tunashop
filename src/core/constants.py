@@ -48,8 +48,8 @@ PAYMENT_PREFIX: Final[str] = "payment_"
 GOTO_PREFIX: Final[str] = "gt_"
 ENCRYPTED_PREFIX: Final[str] = "enc_"
 
-# Support operator-topic inline buttons (callback data).
-SUPPORT_CB_DEVICES: Final[str] = "support:devices"
+# Support operator-topic inline button (callback data). Devices are rendered inline in
+# the card and «🗂 Карточка» is a URL deep link, so «🔒 Закрыть» is the only callback.
 SUPPORT_CB_CLOSE: Final[str] = "support:close"
 
 # goto targets (see routers/extra/goto.py) that open the onboarding funnel from a

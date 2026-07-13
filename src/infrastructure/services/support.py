@@ -24,16 +24,14 @@ from src.application.common.support import (
 from src.application.common.uow import UnitOfWork
 from src.application.dto import (
     MessagePayloadDto,
+    SubscriptionDto,
     SupportConversationDto,
     SupportMessageDto,
     UserDto,
 )
+from src.application.use_cases.user.queries.profile import GetUserDevices
 from src.core.config import AppConfig
-from src.core.constants import (
-    SUPPORT_CB_CLOSE,
-    SUPPORT_CB_DEVICES,
-    UNLIMITED_EXPIRE_YEAR,
-)
+from src.core.constants import SUPPORT_CB_CLOSE, UNLIMITED_EXPIRE_YEAR
 from src.core.enums import Role, TransactionStatus
 from src.core.exceptions import SupportUnavailableError
 from src.core.utils.time import datetime_now
@@ -109,6 +107,7 @@ class SupportServiceImpl(SupportService):
         subscription_dao: SubscriptionDao,
         transaction_dao: TransactionDao,
         referral_dao: ReferralDao,
+        get_user_devices: GetUserDevices,
         config: AppConfig,
         redis: Redis,
     ) -> None:
@@ -123,6 +122,9 @@ class SupportServiceImpl(SupportService):
         self.subscription_dao = subscription_dao
         self.transaction_dao = transaction_dao
         self.referral_dao = referral_dao
+        # Devices are rendered inline in the card (the old 🖥 button is gone); this
+        # use case fetches them (a remnawave round-trip) run as the system actor.
+        self.get_user_devices = get_user_devices
         self.config = config
         # Live push: operator replies + status changes are announced on a per-user
         # channel that the site's SSE endpoint subscribes to (see support_events_channel).
@@ -350,11 +352,15 @@ class SupportServiceImpl(SupportService):
         if referrer_line:
             lines.append(referrer_line)
         lines.append("————")
-        lines.append(await self._render_subscription(user.id))
+        subscription = await self.subscription_dao.get_current(user.id)
+        lines.append(self._render_subscription(subscription))
+        devices_block = await self._render_devices(user.id, subscription)
+        if devices_block:
+            lines.append(devices_block)
         lines.append(await self._render_payments(user.id))
 
-        # A failed username lookup must not drop the card: fall back to the two-button
-        # keyboard (без «🗂 Карточка») rather than losing the whole header.
+        # A failed username lookup must not drop the card: fall back to a keyboard with
+        # only «🔒 Закрыть» rather than losing the whole header.
         try:
             card_url: Optional[str] = await self.bot_service.get_user_card_url(user.id)
         except Exception as error:
@@ -374,17 +380,15 @@ class SupportServiceImpl(SupportService):
 
     @staticmethod
     def _operator_keyboard(card_url: Optional[str] = None) -> InlineKeyboardMarkup:
-        rows = [
-            [
-                InlineKeyboardButton(text="🖥 Устройства", callback_data=SUPPORT_CB_DEVICES),
-                InlineKeyboardButton(text="🔒 Закрыть", callback_data=SUPPORT_CB_CLOSE),
-            ]
-        ]
-        # "🗂 Карточка" is a start deep link that opens the full admin user dialog in the
-        # operator's private chat (an aiogram-dialog card cannot run inside a group topic).
+        # One row: «🗂 Карточка» (start deep link that opens the full admin user dialog
+        # in the operator's private chat — a dialog card cannot run inside a group topic)
+        # + «🔒 Закрыть». Devices are shown inline in the card now, so there is no 🖥
+        # button. If the username can't be resolved yet, only «🔒 Закрыть» is shown.
+        row = []
         if card_url:
-            rows.append([InlineKeyboardButton(text="🗂 Карточка", url=card_url)])
-        return InlineKeyboardMarkup(inline_keyboard=rows)
+            row.append(InlineKeyboardButton(text="🗂 Карточка", url=card_url))
+        row.append(InlineKeyboardButton(text="🔒 Закрыть", callback_data=SUPPORT_CB_CLOSE))
+        return InlineKeyboardMarkup(inline_keyboard=[row])
 
     def _render_profile(self, user: UserDto) -> str:
         role_label = _ROLE_LABELS_RU.get(user.role, str(user.role))
@@ -412,8 +416,7 @@ class SupportServiceImpl(SupportService):
             who = f"#{referrer.id}"
         return f"👥 Пригласил: {who} · <code>#{referrer.id}</code>"
 
-    async def _render_subscription(self, user_id: int) -> str:
-        subscription = await self.subscription_dao.get_current(user_id)
+    def _render_subscription(self, subscription: Optional[SubscriptionDto]) -> str:
         if subscription is None:
             return "💳 Подписка: нет"
         if subscription.is_expired:
@@ -423,14 +426,35 @@ class SupportServiceImpl(SupportService):
         else:
             state = "активна"
         plan = html.escape(subscription.plan_snapshot.name or "—")
+        # The device LIMIT lives in the devices block below (as current/limit), so it is
+        # not repeated here.
         return "\n".join(
             [
                 f"💳 <b>{plan}</b> · {state} · до {subscription.expire_at:%d.%m.%Y}",
                 f" • Трафик: {_fmt_traffic_limit(subscription.traffic_limit)}",
-                f" • Устройства: {_fmt_device_limit(subscription.device_limit)}",
                 f" • Осталось: {_fmt_remaining(subscription.expire_at)}",
             ]
         )
+
+    async def _render_devices(
+        self, user_id: int, subscription: Optional[SubscriptionDto]
+    ) -> Optional[str]:
+        # Shown inline in the card (the 🖥 button is gone). Needs a remnawave round-trip,
+        # so it is best-effort: any failure degrades to «н/д», never drops the card.
+        if subscription is None:
+            return None
+        try:
+            result = await self.get_user_devices.system(user_id)
+        except Exception as error:
+            logger.warning(f"Support: failed to load devices for user {user_id}: {error}")
+            return "🖥 Устройства: н/д"
+        rows = [f"🖥 Устройства: {result.current_count}/{_fmt_device_limit(result.max_count)}"]
+        for device in result.devices[:10]:
+            label = device.device_model or device.platform or "устройство"
+            rows.append(f" • {html.escape(str(label))}")
+        if not result.devices:
+            rows.append(" • нет активных")
+        return "\n".join(rows)
 
     async def _render_payments(self, user_id: int) -> str:
         transactions = await self.transaction_dao.get_by_user(user_id)

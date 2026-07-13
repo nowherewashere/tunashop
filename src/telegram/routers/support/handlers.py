@@ -10,11 +10,9 @@ from dishka import FromDishka
 from loguru import logger
 
 from src.application.common import BotService, SupportService
-from src.application.common.dao import SupportDao
 from src.application.dto import TelegramUserDto
-from src.application.use_cases.user.queries.profile import GetUserDevices
 from src.core.config import AppConfig
-from src.core.constants import SUPPORT_CB_CLOSE, SUPPORT_CB_DEVICES, TARGET_USER_ID
+from src.core.constants import SUPPORT_CB_CLOSE, TARGET_USER_ID
 from src.core.enums import Deeplink
 from src.core.exceptions import SupportUnavailableError
 from src.infrastructure.database.models.support import CHANNEL_TELEGRAM
@@ -214,39 +212,6 @@ def _support_callback_target(
     if message.chat.id != config.support.group_id or message.message_thread_id is None:
         return None
     return message, message.message_thread_id
-
-
-@router.callback_query(F.data == SUPPORT_CB_DEVICES)
-async def on_support_devices(
-    callback: CallbackQuery,
-    config: FromDishka[AppConfig],
-    support_dao: FromDishka[SupportDao],
-    get_user_devices: FromDishka[GetUserDevices],
-) -> None:
-    target = _support_callback_target(callback, config)
-    if target is None:
-        await callback.answer()
-        return
-    message, thread_id = target
-    conversation = await support_dao.get_by_topic_id(thread_id)
-    if conversation is None:
-        await callback.answer("Диалог не найден")
-        return
-    try:
-        result = await get_user_devices.system(conversation.user_id)
-    except Exception:
-        await callback.answer("Устройства недоступны")
-        return
-
-    lines = [f"🖥 Устройства: {result.current_count}/{result.max_count}"]
-    for device in result.devices[:10]:
-        lines.append(f" • {device.device_model or device.platform or 'устройство'}")
-    if not result.devices:
-        lines.append(" • нет активных")
-    # message is the topic header — Message.answer already targets its topic; passing
-    # message_thread_id again raises "got multiple values for keyword ...".
-    await message.answer("\n".join(lines))
-    await callback.answer()
 
 
 @router.callback_query(F.data == SUPPORT_CB_CLOSE)
