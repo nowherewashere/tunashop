@@ -39,7 +39,9 @@ class CryptoPayGateway(BasePaymentGateway):
             headers={"Crypto-Pay-API-Token": self.data.settings.api_key.get_secret_value()},  # type: ignore[union-attr]
         )
 
-    async def handle_create_payment(self, amount: Decimal, details: str) -> PaymentResultDto:
+    async def handle_create_payment(
+        self, amount: Decimal, details: str, payment_method: int | None = None
+    ) -> PaymentResultDto:
         payload = await self._create_payment_payload(str(amount), details)
         logger.debug(f"Creating payment payload: {payload}")
 

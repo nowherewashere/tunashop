@@ -44,7 +44,9 @@ class UrlPayGateway(BasePaymentGateway):
             },
         )
 
-    async def handle_create_payment(self, amount: Decimal, details: str) -> PaymentResultDto:
+    async def handle_create_payment(
+        self, amount: Decimal, details: str, payment_method: int | None = None
+    ) -> PaymentResultDto:
         order_uuid = str(uuid.uuid4())
         payload = self._create_payment_payload(f"{amount:.2f}", details, order_uuid)
         logger.debug(f"Creating payment payload: {payload}")

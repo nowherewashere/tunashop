@@ -101,6 +101,30 @@ class PaymentGatewayType(UpperStrEnum):
     WATA = auto()
 
 
+class PlategaPaymentMethod(IntEnum):
+    """Platega single-method payment codes (docs.platega.io, "create payment with method").
+
+    Passed as the integer ``paymentMethod`` on the single-method endpoint so the user
+    lands directly on the chosen method instead of Platega's own selection page.
+    """
+
+    SBP = 2  # СБП QR + Sberpay
+    ERIP = 3  # ЕРИП (Belarus)
+    CARD = 11  # card acquiring
+    INTERNATIONAL = 12  # foreign card
+    CRYPTO = 13  # cryptocurrency
+
+    @classmethod
+    def default_enabled(cls) -> tuple["PlategaPaymentMethod", ...]:
+        # Sensible defaults for a RU audience; ЕРИП / international are off by default.
+        return (cls.SBP, cls.CARD, cls.CRYPTO)
+
+    @property
+    def label_key(self) -> str:
+        # Default i18n label key; the admin may override the shown name per method.
+        return f"platega-method-{self.value}"
+
+
 class PurchaseType(UpperStrEnum):
     NEW = auto()
     RENEW = auto()

@@ -52,6 +52,7 @@ class Subscription(StatesGroup):
     PLANS = State()
     DURATION = State()
     PAYMENT_METHOD = State()
+    PLATEGA_METHOD = State()  # Platega sub-method picker (СБП / карта / крипта)
     CONFIRM = State()
     SUCCESS = State()
     FAILED = State()
@@ -196,6 +197,8 @@ class RemnashopGateways(StatesGroup):
     FIELD = State()
     CURRENCY = State()
     PLACEMENT = State()
+    METHODS = State()  # Platega: toggle which payment methods users can pick
+    METHOD_LABEL = State()  # Platega: rename a single method
 
 
 class RemnashopNotifications(StatesGroup):

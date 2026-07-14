@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Optional
+from uuid import UUID
 
 from loguru import logger
 
@@ -9,6 +10,7 @@ from src.application.common.dao import SubscriptionDao, UserDao
 from src.application.common.uow import UnitOfWork
 from src.application.dto import PlanSnapshotDto, SubscriptionDto, TransactionDto, UserDto
 from src.application.events import TrialActivatedEvent
+from src.application.services import SubscriptionProrationService
 from src.core.enums import PurchaseType, SubscriptionStatus
 from src.core.exceptions import TrialNotAvailableError
 from src.core.types import RemnaUserDto
@@ -113,11 +115,13 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
         user_dao: UserDao,
         subscription_dao: SubscriptionDao,
         remnawave: Remnawave,
+        proration: SubscriptionProrationService,
     ) -> None:
         self.uow = uow
         self.user_dao = user_dao
         self.subscription_dao = subscription_dao
         self.remnawave = remnawave
+        self.proration = proration
 
     async def _execute(self, actor: UserDto, data: PurchaseSubscriptionDto) -> None:  # noqa: C901
         user = data.user
@@ -198,6 +202,21 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
                         f"No subscription found for change for user '{user.remna_name}'"
                     )
 
+                # Convert the value of the user's remaining time into bonus days on the
+                # new plan (proration). The panel expiry must be the computed value, so
+                # push the fully-built subscription via subscription=... (which carries
+                # expire_at) instead of plan=..., which would reset it to now + new
+                # duration and silently discard the remaining time.
+                change = self.proration.compute_change_expiry(
+                    current=subscription,
+                    new_duration=plan.duration,
+                    new_price=transaction.pricing.final_amount,
+                    new_currency=transaction.currency,
+                )
+                new_sub = self._build_change_subscription_dto(
+                    subscription.user_remna_id, plan, change.new_expire
+                )
+
                 await self.subscription_dao.update_status(
                     subscription_id=subscription.id,
                     status=SubscriptionStatus.DELETED,
@@ -206,11 +225,12 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
                 updated_user = await self.remnawave.update_user(
                     user=user,
                     uuid=subscription.user_remna_id,
-                    plan=plan,
+                    subscription=new_sub,
                     reset_traffic=True,
                 )
+                new_sub.status = SubscriptionStatus(updated_user.status)
+                new_sub.url = updated_user.subscription_url
 
-                new_sub = self._build_subscription_dto(updated_user, plan)
                 await self.subscription_dao.create(
                     subscription=new_sub,
                     user_id=user.id,
@@ -220,7 +240,10 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
                     user.purchase_discount = 0
                     await self.user_dao.update(user)
                 await self.uow.commit()
-                logger.debug(f"{actor.log} Changed subscription for user '{user.id}'")
+                logger.debug(
+                    f"{actor.log} Changed subscription for user '{user.id}' "
+                    f"(basis={change.basis}, bonus_days={change.bonus_days})"
+                )
 
             else:
                 raise ValueError(
@@ -246,5 +269,29 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
             external_squad=plan.external_squad,
             expire_at=remna_user.expire_at,
             url=remna_user.subscription_url,
+            plan_snapshot=plan,
+        )
+
+    def _build_change_subscription_dto(
+        self,
+        user_remna_id: UUID,
+        plan: PlanSnapshotDto,
+        expire_at: datetime,
+    ) -> SubscriptionDto:
+        # Built before the panel call so the proration-computed expire_at is what gets
+        # pushed (via subscription=...). status/url are placeholders filled in from the
+        # panel response afterwards.
+        return SubscriptionDto(
+            user_remna_id=user_remna_id,
+            status=SubscriptionStatus.ACTIVE,
+            is_trial=plan.is_trial,
+            traffic_limit=plan.traffic_limit,
+            device_limit=plan.device_limit,
+            traffic_limit_strategy=plan.traffic_limit_strategy,
+            tag=plan.tag,
+            internal_squads=plan.internal_squads,
+            external_squad=plan.external_squad,
+            expire_at=expire_at,
+            url="",
             plan_snapshot=plan,
         )

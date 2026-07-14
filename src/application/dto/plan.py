@@ -30,8 +30,20 @@ class PlanSnapshotDto:
 
     is_trial: bool = False
 
+    # Amount actually paid for this snapshot's duration, captured at purchase time so
+    # a later plan change can convert the remaining value into bonus days (proration).
+    # Optional/None for grants without a monetary basis (trial, admin, promo, legacy).
+    price: Optional[Decimal] = None
+    price_currency: Optional[Currency] = None
+
     @classmethod
-    def from_plan(cls, plan: "PlanDto", duration: int) -> Self:
+    def from_plan(
+        cls,
+        plan: "PlanDto",
+        duration: int,
+        price: Optional[Decimal] = None,
+        price_currency: Optional[Currency] = None,
+    ) -> Self:
         return cls(
             id=plan.id,
             name=plan.name,
@@ -44,6 +56,8 @@ class PlanSnapshotDto:
             internal_squads=plan.internal_squads,
             external_squad=plan.external_squad,
             is_trial=plan.is_trial,
+            price=price,
+            price_currency=price_currency,
         )
 
     @classmethod

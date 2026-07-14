@@ -427,6 +427,17 @@ btn-gateway =
     *[0] ⚪
     } { $symbol } { $currency }
 
+    .methods = 💳 Методы оплаты
+
+    .method-toggle = { $enabled ->
+    [1] ✅
+    *[0] ⬜
+    } { $label }
+
+    .method-rename = ✏️ Название
+
+    .method-label-reset = ♻️ Сбросить название
+
 btn-referral =
     .level = 🔢 Уровень
     .reward-type = 🎀 Тип награды

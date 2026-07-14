@@ -11,6 +11,7 @@ from loguru import logger
 from src.application.common import Notifier
 from src.application.common.dao import PaymentGatewayDao, PlanDao, SettingsDao, SubscriptionDao
 from src.application.dto import PlanDto, PlanSnapshotDto, SubscriptionDto, TelegramUserDto
+from src.application.dto.payment_gateway import PlategaGatewaySettingsDto
 from src.application.services import PricingService
 from src.application.use_cases.gateways.commands.payment import (
     CreatePayment,
@@ -59,9 +60,14 @@ class CachedPaymentData(TypedDict):
 
 
 def _get_cache_key(
-    duration: int, gateway_type: PaymentGatewayType, purchase_type: PurchaseType
+    duration: int,
+    gateway_type: PaymentGatewayType,
+    purchase_type: PurchaseType,
+    payment_method: Optional[int] = None,
 ) -> str:
-    return f"{purchase_type}:{duration}:{gateway_type.value}"
+    # payment_method keeps two Platega sub-methods (e.g. СБП vs крипта) from colliding
+    # on one cached payment URL.
+    return f"{purchase_type}:{duration}:{gateway_type.value}:{payment_method}"
 
 
 def _load_payment_data(dialog_manager: DialogManager) -> dict[str, CachedPaymentData]:
@@ -86,6 +92,7 @@ async def _create_payment_and_get_data(
     notifier: Notifier,
     pricing_service: PricingService,
     create_payment: CreatePayment,
+    payment_method: Optional[int] = None,
 ) -> Optional[CachedPaymentData]:
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     duration = plan.get_duration(duration_days)
@@ -96,9 +103,16 @@ async def _create_payment_and_get_data(
         logger.error(f"{user.log} Failed to find duration or gateway for payment creation")
         return None
 
-    transaction_plan = PlanSnapshotDto.from_plan(plan, duration.days)
     pricing = pricing_service.calculate_for_duration(
         user, duration, payment_gateway.currency, apply_discount=not plan.is_trial
+    )
+    # Capture the paid amount in the snapshot so a later plan change can prorate the
+    # remaining value into bonus days (SubscriptionProrationService).
+    transaction_plan = PlanSnapshotDto.from_plan(
+        plan,
+        duration.days,
+        price=pricing.final_amount,
+        price_currency=payment_gateway.currency,
     )
 
     try:
@@ -109,6 +123,7 @@ async def _create_payment_and_get_data(
                 pricing=pricing,
                 purchase_type=purchase_type,
                 gateway_type=gateway_type,
+                payment_method=payment_method,
             ),
         )
 
@@ -122,6 +137,55 @@ async def _create_payment_and_get_data(
         logger.error(f"{user.log} Failed to create payment")
         await notifier.notify_user(user, i18n_key="ntf-subscription.payment-creation-failed")
         raise
+
+
+async def _resolve_platega_method(
+    dialog_manager: DialogManager,
+    plan: PlanDto,
+    duration_days: int,
+    gateway_type: PaymentGatewayType,
+    payment_gateway_dao: PaymentGatewayDao,
+    pricing_service: PricingService,
+    user: TelegramUserDto,
+) -> tuple[bool, Optional[int]]:
+    """Decide how a Platega selection proceeds.
+
+    Returns ``(routed, payment_method)``:
+    - ``(True, None)``  — switched to the in-bot method picker; the caller must return.
+    - ``(False, id)``   — exactly one method is enabled; create the payment with it.
+    - ``(False, None)`` — not Platega / hard-pinned / no methods / free: proceed as usual.
+    """
+    if gateway_type != PaymentGatewayType.PLATEGA:
+        return False, None
+
+    gateway = await payment_gateway_dao.get_by_type(gateway_type)
+    if not gateway or not isinstance(gateway.settings, PlategaGatewaySettingsDto):
+        return False, None
+    settings = gateway.settings
+
+    # Admin hard-pin wins: the gateway applies settings.payment_method itself.
+    if settings.payment_method is not None:
+        return False, None
+
+    enabled = settings.enabled_methods()
+    if not enabled:
+        return False, None  # fall back to Platega's own multi-method page
+    if len(enabled) == 1:
+        return False, enabled[0].id  # single method -> apply it silently
+
+    # 2+ methods: no picker for free purchases (no Platega call happens at all).
+    duration = plan.get_duration(duration_days)
+    if duration is None:
+        return False, None
+    price = pricing_service.calculate_for_duration(
+        user, duration, gateway.currency, apply_discount=not plan.is_trial
+    )
+    if price.is_free:
+        return False, None
+
+    dialog_manager.dialog_data[CURRENT_METHOD_KEY] = gateway_type
+    await dialog_manager.switch_to(state=Subscription.PLATEGA_METHOD)
+    return True, None
 
 
 async def _resolve_renew_plan(
@@ -268,10 +332,23 @@ async def on_subscription_plans(  # noqa: C901
             dialog_manager.dialog_data["only_single_duration"] = True
 
             if len(gateways) == 1:
-                logger.info(f"{user.log} Auto-selected payment method '{gateways[0].type}'")
                 dialog_manager.dialog_data["selected_payment_method"] = gateways[0].type
                 dialog_manager.dialog_data["only_single_payment_method"] = True
 
+                # Single gateway may still be Platega with an in-bot method choice.
+                routed, payment_method = await _resolve_platega_method(
+                    dialog_manager,
+                    plans[0],
+                    plans[0].durations[0].days,
+                    gateways[0].type,
+                    payment_gateway_dao,
+                    pricing_service,
+                    user,
+                )
+                if routed:
+                    return
+
+                logger.info(f"{user.log} Auto-selected payment method '{gateways[0].type}'")
                 payment_data = await _create_payment_and_get_data(
                     dialog_manager=dialog_manager,
                     plan=plans[0],
@@ -282,6 +359,7 @@ async def on_subscription_plans(  # noqa: C901
                     notifier=notifier,
                     pricing_service=pricing_service,
                     create_payment=create_payment,
+                    payment_method=payment_method,
                 )
 
                 if payment_data:
@@ -379,9 +457,24 @@ async def on_duration_select(
         selected_payment_method = gateways[0].type
         dialog_manager.dialog_data[CURRENT_METHOD_KEY] = selected_payment_method
 
+        # Single gateway may still be Platega with an in-bot method choice.
+        routed, payment_method = await _resolve_platega_method(
+            dialog_manager,
+            plan,
+            selected_duration,
+            selected_payment_method,
+            payment_gateway_dao,
+            pricing_service,
+            user,
+        )
+        if routed:
+            return
+
         purchase_type: PurchaseType = dialog_manager.dialog_data["purchase_type"]
         cache = _load_payment_data(dialog_manager)
-        cache_key = _get_cache_key(selected_duration, selected_payment_method, purchase_type)
+        cache_key = _get_cache_key(
+            selected_duration, selected_payment_method, purchase_type, payment_method
+        )
 
         if cache_key in cache:
             logger.info(f"{user.log} Re-selected same duration and single gateway")
@@ -401,6 +494,7 @@ async def on_duration_select(
             notifier=notifier,
             pricing_service=pricing_service,
             create_payment=create_payment,
+            payment_method=payment_method,
         )
 
         if payment_data:
@@ -431,16 +525,6 @@ async def on_payment_method_select(
     selected_duration = dialog_manager.dialog_data[CURRENT_DURATION_KEY]
     dialog_manager.dialog_data[CURRENT_METHOD_KEY] = selected_payment_method
     purchase_type: PurchaseType = dialog_manager.dialog_data["purchase_type"]
-    cache = _load_payment_data(dialog_manager)
-    cache_key = _get_cache_key(selected_duration, selected_payment_method, purchase_type)
-
-    if cache_key in cache:
-        logger.info(f"{user.log} Re-selected same method and duration")
-        _save_payment_data(dialog_manager, cache[cache_key])
-        await dialog_manager.switch_to(state=Subscription.CONFIRM)
-        return
-
-    logger.info(f"{user.log} New combination. Creating new payment")
 
     raw_plan = dialog_manager.dialog_data.get(PlanDto.__name__)
 
@@ -450,6 +534,31 @@ async def on_payment_method_select(
         return
 
     plan = retort.load(raw_plan, PlanDto)
+
+    routed, payment_method = await _resolve_platega_method(
+        dialog_manager,
+        plan,
+        selected_duration,
+        selected_payment_method,
+        payment_gateway_dao,
+        pricing_service,
+        user,
+    )
+    if routed:
+        return
+
+    cache = _load_payment_data(dialog_manager)
+    cache_key = _get_cache_key(
+        selected_duration, selected_payment_method, purchase_type, payment_method
+    )
+
+    if cache_key in cache:
+        logger.info(f"{user.log} Re-selected same method and duration")
+        _save_payment_data(dialog_manager, cache[cache_key])
+        await dialog_manager.switch_to(state=Subscription.CONFIRM)
+        return
+
+    logger.info(f"{user.log} New combination. Creating new payment")
 
     payment_data = await _create_payment_and_get_data(
         dialog_manager=dialog_manager,
@@ -461,6 +570,62 @@ async def on_payment_method_select(
         notifier=notifier,
         pricing_service=pricing_service,
         create_payment=create_payment,
+        payment_method=payment_method,
+    )
+
+    if payment_data:
+        cache[cache_key] = payment_data
+        _save_payment_data(dialog_manager, payment_data)
+
+    await dialog_manager.switch_to(state=Subscription.CONFIRM)
+
+
+@inject
+async def on_platega_method_select(
+    callback: CallbackQuery,
+    widget: Select,
+    dialog_manager: DialogManager,
+    selected_method: int,
+    retort: FromDishka[Retort],
+    payment_gateway_dao: FromDishka[PaymentGatewayDao],
+    notifier: FromDishka[Notifier],
+    pricing_service: FromDishka[PricingService],
+    create_payment: FromDishka[CreatePayment],
+) -> None:
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    logger.info(f"{user.log} Selected Platega method '{selected_method}'")
+
+    selected_duration = dialog_manager.dialog_data[CURRENT_DURATION_KEY]
+    purchase_type: PurchaseType = dialog_manager.dialog_data["purchase_type"]
+    gateway_type = PaymentGatewayType.PLATEGA  # the picker is only reached for Platega
+
+    raw_plan = dialog_manager.dialog_data.get(PlanDto.__name__)
+    if not raw_plan:
+        logger.error("PlanDto not found in dialog data")
+        await dialog_manager.start(state=Subscription.MAIN)
+        return
+    plan = retort.load(raw_plan, PlanDto)
+
+    cache = _load_payment_data(dialog_manager)
+    cache_key = _get_cache_key(selected_duration, gateway_type, purchase_type, selected_method)
+
+    if cache_key in cache:
+        logger.info(f"{user.log} Re-selected same Platega method")
+        _save_payment_data(dialog_manager, cache[cache_key])
+        await dialog_manager.switch_to(state=Subscription.CONFIRM)
+        return
+
+    payment_data = await _create_payment_and_get_data(
+        dialog_manager=dialog_manager,
+        plan=plan,
+        duration_days=selected_duration,
+        gateway_type=gateway_type,
+        retort=retort,
+        payment_gateway_dao=payment_gateway_dao,
+        notifier=notifier,
+        pricing_service=pricing_service,
+        create_payment=create_payment,
+        payment_method=selected_method,
     )
 
     if payment_data:

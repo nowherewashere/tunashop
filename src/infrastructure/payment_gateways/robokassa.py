@@ -34,7 +34,9 @@ class RobokassaGateway(BasePaymentGateway):
                 f"got {type(self.data.settings).__name__}"
             )
 
-    async def handle_create_payment(self, amount: Decimal, details: str) -> PaymentResultDto:
+    async def handle_create_payment(
+        self, amount: Decimal, details: str, payment_method: int | None = None
+    ) -> PaymentResultDto:
         order_id = uuid.uuid4()
         inv_id = 0
         out_sum = self._format_amount(amount)

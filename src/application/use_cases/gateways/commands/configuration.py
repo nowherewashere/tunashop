@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import get_type_hints
+from typing import Optional, get_type_hints
 
 from adaptix import Retort
 from loguru import logger
@@ -9,6 +9,11 @@ from src.application.common.dao import PaymentGatewayDao
 from src.application.common.policy import Permission
 from src.application.common.uow import UnitOfWork
 from src.application.dto import UserDto
+from src.application.dto.payment_gateway import (
+    PlategaGatewaySettingsDto,
+    PlategaMethodConfigDto,
+)
+from src.core.enums import PlategaPaymentMethod
 from src.core.exceptions import GatewayNotConfiguredError
 
 
@@ -127,6 +132,91 @@ class UpdatePaymentGatewaySettings(Interactor[UpdatePaymentGatewaySettingsDto, N
             except ValueError as e:
                 logger.warning(f"{actor.log} Invalid value for field '{data.field_name}': {e}")
                 raise
+
+
+def _ensure_methods(settings: PlategaGatewaySettingsDto) -> list[PlategaMethodConfigDto]:
+    """Return the method-config list, seeding defaults and backfilling any new codes."""
+    if not settings.methods:
+        settings.methods = PlategaGatewaySettingsDto.default_methods()
+    present = {m.id for m in settings.methods}
+    for method in PlategaPaymentMethod:
+        if method.value not in present:
+            settings.methods.append(PlategaMethodConfigDto(id=method.value, enabled=False))
+    return settings.methods
+
+
+@dataclass(frozen=True)
+class TogglePlategaMethodDto:
+    gateway_id: int
+    method_id: int
+
+
+class TogglePlategaMethod(Interactor[TogglePlategaMethodDto, None]):
+    required_permission = Permission.REMNASHOP_GATEWAYS
+
+    def __init__(self, uow: UnitOfWork, gateway_dao: PaymentGatewayDao) -> None:
+        self.uow = uow
+        self.gateway_dao = gateway_dao
+
+    async def _execute(self, actor: UserDto, data: TogglePlategaMethodDto) -> None:
+        async with self.uow:
+            gateway = await self.gateway_dao.get_by_id(data.gateway_id)
+            if not gateway or not isinstance(gateway.settings, PlategaGatewaySettingsDto):
+                raise GatewayNotConfiguredError(
+                    f"Gateway '{data.gateway_id}' is not a configured Platega gateway"
+                )
+            methods = _ensure_methods(gateway.settings)
+
+            target = next((m for m in methods if m.id == data.method_id), None)
+            if target is None:
+                raise ValueError(f"Unknown Platega method '{data.method_id}'")
+
+            target.enabled = not target.enabled
+            await self.gateway_dao.update(gateway)
+            await self.uow.commit()
+
+        logger.info(
+            f"{actor.log} Platega method '{data.method_id}' set enabled='{target.enabled}' "
+            f"for gateway '{data.gateway_id}'"
+        )
+
+
+@dataclass(frozen=True)
+class SetPlategaMethodLabelDto:
+    gateway_id: int
+    method_id: int
+    label: Optional[str]  # None resets to the default i18n label
+
+
+class SetPlategaMethodLabel(Interactor[SetPlategaMethodLabelDto, None]):
+    required_permission = Permission.REMNASHOP_GATEWAYS
+
+    def __init__(self, uow: UnitOfWork, gateway_dao: PaymentGatewayDao) -> None:
+        self.uow = uow
+        self.gateway_dao = gateway_dao
+
+    async def _execute(self, actor: UserDto, data: SetPlategaMethodLabelDto) -> None:
+        async with self.uow:
+            gateway = await self.gateway_dao.get_by_id(data.gateway_id)
+            if not gateway or not isinstance(gateway.settings, PlategaGatewaySettingsDto):
+                raise GatewayNotConfiguredError(
+                    f"Gateway '{data.gateway_id}' is not a configured Platega gateway"
+                )
+            methods = _ensure_methods(gateway.settings)
+
+            target = next((m for m in methods if m.id == data.method_id), None)
+            if target is None:
+                raise ValueError(f"Unknown Platega method '{data.method_id}'")
+
+            label = (data.label or "").strip()
+            target.label = label or None
+            await self.gateway_dao.update(gateway)
+            await self.uow.commit()
+
+        logger.info(
+            f"{actor.log} Platega method '{data.method_id}' label set to '{target.label}' "
+            f"for gateway '{data.gateway_id}'"
+        )
 
 
 @dataclass(frozen=True)

@@ -23,6 +23,7 @@ from .getters import (
     payment_method_getter,
     plan_getter,
     plans_getter,
+    platega_method_getter,
     subscription_getter,
     success_payment_getter,
 )
@@ -31,6 +32,7 @@ from .handlers import (
     on_get_subscription,
     on_payment_method_select,
     on_plan_select,
+    on_platega_method_select,
     on_subscription_plans,
     on_subscription_start,
 )
@@ -208,6 +210,33 @@ payment_method = Window(
     getter=payment_method_getter,
 )
 
+platega_method = Window(
+    Banner(BannerName.PAYMENT_METHOD),
+    I18nFormat("msg-subscription-platega-method"),
+    Column(
+        Select(
+            text=Format("{item[label]}"),
+            id=f"{PAYMENT_PREFIX}select_platega_method",
+            item_id_getter=lambda item: item["id"],
+            items="methods",
+            type_factory=int,
+            on_click=on_platega_method_select,
+            style=Style(ButtonStyle.PRIMARY),
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-subscription.back-payment-method"),
+            id=f"{PAYMENT_PREFIX}back_pm",
+            state=Subscription.PAYMENT_METHOD,
+        ),
+    ),
+    *back_main_menu_button,
+    IgnoreUpdate(),
+    state=Subscription.PLATEGA_METHOD,
+    getter=platega_method_getter,
+)
+
 confirm = Window(
     DataBanner(),
     I18nFormat("msg-subscription-confirm"),
@@ -321,6 +350,7 @@ router = Dialog(
     plans,
     duration,
     payment_method,
+    platega_method,
     confirm,
     success_payment,
     success_trial,
