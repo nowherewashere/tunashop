@@ -542,7 +542,8 @@ class SupportServiceImpl(SupportService):
             ptype = _PURCHASE_TYPE_RU.get(t.purchase_type, str(t.purchase_type))
             plan = html.escape(t.plan_snapshot.name or "—")
             term = _fmt_duration(t.plan_snapshot.duration)
-            body.append(f" • {when} · {at_time} · {ptype} {plan} на {term}")
+            amount = f"{t.pricing.final_amount:.0f} {t.currency.symbol}"
+            body.append(f" • {when} · {at_time} · {ptype} {plan} на {term} · {amount}")
         return "💰 <b>Платежи</b>\n" + _blockquote(body)
 
     async def _relay_to_topic(self, topic_id: int, text: str) -> None:
