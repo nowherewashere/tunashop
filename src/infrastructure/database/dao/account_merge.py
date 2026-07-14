@@ -234,6 +234,13 @@ class AccountMergeDaoImpl(AccountMergeDao):
             select(exists().where(Referral.referred_id == survivor_id))
         )
         if survivor_referred:
+            # The survivor keeps its own inviter, so the loser's "invited-by" edge is
+            # dropped. The matching inbound commission row in ``referral_events`` is
+            # repointed (kept) by _reassign_referral_events, so the original inviter keeps
+            # the money they earned — but that row is now an orphan (no live edge). The
+            # paying-count query joins to a live ``referrals`` edge precisely so such
+            # orphans are NOT counted (else: "Приглашено: 0 / Из них платят: 1"). See
+            # ReferralLedgerDaoImpl.get_paying_count.
             await self.session.execute(delete(Referral).where(Referral.referred_id == loser_id))
         else:
             await self.session.execute(

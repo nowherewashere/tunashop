@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from src.application.common.dao import ReferralLedgerDao
 from src.application.dto import BalanceSpendDto, PayoutDto, ReferralEventDto
+from src.infrastructure.database.models.referral import Referral
 from src.infrastructure.database.models.referral_ledger import (
     PAYOUT_METHOD_CRYPTO,
     PAYOUT_OPEN_STATUSES,
@@ -86,8 +87,24 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
         return int(await self.session.scalar(stmt) or 0)
 
     async def get_paying_count(self, referrer_id: int) -> int:
-        stmt = select(func.count(func.distinct(ReferralEvent.referred_id))).where(
-            ReferralEvent.referrer_id == referrer_id
+        # Count distinct paying invitees, but ONLY those still linked by a live
+        # ``referrals`` edge — so "paying" can never exceed "invited". An account merge
+        # can orphan a commission row: when a paid invitee's account is absorbed into an
+        # already-referred survivor, the unique ``referrals`` edge is dropped while the
+        # ``referral_events`` row is repointed to the survivor (see account_merge
+        # _reassign_referrals vs _reassign_referral_events). The join drops such orphans,
+        # which non-destructively self-heals the "Приглашено: 0 / Из них платят: 1" skew
+        # (the earned money is intentionally kept in get_earned_kop; only the count is
+        # constrained to live relationships).
+        stmt = (
+            select(func.count(func.distinct(ReferralEvent.referred_id)))
+            .select_from(ReferralEvent)
+            .join(
+                Referral,
+                (Referral.referrer_id == ReferralEvent.referrer_id)
+                & (Referral.referred_id == ReferralEvent.referred_id),
+            )
+            .where(ReferralEvent.referrer_id == referrer_id)
         )
         return int(await self.session.scalar(stmt) or 0)
 
