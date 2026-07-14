@@ -32,7 +32,7 @@ from src.application.dto import (
 from src.application.use_cases.user.queries.profile import GetUserDevices
 from src.core.config import AppConfig
 from src.core.constants import SUPPORT_CB_CLOSE, UNLIMITED_EXPIRE_YEAR
-from src.core.enums import Role, TransactionStatus
+from src.core.enums import PurchaseType, Role, TransactionStatus
 from src.core.exceptions import SupportUnavailableError
 from src.core.utils.time import datetime_now
 from src.infrastructure.database.models.support import (
@@ -60,6 +60,25 @@ _ROLE_LABELS_RU: dict[Role, str] = {
     Role.SYSTEM: "Система",
 }
 
+_PURCHASE_TYPE_RU: dict[PurchaseType, str] = {
+    PurchaseType.NEW: "Покупка",
+    PurchaseType.RENEW: "Продление",
+    PurchaseType.CHANGE: "Изменение",
+}
+
+
+def _blockquote(rows: list[str]) -> str:
+    # Telegram HTML quote block used as each card section's body.
+    return "<blockquote>" + "\n".join(rows) + "</blockquote>"
+
+
+def _ru_plural(n: int, one: str, few: str, many: str) -> str:
+    if n % 10 == 1 and n % 100 != 11:
+        return one
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return few
+    return many
+
 
 def _fmt_traffic_limit(gb: int) -> str:
     # Matches i18n_format_traffic_limit semantics (0 = unlimited), in GB.
@@ -69,6 +88,19 @@ def _fmt_traffic_limit(gb: int) -> str:
 def _fmt_device_limit(count: int) -> str:
     # Matches i18n_format_device_limit semantics (0 = unlimited).
     return "∞" if not count else str(count)
+
+
+def _fmt_duration(days: int) -> str:
+    # Purchased term, RU-pluralised, mirroring i18n_format_days bucketing (год/месяц/день).
+    if days <= 0:
+        return "∞"
+    if days % 365 == 0:
+        years = days // 365
+        return f"{years} {_ru_plural(years, 'год', 'года', 'лет')}"
+    if days % 30 == 0:
+        months = days // 30
+        return f"{months} {_ru_plural(months, 'месяц', 'месяца', 'месяцев')}"
+    return f"{days} {_ru_plural(days, 'день', 'дня', 'дней')}"
 
 
 def _fmt_remaining(expire_at: datetime) -> str:
@@ -155,16 +187,13 @@ class SupportServiceImpl(SupportService):
         conv = await self._ensure_topic(conv, user)
 
         if reopened:
-            if conv.telegram_topic_id is not None:
-                # The operator had closed the topic; a new message reopens the same
-                # thread so history stays in one place, and a fresh user card is posted
-                # so the operator sees the current state at the start of every session.
-                await self._safe_topic_op(
-                    self.bot.reopen_forum_topic, conv.telegram_topic_id
-                )
-                await self._post_header(conv.telegram_topic_id, user)
-            # Mirror the reopen to any open cabinet tab so its "closed" banner clears
-            # live (the tab that sent already knows; this keeps other tabs in sync).
+            # The forum topic is never Telegram-closed anymore (only the DB status
+            # toggles), so there is nothing to reopen, and we do NOT re-post the user
+            # card — that close→reopen→fresh-card churn was the bulk of the operator-topic
+            # flood. The topic keeps its original header; operators refresh context on
+            # demand with /card, and the user's message below just lands in the (quiet)
+            # topic. Mirror the reopen to any open cabinet tab so its "closed" banner
+            # clears live (the tab that sent already knows; this keeps other tabs in sync).
             await self._publish(user.id, build_status_event(CONVERSATION_OPEN))
 
         async with self.uow:
@@ -244,8 +273,12 @@ class SupportServiceImpl(SupportService):
         async with self.uow:
             await self.support_dao.set_status(conv.id, CONVERSATION_CLOSED)
             await self.uow.commit()
-        await self._safe_topic_op(self.bot.close_forum_topic, topic_id)
+        # We no longer Telegram-close the forum topic (the close→reopen churn flooded the
+        # group). The closed state lives in the DB + the published status event; a short
+        # note keeps the operator's "handled" signal in the thread.
+        await self._post_topic_note(topic_id, "🔒 Диалог закрыт оператором.")
         await self._publish(conv.user_id, build_status_event(CONVERSATION_CLOSED))
+        await self._notify_telegram_close(conv, auto=False)
         return True
 
     async def close_idle(self) -> int:
@@ -259,9 +292,12 @@ class SupportServiceImpl(SupportService):
             closed = await self.support_dao.close_idle(before)
             await self.uow.commit()
         for conv in closed:
-            if conv.telegram_topic_id is not None:
-                await self._safe_topic_op(self.bot.close_forum_topic, conv.telegram_topic_id)
+            # No Telegram topic-close (that was the flood, and a bulk run would also risk
+            # per-group flood limits); the DB status + status event carry the close, and a
+            # bot-channel user is told directly via DM below. No per-topic note here on the
+            # bulk path to keep the group quiet — the topic simply goes idle.
             await self._publish(conv.user_id, build_status_event(CONVERSATION_CLOSED))
+            await self._notify_telegram_close(conv, auto=True)
         if closed:
             logger.info(f"Support: auto-closed {len(closed)} idle conversation(s)")
         return len(closed)
@@ -307,6 +343,43 @@ class SupportServiceImpl(SupportService):
         except Exception as error:
             logger.warning(f"Support: failed to publish event for user {user_id}: {error}")
 
+    async def _post_topic_note(self, topic_id: int, text: str) -> None:
+        """A short operator-facing status line inside a topic (best-effort)."""
+        try:
+            await self.bot.send_message(
+                chat_id=self._group_id,
+                message_thread_id=topic_id,
+                text=text,
+                disable_web_page_preview=True,
+            )
+        except Exception as error:
+            logger.warning(f"Support: failed to post topic note to {topic_id}: {error}")
+
+    async def _notify_telegram_close(
+        self, conv: SupportConversationDto, *, auto: bool
+    ) -> None:
+        """DM a bot-channel user that their support chat closed, so the auto-close is
+        visible in Telegram (mirroring the site's banner). Soft close — a new message
+        reopens the same thread. Best-effort; only for users who last wrote from the bot."""
+        if conv.last_user_channel != CHANNEL_TELEGRAM:
+            return
+        target = await self.user_dao.get_by_id(conv.user_id)
+        if target is None or target.telegram_id is None:
+            return
+        reason = "из-за неактивности" if auto else "оператором"
+        try:
+            await self.bot.send_message(
+                chat_id=target.telegram_id,
+                text=(
+                    f"🔒 Чат поддержки закрыт {reason}. "
+                    "Напишите сюда снова или /support, чтобы продолжить."
+                ),
+            )
+        except Exception as error:
+            logger.warning(
+                f"Support: failed to notify user {conv.user_id} of close: {error}"
+            )
+
     async def _ensure_topic(
         self, conv: SupportConversationDto, user: UserDto
     ) -> SupportConversationDto:
@@ -335,29 +408,31 @@ class SupportServiceImpl(SupportService):
         return f"{user.name} · #{user.id}"[:_TOPIC_NAME_MAX]
 
     async def _post_header(self, topic_id: int, user: UserDto) -> None:
-        # Mirrors the admin user card (msg-user-main + msg-user-statistics): identity,
-        # profile (role/language/registration/discounts), "invited by", subscription
-        # details and recent payments — assembled as HTML since a DialogManager/translator
-        # is not available here (the card is a hand-built message).
-        lines = [f"🎫 <b>{html.escape(user.name)}</b> · <code>#{user.id}</code>"]
+        # Operator-facing card mirroring the admin user screen: an identity header, then
+        # bold section titles with <blockquote> bodies (Информация / Подписка /
+        # Устройства / Платежи). Assembled as HTML — no DialogManager/translator here.
+        lines = [f"🎫 <b>{html.escape(user.name)}</b> · <code>{user.id}</code>"]
         if user.username:
-            lines.append(f"Telegram: @{html.escape(user.username)}")
+            lines.append(f"@{html.escape(user.username)}")
         elif user.telegram_id is not None:
-            lines.append(f"Telegram ID: <code>{user.telegram_id}</code>")
+            lines.append(f"<code>{user.telegram_id}</code>")
         if user.email:
-            lines.append(f"Email: {html.escape(user.email)}")
-        lines.append("————")
-        lines.append(self._render_profile(user))
-        referrer_line = await self._render_referrer(user.id)
-        if referrer_line:
-            lines.append(referrer_line)
-        lines.append("————")
+            lines.append(html.escape(user.email))
+
+        lines.append("")
+        lines.append(self._render_profile_section(user, await self._render_referrer(user.id)))
+
         subscription = await self.subscription_dao.get_current(user.id)
-        lines.append(self._render_subscription(subscription))
-        devices_block = await self._render_devices(user.id, subscription)
-        if devices_block:
-            lines.append(devices_block)
-        lines.append(await self._render_payments(user.id))
+        lines.append("")
+        lines.append(self._render_subscription_section(subscription))
+
+        devices_section = await self._render_devices_section(user.id, subscription)
+        if devices_section:
+            lines.append("")
+            lines.append(devices_section)
+
+        lines.append("")
+        lines.append(await self._render_payments_section(user.id))
 
         # A failed username lookup must not drop the card: fall back to a keyboard with
         # only «🔒 Закрыть» rather than losing the whole header.
@@ -390,16 +465,18 @@ class SupportServiceImpl(SupportService):
         row.append(InlineKeyboardButton(text="🔒 Закрыть", callback_data=SUPPORT_CB_CLOSE))
         return InlineKeyboardMarkup(inline_keyboard=[row])
 
-    def _render_profile(self, user: UserDto) -> str:
+    def _render_profile_section(self, user: UserDto, referrer_line: Optional[str]) -> str:
         role_label = _ROLE_LABELS_RU.get(user.role, str(user.role))
-        lines = [
+        body = [
             f"👤 Роль: {role_label} · Язык: {user.language.value.upper()}",
             f"💸 Скидки: персональная {user.personal_discount}% · "
             f"на покупку {user.purchase_discount}%",
         ]
         if user.created_at is not None:
-            lines.append(f"📅 Регистрация: {user.created_at:%d.%m.%Y}")
-        return "\n".join(lines)
+            body.append(f"📅 Регистрация: {user.created_at:%d.%m.%Y}")
+        if referrer_line:
+            body.append(referrer_line)
+        return "📋 <b>Информация</b>\n" + _blockquote(body)
 
     async def _render_referrer(self, user_id: int) -> Optional[str]:
         referral = await self.referral_dao.get_by_referred_id(user_id)
@@ -416,27 +493,19 @@ class SupportServiceImpl(SupportService):
             who = f"#{referrer.id}"
         return f"👥 Пригласил: {who} · <code>#{referrer.id}</code>"
 
-    def _render_subscription(self, subscription: Optional[SubscriptionDto]) -> str:
+    def _render_subscription_section(self, subscription: Optional[SubscriptionDto]) -> str:
         if subscription is None:
-            return "💳 Подписка: нет"
-        if subscription.is_expired:
-            state = "истекла"
-        elif subscription.is_trial:
-            state = "триал"
-        else:
-            state = "активна"
+            return "💳 <b>Подписка</b> · нет"
         plan = html.escape(subscription.plan_snapshot.name or "—")
-        # The device LIMIT lives in the devices block below (as current/limit), so it is
-        # not repeated here.
-        return "\n".join(
-            [
-                f"💳 <b>{plan}</b> · {state} · до {subscription.expire_at:%d.%m.%Y}",
-                f" • Трафик: {_fmt_traffic_limit(subscription.traffic_limit)}",
-                f" • Осталось: {_fmt_remaining(subscription.expire_at)}",
-            ]
-        )
+        # State is conveyed by «Осталось» (истекла / ∞); the device LIMIT lives in the
+        # devices section below (as current/limit), so neither is repeated here.
+        body = [
+            f" • Трафик: {_fmt_traffic_limit(subscription.traffic_limit)}",
+            f" • Осталось: {_fmt_remaining(subscription.expire_at)}",
+        ]
+        return f"💳 <b>Подписка · {plan}</b>\n" + _blockquote(body)
 
-    async def _render_devices(
+    async def _render_devices_section(
         self, user_id: int, subscription: Optional[SubscriptionDto]
     ) -> Optional[str]:
         # Shown inline in the card (the 🖥 button is gone). Needs a remnawave round-trip,
@@ -447,26 +516,34 @@ class SupportServiceImpl(SupportService):
             result = await self.get_user_devices.system(user_id)
         except Exception as error:
             logger.warning(f"Support: failed to load devices for user {user_id}: {error}")
-            return "🖥 Устройства: н/д"
-        rows = [f"🖥 Устройства: {result.current_count}/{_fmt_device_limit(result.max_count)}"]
-        for device in result.devices[:10]:
-            label = device.device_model or device.platform or "устройство"
-            rows.append(f" • {html.escape(str(label))}")
-        if not result.devices:
-            rows.append(" • нет активных")
-        return "\n".join(rows)
+            return "📱 <b>Устройства</b> · н/д"
+        header = (
+            f"📱 <b>Устройства · {result.current_count} / "
+            f"{_fmt_device_limit(result.max_count)}</b>"
+        )
+        body = [
+            f" • {html.escape(str(device.device_model or device.platform or 'устройство'))}"
+            for device in result.devices[:10]
+        ]
+        if not body:
+            body.append(" • нет активных")
+        return header + "\n" + _blockquote(body)
 
-    async def _render_payments(self, user_id: int) -> str:
+    async def _render_payments_section(self, user_id: int) -> str:
         transactions = await self.transaction_dao.get_by_user(user_id)
         completed = [t for t in transactions if t.status == TransactionStatus.COMPLETED]
         completed.sort(key=lambda t: t.created_at or datetime_now(), reverse=True)
         if not completed:
-            return "💰 Платежи: нет"
-        rows = [f"💰 Платежи (последние {min(3, len(completed))}):"]
+            return "💰 <b>Платежи</b> · нет"
+        body = []
         for t in completed[:3]:
             when = f"{t.created_at:%d.%m.%y}" if t.created_at else "—"
-            rows.append(f" • {when} · {t.pricing.final_amount:.0f} {t.currency.value}")
-        return "\n".join(rows)
+            at_time = f"{t.created_at:%H:%M}" if t.created_at else "—"
+            ptype = _PURCHASE_TYPE_RU.get(t.purchase_type, str(t.purchase_type))
+            plan = html.escape(t.plan_snapshot.name or "—")
+            term = _fmt_duration(t.plan_snapshot.duration)
+            body.append(f" • {when} · {at_time} · {ptype} {plan} на {term}")
+        return "💰 <b>Платежи</b>\n" + _blockquote(body)
 
     async def _relay_to_topic(self, topic_id: int, text: str) -> None:
         try:
