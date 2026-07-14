@@ -61,6 +61,13 @@ class RateLimitKey(StorageKey, prefix="rate_limit"):
 
 
 @dataclass(frozen=True)
+class SupportStreamCountKey(StorageKey, prefix="support_streams"):
+    # Live count of a user's concurrent support SSE streams (INCR on open, DECR on
+    # close); caps how many streams one account may hold open at once.
+    user_id: int
+
+
+@dataclass(frozen=True)
 class RefreshTokenKey(StorageKey, prefix="refresh"):
     token: str
 

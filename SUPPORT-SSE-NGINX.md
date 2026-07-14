@@ -21,6 +21,26 @@ emits a heartbeat comment (`: keep-alive`) every ~20 s. So even the default 60 s
 `proxy_read_timeout` would not fire (data arrives every 20 s). The block below is still
 required to guarantee **unbuffered** delivery and to survive slow/idle periods robustly.
 
+## Abuse / DoS caps (defense in depth)
+
+The app already caps SSE abuse per **account** (a valid login is required): a per-user
+open-rate limit, a per-user concurrent-stream cap (~5), and a process-wide semaphore,
+with the pub/sub connections drawn from a pool separate from the shared one so a breach
+can't starve the rate limiter or the operator fan-out. The nginx directives below add a
+per-**IP** layer that sheds a flood at the edge — including unauthenticated hammering
+that would otherwise reach the app just to get a 401 — before it ever hits the app. Keep
+both: they defend different keys (IP at the edge, account in the app).
+
+Add the two shared zones **once**, at `http { … }` level (next to your other
+`limit_*_zone` directives). Cloudflare was dropped, so `$binary_remote_addr` is the real
+client IP at this edge:
+
+```nginx
+# --- Support SSE stream: per-IP abuse zones -------------------------------------
+limit_conn_zone $binary_remote_addr zone=support_sse_conn:10m;
+limit_req_zone  $binary_remote_addr zone=support_sse_req:10m rate=30r/m;
+```
+
 ## Add this to the edge nginx `server { … }` for tuna-vpn.com
 
 Place it **before** the generic `location /api/v1/ { … }` block so it wins for this
@@ -57,6 +77,14 @@ location = /api/v1/public/support/stream {
     chunked_transfer_encoding on;
     proxy_read_timeout  3600s;             # allow long idle streams (heartbeat is ~20s)
     proxy_send_timeout  3600s;
+
+    # Per-IP abuse caps (zones defined at http{} above). These complement the app's
+    # per-account caps — a single IP can't hold many streams open or reopen them in a
+    # tight loop, and 429 (not the default 503) matches what the SPA already handles.
+    limit_conn support_sse_conn 5;                 # ≤5 concurrent streams per client IP
+    limit_req  zone=support_sse_req burst=10 nodelay; # ≤30 opens/min, small burst
+    limit_conn_status 429;
+    limit_req_status  429;
 }
 ```
 
@@ -73,6 +101,11 @@ block, so ordering doesn't matter. Reload nginx — for the Dockerised edge here
   (added 2026-07-14). Rebuild/redeploy `remnashop` from `main`.
 - **200 but the client still polls** → buffering/timeout still on: confirm the reload
   applied and no outer block re-enables `proxy_buffering`.
+- **`429 Too Many Requests` on `/support/stream`** → an abuse cap tripped (per-IP nginx
+  `limit_conn`/`limit_req`, or the app's per-account open-rate / concurrent-stream cap).
+  Expected under abuse; the SPA falls back to polling. If a legitimate user hits it,
+  raise the nginx `limit_conn`/`rate` here and/or the app constants in
+  `src/web/endpoints/public/support.py` (`_MAX_STREAMS_PER_USER`, `_STREAM_OPEN_RATE_LIMIT`).
 
 ## Verifying on prod
 
