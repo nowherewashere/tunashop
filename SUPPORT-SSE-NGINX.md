@@ -27,10 +27,20 @@ Place it **before** the generic `location /api/v1/ { … }` block so it wins for
 exact path. Copy your existing `/api/v1/` block's `proxy_pass` target and forwarded
 headers; only the SSE-specific directives at the bottom are new.
 
+**The `proxy_pass` target MUST equal your existing `/api/v1/(public|connect)` block** — in
+this deployment the app is the Docker service `remnashop:5000` (NOT `127.0.0.1:8000`).
+Copy the exact upstream from that block; using the wrong one gives `502 Bad Gateway`
+(`connect() failed (111: Connection refused)`).
+
 ```nginx
 # --- Support SSE stream: unbuffered, long-lived ---------------------------------
 location = /api/v1/public/support/stream {
-    proxy_pass http://127.0.0.1:8000;      # <-- SAME upstream as your /api/v1/ block
+    # Mirror your working /api/v1/(public|connect) block's upstream EXACTLY. Here that
+    # is the Docker service `remnashop:5000`, resolved at request time via Docker's
+    # embedded DNS (the server-level `resolver 127.0.0.11;` + a variable, so nginx
+    # doesn't fail to start if the container is momentarily down).
+    set $app remnashop;
+    proxy_pass http://$app:5000;
 
     # Forwarded headers — mirror your existing /api/v1/ block.
     proxy_set_header Host              $host;
@@ -50,7 +60,19 @@ location = /api/v1/public/support/stream {
 }
 ```
 
-Reload nginx: `nginx -t && systemctl reload nginx`.
+`location =` (exact match) already outranks the `~ ^/api/v1/(public|connect)/` regex
+block, so ordering doesn't matter. Reload nginx — for the Dockerised edge here:
+`docker exec remnawave-nginx nginx -t && docker exec remnawave-nginx nginx -s reload`
+(bare-metal: `nginx -t && systemctl reload nginx`).
+
+## Troubleshooting (the chat stays on "обновляем…" = polling fallback)
+- **`502 Bad Gateway` on `/support/stream`** → wrong `proxy_pass` upstream. It must be
+  the same service:port as your `/api/v1/` block (`remnashop:5000` here), not the
+  `127.0.0.1:8000` placeholder.
+- **`404 Not Found`** → the app container is running an image without the stream route
+  (added 2026-07-14). Rebuild/redeploy `remnashop` from `main`.
+- **200 but the client still polls** → buffering/timeout still on: confirm the reload
+  applied and no outer block re-enables `proxy_buffering`.
 
 ## Verifying on prod
 
