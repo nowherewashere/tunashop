@@ -19,7 +19,7 @@ def application() -> FastAPI:
     setup_dispatcher(dispatcher)
 
     app = get_app(config, dispatcher)
-    container = create_aiogram_container(config, bg_manager_factory)
+    container = create_aiogram_container(config, bg_manager_factory, dispatcher.storage)
 
     setup_aiogram_dishka(container, dispatcher, auto_inject=True)
     setup_fastapi_dishka(container, app)

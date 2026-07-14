@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, Optional
 
 from aiogram import Bot
+from aiogram.fsm.storage.base import BaseStorage, StorageKey
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from loguru import logger
 from redis.asyncio import Redis
@@ -31,7 +32,7 @@ from src.application.dto import (
 )
 from src.application.use_cases.user.queries.profile import GetUserDevices
 from src.core.config import AppConfig
-from src.core.constants import SUPPORT_CB_CLOSE, UNLIMITED_EXPIRE_YEAR
+from src.core.constants import SUPPORT_CB_CLOSE, SUPPORT_FSM_STATE, UNLIMITED_EXPIRE_YEAR
 from src.core.enums import PurchaseType, Role, TransactionStatus
 from src.core.exceptions import SupportUnavailableError
 from src.core.utils.time import datetime_now
@@ -142,6 +143,7 @@ class SupportServiceImpl(SupportService):
         get_user_devices: GetUserDevices,
         config: AppConfig,
         redis: Redis,
+        storage: BaseStorage,
     ) -> None:
         self.bot = bot
         # BotService builds the operator's "🗂 Карточка" deep link (resolves the bot
@@ -161,6 +163,9 @@ class SupportServiceImpl(SupportService):
         # Live push: operator replies + status changes are announced on a per-user
         # channel that the site's SSE endpoint subscribes to (see support_events_channel).
         self.redis = redis
+        # The dispatcher's aiogram FSM storage (shared instance), so an operator /close can
+        # drop the client's in-bot Support.CHAT state (see _clear_bot_fsm).
+        self.storage = storage
 
     @property
     def _group_id(self) -> int:
@@ -318,15 +323,11 @@ class SupportServiceImpl(SupportService):
         conv = await self.support_dao.get_by_user(user.id)
         if conv is None:
             return None, []
-        # A closed conversation presents as a fresh chat on the initial load (after_id
-        # == 0): the site then renders a clean new conversation (its static greeting),
-        # not the previous, closed session's history — mirroring "no conversation yet".
-        # The next user message reopens the same thread server-side
-        # (ingest_from_user), and live polling (after_id > 0) still streams the open
-        # conversation, so an operator closing it mid-session is reflected normally.
-        # The DB keeps every message; this only shapes what the initial load renders.
-        if after_id == 0 and conv.status == CONVERSATION_CLOSED:
-            return None, []
+        # A CLOSED conversation still returns its full history + status on the initial load
+        # (after_id == 0): the site renders the past messages plus the "закрыт — напишите,
+        # чтобы продолжить" banner, and the next user message reopens the same thread
+        # (ingest_from_user). (Previously a closed convo was presented as a fresh empty
+        # chat, which lost the history until the user re-sent and reloaded.)
         messages = await self.support_dao.list_messages(conv.id, after_id=after_id)
         return conv, messages
 
@@ -358,27 +359,47 @@ class SupportServiceImpl(SupportService):
     async def _notify_telegram_close(
         self, conv: SupportConversationDto, *, auto: bool
     ) -> None:
-        """DM a bot-channel user that their support chat closed, so the auto-close is
-        visible in Telegram (mirroring the site's banner). Soft close — a new message
+        """Tell a bot-channel client their support chat closed, mirroring the site banner.
+
+        Operator ``/close`` (``auto=False``) is a HARD close: we also drop the client's
+        ``Support.CHAT`` FSM so they truly leave the chat and must ``/support`` to reopen.
+        Idle auto-close (``auto=True``) is SOFT: the FSM is left intact, so a new message
         reopens the same thread. Best-effort; only for users who last wrote from the bot."""
         if conv.last_user_channel != CHANNEL_TELEGRAM:
             return
         target = await self.user_dao.get_by_id(conv.user_id)
         if target is None or target.telegram_id is None:
             return
-        reason = "из-за неактивности" if auto else "оператором"
-        try:
-            await self.bot.send_message(
-                chat_id=target.telegram_id,
-                text=(
-                    f"🔒 Чат поддержки закрыт {reason}. "
-                    "Напишите сюда снова или /support, чтобы продолжить."
-                ),
+        if auto:
+            text = (
+                "🔒 Чат поддержки закрыт из-за неактивности. "
+                "Напишите сюда снова или /support, чтобы продолжить."
             )
+        else:
+            await self._clear_bot_fsm(target.telegram_id)
+            text = (
+                "🔒 Оператор закрыл чат поддержки. "
+                "Нажмите /support, чтобы открыть его снова."
+            )
+        try:
+            await self.bot.send_message(chat_id=target.telegram_id, text=text)
         except Exception as error:
             logger.warning(
                 f"Support: failed to notify user {conv.user_id} of close: {error}"
             )
+
+    async def _clear_bot_fsm(self, telegram_id: int) -> None:
+        """Drop the client's in-bot support FSM so an operator /close truly ends the chat.
+
+        Guarded on the current state being ``Support.CHAT`` so an unrelated flow (e.g. a
+        purchase) is never wiped. Private chat ⇒ chat_id == user_id == telegram_id, matching
+        the key aiogram's FSMContext used to set the state (same shared storage instance)."""
+        key = StorageKey(bot_id=self.bot.id, chat_id=telegram_id, user_id=telegram_id)
+        try:
+            if await self.storage.get_state(key) == SUPPORT_FSM_STATE:
+                await self.storage.set_state(key, None)
+        except Exception as error:
+            logger.warning(f"Support: failed to clear FSM for tg {telegram_id}: {error}")
 
     async def _ensure_topic(
         self, conv: SupportConversationDto, user: UserDto

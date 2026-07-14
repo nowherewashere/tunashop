@@ -54,6 +54,10 @@ SUPPORT_CB_CLOSE: Final[str] = "support:close"
 # User-side inline button in the in-bot support chat: leave the chat (clears the FSM),
 # a visible alternative to typing /stop.
 SUPPORT_CB_LEAVE: Final[str] = "support:leave"
+# The in-bot support FSM state string (== telegram.states.Support.CHAT.state). Duplicated
+# here as a plain string so the infrastructure support service can drop a client's chat on
+# operator /close without importing the telegram layer; states.py asserts they stay in sync.
+SUPPORT_FSM_STATE: Final[str] = "Support:CHAT"
 
 # goto targets (see routers/extra/goto.py) that open the onboarding funnel from a
 # plain notification button; must match the Onboarding state strings in

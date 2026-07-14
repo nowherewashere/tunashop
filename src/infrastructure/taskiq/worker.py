@@ -23,7 +23,7 @@ def worker() -> RedisStreamBroker:
 
     setup_worker_dispatcher(dispatcher)
 
-    container = create_taskiq_container(config, bg_manager_factory)
+    container = create_taskiq_container(config, bg_manager_factory, dispatcher.storage)
     broker.add_dependency_context({AsyncContainer: container})
 
     setup_taskiq_dishka(container, broker)

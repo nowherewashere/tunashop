@@ -4,6 +4,7 @@ from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
+from aiogram.fsm.storage.base import BaseStorage
 from aiogram_dialog import BgManagerFactory
 from dishka import Provider, Scope, from_context, provide
 from loguru import logger
@@ -25,6 +26,9 @@ class BotProvider(Provider):
     scope = Scope.APP
 
     bg_manager_factory = from_context(provides=BgManagerFactory)
+    # The dispatcher's aiogram FSM storage, shared in via context (see ioc.py) — one
+    # instance, so a StorageKey built in a service resolves the exact same Redis keys.
+    fsm_storage = from_context(provides=BaseStorage)
 
     @provide
     async def get_bot(self, config: AppConfig) -> AsyncIterable[Bot]:

@@ -2,6 +2,8 @@ from typing import Optional
 
 from aiogram.fsm.state import State, StatesGroup
 
+from src.core.constants import SUPPORT_FSM_STATE
+
 
 class MainMenu(StatesGroup):
     MAIN = State()
@@ -25,8 +27,14 @@ class Notification(StatesGroup):
 
 class Support(StatesGroup):
     # The user is in the in-bot support chat: their messages are relayed to the
-    # operator topic until they leave (/stop or /start).
+    # operator topic until they leave (/stop, the «Выйти» button, /start, or an
+    # operator /close which clears this state from the support service).
     CHAT = State()
+
+
+# The support service (infrastructure layer) drops this state via a string constant to
+# avoid importing the telegram layer — guard that the two never drift apart.
+assert Support.CHAT.state == SUPPORT_FSM_STATE
 
 
 class Onboarding(StatesGroup):

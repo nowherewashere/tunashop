@@ -15,8 +15,12 @@ from src.telegram.middlewares.user import UserMiddleware
 from src.telegram.routers import setup_routers
 
 
-def get_dispatcher(config: AppConfig) -> Dispatcher:
-    storage = RedisStorage.from_url(
+def build_fsm_storage(config: AppConfig) -> RedisStorage:
+    """The single source of the aiogram FSM storage config (key builder + TTLs). Used by
+    the dispatcher, and the same instance is shared into the DI container (see ioc.py) so
+    services can address a user's FSM with a matching StorageKey — e.g. the support service
+    dropping a client's Support.CHAT on operator /close."""
+    return RedisStorage.from_url(
         url=config.redis.dsn,
         key_builder=DefaultKeyBuilder(
             with_bot_id=True,
@@ -28,7 +32,9 @@ def get_dispatcher(config: AppConfig) -> Dispatcher:
         data_ttl=timedelta(days=7),
     )
 
-    dispatcher = Dispatcher(storage=storage, config=config)
+
+def get_dispatcher(config: AppConfig) -> Dispatcher:
+    dispatcher = Dispatcher(storage=build_fsm_storage(config), config=config)
     logger.info("Initialized Dispatcher with Redis storage")
     return dispatcher
 

@@ -1,3 +1,4 @@
+from aiogram.fsm.storage.base import BaseStorage
 from aiogram_dialog import BgManagerFactory
 from dishka import AsyncContainer, make_async_container
 
@@ -7,20 +8,22 @@ from .providers import get_aiogram_providers, get_taskiq_providers
 
 
 def create_aiogram_container(
-    config: AppConfig, bg_manager_factory: BgManagerFactory
+    config: AppConfig, bg_manager_factory: BgManagerFactory, storage: BaseStorage
 ) -> AsyncContainer:
     context = {
         AppConfig: config,
         BgManagerFactory: bg_manager_factory,
+        BaseStorage: storage,
     }
     return make_async_container(*get_aiogram_providers(), context=context)
 
 
 def create_taskiq_container(
-    config: AppConfig, bg_manager_factory: BgManagerFactory
+    config: AppConfig, bg_manager_factory: BgManagerFactory, storage: BaseStorage
 ) -> AsyncContainer:
     context = {
         AppConfig: config,
         BgManagerFactory: bg_manager_factory,
+        BaseStorage: storage,
     }
     return make_async_container(*get_taskiq_providers(), context=context)
