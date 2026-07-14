@@ -12,7 +12,7 @@ from loguru import logger
 from src.application.common import BotService, SupportService
 from src.application.dto import TelegramUserDto
 from src.core.config import AppConfig
-from src.core.constants import SUPPORT_CB_CLOSE, TARGET_USER_ID
+from src.core.constants import SUPPORT_CB_CLOSE, SUPPORT_CB_LEAVE, TARGET_USER_ID
 from src.core.enums import Deeplink
 from src.core.exceptions import SupportUnavailableError
 from src.infrastructure.database.models.support import CHANNEL_TELEGRAM
@@ -27,9 +27,17 @@ DEEPLINK_SUPPORT = "support"
 _ENTER_TEXT = (
     "🛟 Вы на связи с поддержкой.\n\n"
     "Опишите проблему — оператор ответит здесь, в этом чате. "
-    "Чтобы выйти, отправьте /stop."
+    "Чтобы выйти, нажмите кнопку ниже или отправьте /stop."
 )
 _LEAVE_TEXT = "Вы вышли из чата поддержки. Отправьте /start, чтобы вернуться в меню."
+
+
+def _support_chat_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🚪 Выйти из чата", callback_data=SUPPORT_CB_LEAVE)]
+        ]
+    )
 _UNAVAILABLE_TEXT = "Поддержка сейчас недоступна, попробуйте позже."
 _CARD_NO_ACCESS_TEXT = "🚫 Карточка пользователя доступна только администраторам."
 
@@ -52,7 +60,7 @@ async def on_support_entry(
         await _send_fallback(message, bot_service)
         return
     await state.set_state(Support.CHAT)
-    await message.answer(_ENTER_TEXT)
+    await message.answer(_ENTER_TEXT, reply_markup=_support_chat_keyboard())
 
 
 # ?start=usercard_<id> deep link — the operator's "🗂 Карточка" button (posted in the
@@ -99,6 +107,15 @@ async def on_user_card_entry(
 async def on_support_stop(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer(_LEAVE_TEXT)
+
+
+@router.callback_query(StateFilter(Support.CHAT), F.data == SUPPORT_CB_LEAVE)
+async def on_support_leave_button(callback: CallbackQuery, state: FSMContext) -> None:
+    # The «🚪 Выйти» button under the entry message — same effect as /stop, minus the typing.
+    await state.clear()
+    if isinstance(callback.message, Message):
+        await callback.message.edit_text(_LEAVE_TEXT)
+    await callback.answer()
 
 
 @router.message(StateFilter(Support.CHAT), F.text, ~F.text.startswith("/"))
