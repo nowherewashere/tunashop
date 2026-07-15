@@ -606,6 +606,10 @@ async def on_platega_method_select(
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     logger.info(f"{user.log} Selected Platega method '{selected_method}'")
 
+    # Remember the pick so the screen can label the «Оплатить (…)» button and collapse
+    # the method list; both the cache-hit and create paths below rely on it.
+    dialog_manager.dialog_data["selected_platega_method"] = selected_method
+
     selected_duration = dialog_manager.dialog_data[CURRENT_DURATION_KEY]
     purchase_type: PurchaseType = dialog_manager.dialog_data["purchase_type"]
     gateway_type = PaymentGatewayType.PLATEGA  # the picker is only reached for Platega
@@ -655,6 +659,19 @@ async def on_back_to_gateways(
     # the gateway list is shown fresh (not as a stale «Оплатить» screen).
     _clear_payment_state(dialog_manager)
     await dialog_manager.switch_to(state=Subscription.PAYMENT_METHOD)
+
+
+async def on_change_platega_method(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+) -> None:
+    # «Поменять метод оплаты»: drop the pay-state (and remembered pick) so the same
+    # screen collapses the «Оплатить (…)» view back to the Platega method list. The
+    # per-method payment stays cached, so re-picking a method reuses it (no new payment).
+    _clear_payment_state(dialog_manager)
+    dialog_manager.dialog_data.pop("selected_platega_method", None)
+    await dialog_manager.switch_to(state=Subscription.PLATEGA_METHOD)
 
 
 @inject

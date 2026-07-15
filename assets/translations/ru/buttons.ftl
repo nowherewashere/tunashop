@@ -596,10 +596,12 @@ btn-subscription =
     .promocode = 🎟 Активировать промокод
     .promocode-confirm = ✅ Подтвердить
     .pay = 💳 Оплатить
+    .pay-method = 💳 Оплатить ({ $method })
     .get = 🎁 Получить бесплатно
     .back-plans = ⬅️ Назад к выбору плана
     .back-duration = ⬅️ Изменить длительность
     .back-payment-method = ⬅️ Изменить способ оплаты
+    .change-platega-method = 🔄 Поменять метод оплаты
     .connect = 🚀 Подключиться
 
     .payment-method = { $gateway_title } | { $final_amount ->

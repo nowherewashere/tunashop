@@ -28,6 +28,7 @@ from .getters import (
 )
 from .handlers import (
     on_back_to_gateways,
+    on_change_platega_method,
     on_duration_select,
     on_get_subscription,
     on_payment_method_select,
@@ -232,8 +233,9 @@ payment_method = Window(
 platega_method = Window(
     Banner(BannerName.PAYMENT_METHOD),
     I18nFormat("msg-subscription-platega-method"),
-    # Methods stay visible so the user can switch method after picking one; the
-    # «Оплатить» button appears below once a payment exists for the selection.
+    # Two-state screen: the method list is shown until one is picked, then it collapses
+    # to a green «Оплатить (<метод>)» + a blue «Поменять метод оплаты» (both keyed on
+    # F["url"], set once a payment exists for the selection).
     Column(
         Select(
             text=Format("{item[label]}"),
@@ -244,29 +246,41 @@ platega_method = Window(
             on_click=on_platega_method_select,
             style=Style(ButtonStyle.PRIMARY),
         ),
+        when=~F["url"],
     ),
     Row(
         Url(
-            text=I18nFormat("btn-subscription.pay"),
+            text=I18nFormat("btn-subscription.pay-method", method=F["selected_method_label"]),
             url=Format("{url}"),
             when=F["url"],
             style=Style(ButtonStyle.SUCCESS),
         ),
     ),
     Row(
+        # Collapse the pay view back to the method list to pick a different one.
+        Button(
+            text=I18nFormat("btn-subscription.change-platega-method"),
+            id=f"{PAYMENT_PREFIX}change_platega_method",
+            on_click=on_change_platega_method,
+            when=F["url"],
+            style=Style(ButtonStyle.PRIMARY),
+        ),
+    ),
+    Row(
         # Back to the gateway list (only when there's a real choice); clears the
-        # pay-state so the gateway list isn't shown as a stale pay screen.
+        # pay-state so the gateway list isn't shown as a stale pay screen. Hidden once a
+        # method is picked — «Поменять метод оплаты» covers changing the choice there.
         Button(
             text=I18nFormat("btn-subscription.back-payment-method"),
             id=f"{PAYMENT_PREFIX}back_pm",
             on_click=on_back_to_gateways,
-            when=~F["only_single_gateway"],
+            when=~F["only_single_gateway"] & ~F["url"],
         ),
         SwitchTo(
             text=I18nFormat("btn-subscription.back-duration"),
             id=f"{PAYMENT_PREFIX}back_dur_platega",
             state=Subscription.DURATION,
-            when=F["only_single_gateway"] & ~F["only_single_duration"],
+            when=F["only_single_gateway"] & ~F["only_single_duration"] & ~F["url"],
         ),
     ),
     *back_main_menu_button,

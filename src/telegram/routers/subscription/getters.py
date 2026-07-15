@@ -422,6 +422,13 @@ async def platega_method_getter(
     key, kw = i18n_format_days(duration.days)
     pay = _pay_state(dialog_manager, retort, [gateway])
 
+    # Label of the method backing the current pay-state, for the «Оплатить (…)» button.
+    label_by_id = {m["id"]: str(m["label"]) for m in methods}
+    selected_method_id = dialog_manager.dialog_data.get("selected_platega_method")
+    selected_method_label = ""
+    if selected_method_id is not None:
+        selected_method_label = label_by_id.get(selected_method_id, "")
+
     return {
         "plan": translate_or_literal(i18n, plan.name),
         "type": plan.type,
@@ -432,6 +439,7 @@ async def platega_method_getter(
         "currency": gateway.currency.symbol,
         "methods": methods,
         "url": pay["url"],
+        "selected_method_label": selected_method_label,
         "purchase_type": dialog_manager.dialog_data.get("purchase_type"),
         "only_single_gateway": len(active_gateways) == 1,
         "only_single_duration": dialog_manager.dialog_data.get("only_single_duration", False),
