@@ -78,12 +78,20 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
         return self.assets_dir / "banners"
 
     @property
+    def videos_dir(self) -> Path:
+        return self.assets_dir / "videos"
+
+    @property
     def translations_dir(self) -> Path:
         return self.assets_dir / "translations"
 
     @property
     def default_banners_dir(self) -> Path:
         return self.default_assets_dir / "banners"
+
+    @property
+    def default_videos_dir(self) -> Path:
+        return self.default_assets_dir / "videos"
 
     @property
     def default_translations_dir(self) -> Path:

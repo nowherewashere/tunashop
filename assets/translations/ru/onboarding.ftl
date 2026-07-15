@@ -81,8 +81,6 @@ msg-onboarding-tips =
 
     Чтобы не ждать: открой Happ и нажми «Обновить» (↻) — он сразу подтянет свежую версию.
 
-    → <a href="{ $refresh_video_url }">Видео: как обновить за 5 секунд</a>
-
 # Alert shown when a user taps "Работает!" before actually connecting (spec fix #18).
 onboarding-not-connected-yet = 🐟 Похоже, ты ещё не в сети. Добавь Tuna в Happ, включи VPN и открой любой сайт — потом жми «Работает!». Только что подключился? Подожди пару секунд и попробуй снова.
 
@@ -130,6 +128,7 @@ btn-onboarding =
     .works = 🎉 Работает!
     .fail = 😕 Не получается
     .tips-ok = Понятно
+    .refresh-video = ▶️ Видео: как обновить
     .oferta = 📄 Оферта
     .privacy = 🛡 Политика
     .connect = 🚀 Подключиться

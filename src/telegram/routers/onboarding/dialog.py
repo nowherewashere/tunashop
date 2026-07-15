@@ -1,5 +1,6 @@
 from aiogram.enums import ButtonStyle
 from aiogram_dialog import Dialog, StartMode
+from aiogram_dialog.widgets.media import DynamicMedia
 from aiogram_dialog.widgets.style import Style
 from aiogram_dialog.widgets.text import Format
 from magic_filter import F
@@ -11,7 +12,13 @@ from src.telegram.widgets.kbd import Button, Group, Row, Start, SwitchTo, Url
 from src.telegram.window import Window
 
 from .getters import connect_getter, not_working_getter, tips_getter, tv_connect_getter
-from .handlers import on_dialog_start, on_platform_selected, on_tips_ok, on_works
+from .handlers import (
+    on_dialog_start,
+    on_platform_selected,
+    on_show_refresh_video,
+    on_tips_ok,
+    on_works,
+)
 
 device_choice = Window(
     Banner(BannerName.ONBOARDING_DEVICE),
@@ -174,8 +181,19 @@ tv_connect = Window(
 # tip screen closes the funnel. It carries the success banner and its "Понятно"
 # button both cancels pending nudges (our completion hook) and returns to the menu.
 tips = Window(
-    Banner(BannerName.ONBOARDING_SUCCESS),
+    # Success banner by default; swapped for the «how to refresh» video once the user
+    # taps the video button (both resolved in tips_getter → tips_media).
+    DynamicMedia("tips_media"),
     I18nFormat("msg-onboarding-tips"),
+    Row(
+        Button(
+            text=I18nFormat("btn-onboarding.refresh-video"),
+            id="show_refresh_video",
+            on_click=on_show_refresh_video,
+            when=F["has_video"] & ~F["show_video"],
+            style=Style(ButtonStyle.PRIMARY),
+        ),
+    ),
     Row(
         Button(
             text=I18nFormat("btn-onboarding.tips-ok"),

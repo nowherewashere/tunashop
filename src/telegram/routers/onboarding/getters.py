@@ -1,7 +1,10 @@
 import base64
+from pathlib import Path
 from typing import Any, Final, Optional
 
+from aiogram.types import ContentType
 from aiogram_dialog import DialogManager
+from aiogram_dialog.api.entities import MediaAttachment
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 
@@ -10,7 +13,9 @@ from src.application.common.dao import SubscriptionDao
 from src.application.dto import TelegramUserDto
 from src.core.config import AppConfig
 from src.core.constants import API_V1
+from src.core.enums import BannerName
 from src.core.metrics import FunnelStep
+from src.telegram.widgets.banner import get_banner
 
 from .metrics import emit_funnel_step
 
@@ -32,9 +37,21 @@ _PLATFORM_TITLE_DEFAULT: Final[str] = "устройства"
 # they get their own instruction screen. The web-import URL and per-platform FAQ
 # links live in OnboardingConfig (single source shared with the web API).
 TV_PLATFORMS: Final[tuple[str, ...]] = ("apple_tv", "android_tv")
-# Fallback "how to refresh in Happ" clip when ONBOARDING_REFRESH_VIDEO_URL is unset
-# (the tips screen always renders the link, so it must resolve to something).
-_REFRESH_VIDEO_DEFAULT: Final[str] = "https://t.me/tuna_vpn"
+
+# Local "how to refresh in Happ" clip shown on the tips screen. Dropped into
+# assets/videos/ as refresh_video.<ext>; absent ⇒ the video button is hidden and the
+# screen keeps the success banner.
+_REFRESH_VIDEO_NAME: Final[str] = "refresh_video"
+_REFRESH_VIDEO_EXTS: Final[tuple[str, ...]] = ("mp4", "mov", "webm")
+
+
+def resolve_refresh_video(config: AppConfig) -> Optional[Path]:
+    for directory in (config.videos_dir, config.default_videos_dir):
+        for ext in _REFRESH_VIDEO_EXTS:
+            candidate = directory / f"{_REFRESH_VIDEO_NAME}.{ext}"
+            if candidate.exists():
+                return candidate
+    return None
 
 
 def is_tv_platform(platform: str) -> bool:
@@ -146,10 +163,35 @@ async def tv_connect_getter(
 async def tips_getter(
     dialog_manager: DialogManager,
     config: AppConfig,
+    user: TelegramUserDto,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    video_url = config.onboarding.refresh_video_url or _REFRESH_VIDEO_DEFAULT
-    return {"refresh_video_url": video_url}
+    show_video = bool(dialog_manager.dialog_data.get("show_video"))
+    video_path = resolve_refresh_video(config)
+
+    # Screen media: the local «how to refresh» clip once the user taps the video
+    # button, otherwise the success banner (both honour use_banners).
+    media: Optional[MediaAttachment] = None
+    if show_video and video_path is not None:
+        media = MediaAttachment(type=ContentType.VIDEO, path=video_path)
+    elif config.bot.use_banners:
+        try:
+            banner_path, banner_content_type = get_banner(
+                banners_dir=config.banners_dir,
+                default_banners_dir=config.default_banners_dir,
+                name=BannerName.ONBOARDING_SUCCESS,
+                locale=user.language,
+                default_locale=config.default_locale,
+            )
+            media = MediaAttachment(type=banner_content_type, path=banner_path)
+        except FileNotFoundError:
+            media = None
+
+    return {
+        "show_video": show_video,
+        "has_video": video_path is not None,
+        "tips_media": media,
+    }
 
 
 @inject

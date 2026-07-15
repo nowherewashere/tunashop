@@ -94,6 +94,15 @@ async def on_works(
     await dialog_manager.switch_to(Onboarding.TIPS)
 
 
+async def on_show_refresh_video(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+) -> None:
+    """Swap the tips banner for the «how to refresh» video (the re-render shows it)."""
+    dialog_manager.dialog_data["show_video"] = True
+
+
 async def on_tips_ok(
     callback: CallbackQuery,
     widget: Button,
