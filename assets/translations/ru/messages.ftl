@@ -1270,12 +1270,6 @@ msg-gateways-method-label =
 
     Введите новое отображаемое название для метода «{ $method }» или сбросьте его на значение по умолчанию.
 
-platega-method-2 = 🏦 СБП
-platega-method-3 = 🏦 ЕРИП
-platega-method-11 = 💳 Банковская карта
-platega-method-12 = 🌍 Зарубежная карта
-platega-method-13 = 🪙 Криптовалюта
-
 
 # Referral
 msg-referral-main =

@@ -11,7 +11,8 @@ from src.application.common.dao import (
     SettingsDao,
     SubscriptionDao,
 )
-from src.application.dto import PlanDto, PlanSnapshotDto, UserDto
+from src.application.dto import PaymentGatewayDto, PlanDto, PlanSnapshotDto, UserDto
+from src.application.dto.payment_gateway import PlategaGatewaySettingsDto
 from src.application.services import PricingService
 from src.application.use_cases.gateways.commands.payment import (
     CreatePayment,
@@ -37,6 +38,7 @@ from src.application.use_cases.subscription.commands.purchase import (
 from src.application.use_cases.user.queries.plans import GetAvailablePlans, GetAvailableTrial
 from src.core.enums import (
     PaymentGatewayType,
+    PlategaPaymentMethod,
     PurchaseType,
     TransactionStatus,
 )
@@ -59,6 +61,7 @@ from src.web.schemas import (
     GatewayOfferResponse,
     PaymentInitResponse,
     PlanOfferResponse,
+    PlategaMethodOfferResponse,
     PromocodeActivateRequest,
     PromocodeActivateResponse,
     PurchaseRequest,
@@ -363,6 +366,7 @@ async def purchase_trial_web(
             pricing=pricing,
             purchase_type=PurchaseType.NEW,
             gateway_type=body.gateway_type,
+            payment_method=body.payment_method,
         ),
     )
 
@@ -437,6 +441,7 @@ async def purchase_subscription(
             pricing=pricing,
             purchase_type=purchase_type,
             gateway_type=body.gateway_type,
+            payment_method=body.payment_method,
         ),
     )
 
@@ -519,6 +524,7 @@ async def extend_subscription(
             pricing=pricing,
             purchase_type=PurchaseType.RENEW,
             gateway_type=body.gateway_type,
+            payment_method=body.payment_method,
         ),
     )
 
@@ -542,6 +548,27 @@ async def extend_subscription(
         final_amount=str(pricing.final_amount),
         currency=gateway.currency.symbol,
     )
+
+
+def _platega_method_offers(
+    gateway: PaymentGatewayDto,
+) -> Optional[list[PlategaMethodOfferResponse]]:
+    """Enabled Platega methods to offer as an in-cabinet picker, or None when there is no
+    choice (not Platega, admin hard-pin, or nothing configured -> a single pay button that
+    falls back to Platega's own page)."""
+    settings = gateway.settings
+    if not isinstance(settings, PlategaGatewaySettingsDto) or settings.payment_method is not None:
+        return None
+    configs = {m.id: m for m in (settings.methods or [])}
+    offers = [
+        PlategaMethodOfferResponse(
+            id=method.value,
+            label=configs[method.value].label or method.default_label,
+        )
+        for method in PlategaPaymentMethod
+        if configs.get(method.value) and configs[method.value].enabled
+    ]
+    return offers or None
 
 
 @router.get("/offers", response_model=SubscriptionOffersResponse)
@@ -634,6 +661,7 @@ async def get_subscription_offers(
             gateway_type=gateway.type,
             currency=gateway.currency.value,
             currency_symbol=gateway.currency.symbol,
+            methods=_platega_method_offers(gateway),
         )
         for gateway in web_gateways
     ]

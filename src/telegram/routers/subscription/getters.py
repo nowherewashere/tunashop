@@ -362,7 +362,7 @@ async def platega_method_getter(
     methods = [
         {
             "id": method.value,
-            "label": configs[method.value].label or i18n.get(method.label_key),
+            "label": configs[method.value].label or method.default_label,
         }
         for method in PlategaPaymentMethod
         if configs.get(method.value) and configs[method.value].enabled

@@ -4,7 +4,6 @@ from aiogram_dialog import DialogManager
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 
-from src.application.common import TranslatorRunner
 from src.application.common.dao import PaymentGatewayDao, SettingsDao
 from src.application.dto import PaymentGatewayDto
 from src.application.dto.payment_gateway import PlategaGatewaySettingsDto
@@ -71,17 +70,16 @@ async def gateway_getter(
     }
 
 
-def _resolve_method_label(i18n: TranslatorRunner, method: PlategaPaymentMethod, custom: Any) -> str:
+def _method_label(method: PlategaPaymentMethod, custom: Any) -> str:
     if isinstance(custom, str) and custom.strip():
         return custom
-    return i18n.get(method.label_key)
+    return method.default_label
 
 
 @inject
 async def platega_methods_getter(
     dialog_manager: DialogManager,
     payment_gateway_dao: FromDishka[PaymentGatewayDao],
-    i18n: FromDishka[TranslatorRunner],
     **kwargs: Any,
 ) -> dict[str, Any]:
     gateway_id = dialog_manager.dialog_data["gateway_id"]
@@ -95,8 +93,8 @@ async def platega_methods_getter(
         {
             "id": method.value,
             "enabled": 1 if (configs.get(method.value) and configs[method.value].enabled) else 0,
-            "label": _resolve_method_label(
-                i18n, method, configs[method.value].label if method.value in configs else None
+            "label": _method_label(
+                method, configs[method.value].label if method.value in configs else None
             ),
         }
         for method in PlategaPaymentMethod
@@ -112,7 +110,6 @@ async def platega_methods_getter(
 async def platega_method_label_getter(
     dialog_manager: DialogManager,
     payment_gateway_dao: FromDishka[PaymentGatewayDao],
-    i18n: FromDishka[TranslatorRunner],
     **kwargs: Any,
 ) -> dict[str, Any]:
     gateway_id = dialog_manager.dialog_data["gateway_id"]
@@ -127,7 +124,7 @@ async def platega_method_label_getter(
 
     return {
         "gateway_type": gateway.type,
-        "method_label": _resolve_method_label(i18n, method, config.label if config else None),
+        "method_label": _method_label(method, config.label if config else None),
         "is_custom": bool(config and config.label),
     }
 

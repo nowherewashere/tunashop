@@ -55,6 +55,7 @@ class PromocodeActivateResponse(BaseModel):
 
 class TrialPurchaseRequest(BaseModel):
     gateway_type: PaymentGatewayType
+    payment_method: Optional[int] = None
 
 
 class ReissueResponse(BaseModel):
@@ -67,11 +68,15 @@ class PurchaseRequest(BaseModel):
     plan_code: str = Field(min_length=3, max_length=64)
     duration_days: int = Field(ge=0)
     gateway_type: PaymentGatewayType
+    # Optional gateway-specific method code (Platega: СБП / карта / крипта). Ignored by
+    # gateways that don't support method selection.
+    payment_method: Optional[int] = None
 
 
 class ExtendRequest(BaseModel):
     duration_days: int = Field(ge=0)
     gateway_type: PaymentGatewayType
+    payment_method: Optional[int] = None
 
 
 class PaymentInitResponse(BaseModel):
@@ -84,10 +89,19 @@ class PaymentInitResponse(BaseModel):
     currency: str
 
 
+class PlategaMethodOfferResponse(BaseModel):
+    id: int
+    label: str
+
+
 class GatewayOfferResponse(BaseModel):
     gateway_type: PaymentGatewayType
     currency: str
     currency_symbol: str
+    # User-selectable Platega methods (СБП / карта / крипта …). None for other gateways,
+    # or when Platega is hard-pinned / has no methods configured (falls back to a single
+    # pay button using Platega's own page).
+    methods: Optional[list[PlategaMethodOfferResponse]] = None
 
 
 class DurationGatewayPriceResponse(BaseModel):

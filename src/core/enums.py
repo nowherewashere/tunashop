@@ -120,9 +120,16 @@ class PlategaPaymentMethod(IntEnum):
         return (cls.SBP, cls.CARD, cls.CRYPTO)
 
     @property
-    def label_key(self) -> str:
-        # Default i18n label key; the admin may override the shown name per method.
-        return f"platega-method-{self.value}"
+    def default_label(self) -> str:
+        # Single source for the default display name (bot + site); the admin may override
+        # it per method in the dashboard.
+        return {
+            PlategaPaymentMethod.SBP: "🏦 СБП",
+            PlategaPaymentMethod.ERIP: "🏦 ЕРИП",
+            PlategaPaymentMethod.CARD: "💳 Банковская карта",
+            PlategaPaymentMethod.INTERNATIONAL: "🌍 Зарубежная карта",
+            PlategaPaymentMethod.CRYPTO: "🪙 Криптовалюта",
+        }[self]
 
 
 class PurchaseType(UpperStrEnum):
