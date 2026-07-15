@@ -3,6 +3,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Optional
 
+from aiogram.enums import ButtonStyle
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from loguru import logger
 
@@ -30,8 +31,9 @@ _GOTO_HELP = f"{GOTO_PREFIX}{ONBOARDING_GOTO_HELP}"  # fail branch
 # NotificationService._translate_keyboard_text).
 _MAX_NUDGE_STEP = 3
 
-# Follow-up A (step 2) carries a card banner (spec fix #11). Second step also swaps
-# its primary button to a direct "Подключиться" deep link into Happ.
+# The card banner (spec fix #11) rides on the first nudge. Step 2 swaps its primary
+# button to a direct "Подключиться" deep link into Happ.
+_BANNER_STEP = 1
 _FOLLOWUP_A_STEP = 2
 
 
@@ -141,8 +143,8 @@ class ProcessDueOnboardingNudges(Interactor[None, None]):
 
                 index = _nudge_step_index(nudge.step)
 
-                # Follow-up A (step 2): a direct "Подключиться" deep link into Happ
-                # plus a card banner (spec fix #11). Other steps keep the funnel entry.
+                # Step 1 carries the card banner (spec fix #11); step 2 carries a direct
+                # "Подключиться" deep link into Happ. Other steps keep the funnel entry.
                 open_url, media, media_type = await self._connect_extras(user, index)
 
                 payload = MessagePayloadDto(
@@ -150,9 +152,8 @@ class ProcessDueOnboardingNudges(Interactor[None, None]):
                     media=media,
                     media_type=media_type,
                     reply_markup=self._build_keyboard(index, support_url, open_url),
-                    # Append the stock "❌ Закрыть" button so the user can dismiss the
-                    # proactive nudge (delete_after=None ⇒ it otherwise stays forever).
-                    disable_default_markup=False,
+                    # No stock "❌ Закрыть" button — the CTA buttons are the only actions.
+                    disable_default_markup=True,
                     delete_after=None,
                 )
 
@@ -180,36 +181,42 @@ class ProcessDueOnboardingNudges(Interactor[None, None]):
     async def _connect_extras(
         self, user: UserDto, index: int
     ) -> tuple[str, Optional[MediaDescriptorDto], Optional[MediaType]]:
-        """Step-2 (follow-up A) extras: direct-connect Happ URL + card banner."""
-        if index != _FOLLOWUP_A_STEP:
-            return "", None, None
+        """Per-step extras: card banner on step 1, direct-connect Happ URL on step 2."""
+        if index == _BANNER_STEP:
+            media: Optional[MediaDescriptorDto] = None
+            media_type: Optional[MediaType] = None
+            if self.config.bot.use_banners:
+                banner_path = _resolve_banner_path(self.config, BannerName.FOLLOWUP_CONNECT)
+                if banner_path:
+                    media = MediaDescriptorDto(kind="fs", value=str(banner_path))
+                    media_type = MediaType.PHOTO
+            return "", media, media_type
 
-        subscription = await self.subscription_dao.get_current(user.id)
-        sub_url = subscription.url if subscription else ""
-        open_url = _happ_open_url(self.config.domain.get_secret_value(), sub_url)
+        if index == _FOLLOWUP_A_STEP:
+            subscription = await self.subscription_dao.get_current(user.id)
+            sub_url = subscription.url if subscription else ""
+            open_url = _happ_open_url(self.config.domain.get_secret_value(), sub_url)
+            return open_url, None, None
 
-        media: Optional[MediaDescriptorDto] = None
-        media_type: Optional[MediaType] = None
-        if self.config.bot.use_banners:
-            banner_path = _resolve_banner_path(self.config, BannerName.FOLLOWUP_CONNECT)
-            if banner_path:
-                media = MediaDescriptorDto(kind="fs", value=str(banner_path))
-                media_type = MediaType.PHOTO
-        return open_url, media, media_type
+        return "", None, None
 
     def _build_keyboard(
         self, index: int, support_url: str, open_url: str = ""
     ) -> InlineKeyboardMarkup:
         # Buttons mirror the source A-chain per step. Text is the i18n key (the
-        # notifier localizes it); "Помощь" is a support URL, the rest reopen the
-        # funnel via the goto pipeline (entry or the fail branch).
+        # notifier localizes it, preserving `style`); connect actions are blue
+        # (PRIMARY), the support/fail branch is red (DANGER).
         if index <= 1:
             row = [
                 InlineKeyboardButton(
-                    text="btn-onboarding.nudge-continue", callback_data=_GOTO_ENTRY
+                    text="btn-onboarding.nudge-continue",
+                    callback_data=_GOTO_ENTRY,
+                    style=ButtonStyle.PRIMARY,
                 ),
                 InlineKeyboardButton(
-                    text="btn-onboarding.nudge-fail", callback_data=_GOTO_HELP
+                    text="btn-onboarding.nudge-fail",
+                    callback_data=_GOTO_HELP,
+                    style=ButtonStyle.DANGER,
                 ),
             ]
         elif index == 2:
@@ -217,20 +224,32 @@ class ProcessDueOnboardingNudges(Interactor[None, None]):
             # the onboarding "Открыть в Happ" button); falls back to the funnel entry
             # if the user has no subscription URL. "Помощь" is the support page.
             connect_button = (
-                InlineKeyboardButton(text="btn-onboarding.nudge-connect", url=open_url)
+                InlineKeyboardButton(
+                    text="btn-onboarding.nudge-connect",
+                    url=open_url,
+                    style=ButtonStyle.PRIMARY,
+                )
                 if open_url
                 else InlineKeyboardButton(
-                    text="btn-onboarding.nudge-connect", callback_data=_GOTO_ENTRY
+                    text="btn-onboarding.nudge-connect",
+                    callback_data=_GOTO_ENTRY,
+                    style=ButtonStyle.PRIMARY,
                 )
             )
             row = [
                 connect_button,
-                InlineKeyboardButton(text="btn-onboarding.nudge-help", url=support_url),
+                InlineKeyboardButton(
+                    text="btn-onboarding.nudge-help",
+                    url=support_url,
+                    style=ButtonStyle.DANGER,
+                ),
             ]
         else:
             row = [
                 InlineKeyboardButton(
-                    text="btn-onboarding.connect", callback_data=_GOTO_ENTRY
+                    text="btn-onboarding.connect",
+                    callback_data=_GOTO_ENTRY,
+                    style=ButtonStyle.PRIMARY,
                 ),
             ]
         return InlineKeyboardMarkup(inline_keyboard=[row])

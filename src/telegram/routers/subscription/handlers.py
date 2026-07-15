@@ -82,6 +82,14 @@ def _save_payment_data(dialog_manager: DialogManager, payment_data: CachedPaymen
     dialog_manager.dialog_data["final_pricing"] = payment_data["final_pricing"]
 
 
+def _clear_payment_state(dialog_manager: DialogManager) -> None:
+    # Drop the active pay-state so the method screen shows the method list again (the
+    # confirmation screen is merged into the method screen — the «Оплатить» button is
+    # shown only while payment_url is set for the current selection).
+    for key in ("payment_id", "payment_url", "final_pricing"):
+        dialog_manager.dialog_data.pop(key, None)
+
+
 async def _create_payment_and_get_data(
     dialog_manager: DialogManager,
     plan: PlanDto,
@@ -184,6 +192,7 @@ async def _resolve_platega_method(
         return False, None
 
     dialog_manager.dialog_data[CURRENT_METHOD_KEY] = gateway_type
+    _clear_payment_state(dialog_manager)
     await dialog_manager.switch_to(state=Subscription.PLATEGA_METHOD)
     return True, None
 
@@ -365,7 +374,7 @@ async def on_subscription_plans(  # noqa: C901
                 if payment_data:
                     _save_payment_data(dialog_manager, payment_data)
 
-                await dialog_manager.switch_to(state=Subscription.CONFIRM)
+                await dialog_manager.switch_to(state=Subscription.PAYMENT_METHOD)
                 return
 
             await dialog_manager.switch_to(state=Subscription.PAYMENT_METHOD)
@@ -402,6 +411,7 @@ async def on_plan_select(
     dialog_manager.dialog_data.pop(PAYMENT_CACHE_KEY, None)
     dialog_manager.dialog_data.pop(CURRENT_DURATION_KEY, None)
     dialog_manager.dialog_data.pop(CURRENT_METHOD_KEY, None)
+    _clear_payment_state(dialog_manager)
 
     if len(plan.durations) == 1:
         logger.info(f"{user.log} Auto-selected single duration '{plan.durations[0].days}'")
@@ -479,7 +489,7 @@ async def on_duration_select(
         if cache_key in cache:
             logger.info(f"{user.log} Re-selected same duration and single gateway")
             _save_payment_data(dialog_manager, cache[cache_key])
-            await dialog_manager.switch_to(state=Subscription.CONFIRM)
+            await dialog_manager.switch_to(state=Subscription.PAYMENT_METHOD)
             return
 
         logger.info(f"{user.log} Auto-selected single gateway '{selected_payment_method}'")
@@ -500,10 +510,11 @@ async def on_duration_select(
         if payment_data:
             cache[cache_key] = payment_data
             _save_payment_data(dialog_manager, payment_data)
-            await dialog_manager.switch_to(state=Subscription.CONFIRM)
+            await dialog_manager.switch_to(state=Subscription.PAYMENT_METHOD)
             return
 
     dialog_manager.dialog_data.pop(CURRENT_METHOD_KEY, None)
+    _clear_payment_state(dialog_manager)
     await dialog_manager.switch_to(state=Subscription.PAYMENT_METHOD)
 
 
@@ -555,7 +566,7 @@ async def on_payment_method_select(
     if cache_key in cache:
         logger.info(f"{user.log} Re-selected same method and duration")
         _save_payment_data(dialog_manager, cache[cache_key])
-        await dialog_manager.switch_to(state=Subscription.CONFIRM)
+        await dialog_manager.switch_to(state=Subscription.PAYMENT_METHOD)
         return
 
     logger.info(f"{user.log} New combination. Creating new payment")
@@ -577,7 +588,7 @@ async def on_payment_method_select(
         cache[cache_key] = payment_data
         _save_payment_data(dialog_manager, payment_data)
 
-    await dialog_manager.switch_to(state=Subscription.CONFIRM)
+    await dialog_manager.switch_to(state=Subscription.PAYMENT_METHOD)
 
 
 @inject
@@ -612,7 +623,7 @@ async def on_platega_method_select(
     if cache_key in cache:
         logger.info(f"{user.log} Re-selected same Platega method")
         _save_payment_data(dialog_manager, cache[cache_key])
-        await dialog_manager.switch_to(state=Subscription.CONFIRM)
+        await dialog_manager.switch_to(state=Subscription.PLATEGA_METHOD)
         return
 
     payment_data = await _create_payment_and_get_data(
@@ -632,7 +643,18 @@ async def on_platega_method_select(
         cache[cache_key] = payment_data
         _save_payment_data(dialog_manager, payment_data)
 
-    await dialog_manager.switch_to(state=Subscription.CONFIRM)
+    await dialog_manager.switch_to(state=Subscription.PLATEGA_METHOD)
+
+
+async def on_back_to_gateways(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+) -> None:
+    # Leaving the Platega method screen back to the gateway list: drop the pay-state so
+    # the gateway list is shown fresh (not as a stale «Оплатить» screen).
+    _clear_payment_state(dialog_manager)
+    await dialog_manager.switch_to(state=Subscription.PAYMENT_METHOD)
 
 
 @inject

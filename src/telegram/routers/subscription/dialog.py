@@ -17,7 +17,6 @@ from src.telegram.widgets import Banner, DataBanner, I18nFormat, IgnoreUpdate
 from src.telegram.widgets.kbd import Button, Column, Group, Row, Select, SwitchTo, Url
 
 from .getters import (
-    confirm_getter,
     duration_getter,
     getter_connect,
     payment_method_getter,
@@ -28,6 +27,7 @@ from .getters import (
     success_payment_getter,
 )
 from .handlers import (
+    on_back_to_gateways,
     on_duration_select,
     on_get_subscription,
     on_payment_method_select,
@@ -171,6 +171,9 @@ duration = Window(
 payment_method = Window(
     Banner(BannerName.PAYMENT_METHOD),
     I18nFormat("msg-subscription-payment-method"),
+    # The method list — hidden for free plans (nothing to pay) and single-gateway
+    # setups (auto-selected). Once a payment exists the «Оплатить» button appears
+    # below (the confirmation screen is merged in here).
     Column(
         Select(
             text=I18nFormat(
@@ -186,6 +189,22 @@ payment_method = Window(
             items="payment_methods",
             type_factory=PaymentGatewayType,
             on_click=on_payment_method_select,
+        ),
+        when=~F["is_free"] & ~F["only_single_gateway"],
+    ),
+    Row(
+        Url(
+            text=I18nFormat("btn-subscription.pay"),
+            url=Format("{url}"),
+            when=F["url"],
+            style=Style(ButtonStyle.SUCCESS),
+        ),
+        Button(
+            text=I18nFormat("btn-subscription.get"),
+            id=f"{PAYMENT_PREFIX}get",
+            on_click=on_get_subscription,
+            when=F["is_free"],
+            style=Style(ButtonStyle.SUCCESS),
         ),
     ),
     Row(
@@ -213,6 +232,8 @@ payment_method = Window(
 platega_method = Window(
     Banner(BannerName.PAYMENT_METHOD),
     I18nFormat("msg-subscription-platega-method"),
+    # Methods stay visible so the user can switch method after picking one; the
+    # «Оплатить» button appears below once a payment exists for the selection.
     Column(
         Select(
             text=Format("{item[label]}"),
@@ -225,62 +246,33 @@ platega_method = Window(
         ),
     ),
     Row(
-        SwitchTo(
-            text=I18nFormat("btn-subscription.back-payment-method"),
-            id=f"{PAYMENT_PREFIX}back_pm",
-            state=Subscription.PAYMENT_METHOD,
-        ),
-    ),
-    *back_main_menu_button,
-    IgnoreUpdate(),
-    state=Subscription.PLATEGA_METHOD,
-    getter=platega_method_getter,
-)
-
-confirm = Window(
-    DataBanner(),
-    I18nFormat("msg-subscription-confirm"),
-    Row(
         Url(
             text=I18nFormat("btn-subscription.pay"),
             url=Format("{url}"),
             when=F["url"],
             style=Style(ButtonStyle.SUCCESS),
         ),
-        Button(
-            text=I18nFormat("btn-subscription.get"),
-            id=f"{PAYMENT_PREFIX}get",
-            on_click=on_get_subscription,
-            when=~F["url"],
-            style=Style(ButtonStyle.SUCCESS),
-        ),
     ),
     Row(
-        SwitchTo(
+        # Back to the gateway list (only when there's a real choice); clears the
+        # pay-state so the gateway list isn't shown as a stale pay screen.
+        Button(
             text=I18nFormat("btn-subscription.back-payment-method"),
-            id=f"{PAYMENT_PREFIX}back_payment_method",
-            state=Subscription.PAYMENT_METHOD,
-            when=~F["only_single_gateway"] & ~F["is_free"],
+            id=f"{PAYMENT_PREFIX}back_pm",
+            on_click=on_back_to_gateways,
+            when=~F["only_single_gateway"],
         ),
         SwitchTo(
             text=I18nFormat("btn-subscription.back-duration"),
-            id=f"{PAYMENT_PREFIX}back_duration",
+            id=f"{PAYMENT_PREFIX}back_dur_platega",
             state=Subscription.DURATION,
-            when=F["only_single_gateway"] & ~F["only_single_duration"] | F["is_free"],
-        ),
-    ),
-    Row(
-        SwitchTo(
-            text=I18nFormat("btn-subscription.back-plans"),
-            id=f"{PAYMENT_PREFIX}back_plans",
-            state=Subscription.PLANS,
-            when=~F["only_single_plan"],
+            when=F["only_single_gateway"] & ~F["only_single_duration"],
         ),
     ),
     *back_main_menu_button,
     IgnoreUpdate(),
-    state=Subscription.CONFIRM,
-    getter=confirm_getter,
+    state=Subscription.PLATEGA_METHOD,
+    getter=platega_method_getter,
 )
 
 success_payment = Window(
@@ -351,7 +343,6 @@ router = Dialog(
     duration,
     payment_method,
     platega_method,
-    confirm,
     success_payment,
     success_trial,
     failed,

@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+from aiogram.enums import ButtonStyle
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from loguru import logger
 
@@ -26,7 +27,6 @@ _DAILY_CAP = 4
 
 # gt_<Dialog:STATE> targets resolved by routers/extra/goto.py::on_goto.
 _GT_PLANS = f"{GOTO_PREFIX}Subscription:PLANS"
-_GT_INVITE = f"{GOTO_PREFIX}MainMenu:INVITE"
 
 # Per-chain message copy key.
 _COPY: dict[str, str] = {
@@ -43,16 +43,28 @@ _NTF_TYPE: dict[str, UserNotificationType] = {
 
 def _keyboard(chain: str) -> InlineKeyboardMarkup:
     # Button text is the i18n key — the notifier localizes it per recipient
-    # (see NotificationService._translate_keyboard_text), like the onboarding chain.
+    # (see NotificationService._translate_keyboard_text, which preserves `style`).
+    # Both chains have a single blue (PRIMARY) CTA into the plans screen.
     if chain == CHAIN_TRIAL_ENDING:
         rows = [
             [
-                InlineKeyboardButton(text="btn-followup.subscribe", callback_data=_GT_PLANS),
-                InlineKeyboardButton(text="btn-followup.invite", callback_data=_GT_INVITE),
+                InlineKeyboardButton(
+                    text="btn-followup.subscribe",
+                    callback_data=_GT_PLANS,
+                    style=ButtonStyle.PRIMARY,
+                ),
             ]
         ]
     else:  # CHAIN_WINBACK
-        rows = [[InlineKeyboardButton(text="btn-followup.return", callback_data=_GT_PLANS)]]
+        rows = [
+            [
+                InlineKeyboardButton(
+                    text="btn-followup.return",
+                    callback_data=_GT_PLANS,
+                    style=ButtonStyle.PRIMARY,
+                ),
+            ]
+        ]
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -144,9 +156,8 @@ class ProcessDueLifecycleFollowups(Interactor[None, None]):
                 payload = MessagePayloadDto(
                     i18n_key=_COPY[followup.chain],
                     reply_markup=_keyboard(followup.chain),
-                    # Append the stock "❌ Закрыть" button so the user can dismiss the
-                    # proactive message (delete_after=None ⇒ it otherwise stays forever).
-                    disable_default_markup=False,
+                    # No stock "❌ Закрыть" button — the single CTA is the only action.
+                    disable_default_markup=True,
                     delete_after=None,
                 )
 

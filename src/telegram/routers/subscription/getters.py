@@ -261,6 +261,42 @@ async def duration_getter(
     }
 
 
+def _pay_state(
+    dialog_manager: DialogManager,
+    retort: Retort,
+    gateways: list[PaymentGatewayDto],
+) -> dict[str, Any]:
+    """Pay-state read from dialog_data once a payment is created — the confirmation
+    screen is merged into the method screen. ``url`` is None while still choosing, and
+    the window then shows the method list instead of the «Оплатить» button."""
+    url = dialog_manager.dialog_data.get("payment_url")
+    # A created payment with no redirect url is a free (100%-discount) grant -> the
+    # «Получить» button. Derived from the payment state so it's correct on every entry
+    # path (the dialog_data["is_free"] flag isn't set on the fully-collapsed path).
+    is_free = bool(dialog_manager.dialog_data.get("payment_id")) and not url
+    raw_pricing = dialog_manager.dialog_data.get("final_pricing")
+    final_amount: Any = 0
+    original_amount: Any = 0
+    discount_percent = 0
+    currency = ""
+    if url and raw_pricing:
+        pricing = retort.load(raw_pricing, PriceDetailsDto)
+        final_amount = pricing.final_amount
+        original_amount = pricing.original_amount
+        discount_percent = pricing.discount_percent
+        selected = dialog_manager.dialog_data.get("selected_payment_method")
+        gateway = next((g for g in gateways if g.type == selected), None)
+        currency = gateway.currency.symbol if gateway else ""
+    return {
+        "url": url,
+        "is_free": is_free,
+        "final_amount": final_amount,
+        "original_amount": original_amount,
+        "discount_percent": discount_percent,
+        "currency": currency,
+    }
+
+
 @inject
 async def payment_method_getter(
     dialog_manager: DialogManager,
@@ -305,6 +341,7 @@ async def payment_method_getter(
     key, kw = i18n_format_days(duration.days)
 
     plan_is_modified = 1 if dialog_manager.dialog_data.get("plan_is_modified", False) else 0
+    pay = _pay_state(dialog_manager, retort, gateways)
 
     return {
         "plan": translate_or_literal(i18n, plan.name),
@@ -314,10 +351,22 @@ async def payment_method_getter(
         "traffic": i18n_format_traffic_limit(plan.traffic_limit),
         "period": i18n.get(key, **kw),
         "payment_methods": payment_methods,
-        "final_amount": 0,
-        "currency": "",
+        # Cost line only appears once a payment exists (pay-state); before that the
+        # per-gateway prices live on the method buttons.
+        "final_amount": pay["final_amount"],
+        "original_amount": pay["original_amount"],
+        "currency": pay["currency"],
+        "url": pay["url"],
+        "is_free": pay["is_free"],
+        "purchase_type": dialog_manager.dialog_data.get("purchase_type"),
         "only_single_duration": only_single_duration,
-        "discount_percent": 0 if plan.is_trial else pricing_service.get_effective_discount(user),
+        "only_single_plan": dialog_manager.dialog_data.get("only_single_plan", False),
+        "only_single_gateway": len(gateways) == 1,
+        "discount_percent": (
+            pay["discount_percent"]
+            if pay["url"]
+            else (0 if plan.is_trial else pricing_service.get_effective_discount(user))
+        ),
         "is_personal_discount": (
             False if plan.is_trial else pricing_service.is_largest_discount_personal(user)
         ),
@@ -351,6 +400,8 @@ async def platega_method_getter(
     if not gateway or not isinstance(gateway.settings, PlategaGatewaySettingsDto):
         raise ValueError("Platega gateway is not configured")
 
+    active_gateways = await payment_gateway_dao.get_active()
+
     price = pricing_service.calculate(
         user,
         duration.get_price(gateway.currency),
@@ -369,6 +420,7 @@ async def platega_method_getter(
     ]
 
     key, kw = i18n_format_days(duration.days)
+    pay = _pay_state(dialog_manager, retort, [gateway])
 
     return {
         "plan": translate_or_literal(i18n, plan.name),
@@ -379,73 +431,11 @@ async def platega_method_getter(
         "final_amount": price.final_amount,
         "currency": gateway.currency.symbol,
         "methods": methods,
-    }
-
-
-@inject
-async def confirm_getter(
-    dialog_manager: DialogManager,
-    user: TelegramUserDto,
-    retort: FromDishka[Retort],
-    i18n: FromDishka[TranslatorRunner],
-    payment_gateway_dao: FromDishka[PaymentGatewayDao],
-    pricing_service: FromDishka[PricingService],
-    **kwargs: Any,
-) -> dict[str, Any]:
-    raw_plan = dialog_manager.dialog_data.get(PlanDto.__name__)
-
-    if not raw_plan:
-        raise UnknownIntent("PlanDto not found in subscription dialog data")
-
-    plan = retort.load(raw_plan, PlanDto)
-    selected_duration = dialog_manager.dialog_data["selected_duration"]
-    only_single_duration = dialog_manager.dialog_data.get("only_single_duration", False)
-    only_single_plan = dialog_manager.dialog_data.get("only_single_plan", False)
-    is_free = dialog_manager.dialog_data.get("is_free", False)
-    selected_payment_method = dialog_manager.dialog_data["selected_payment_method"]
-    purchase_type = dialog_manager.dialog_data["purchase_type"]
-    payment_gateway = await payment_gateway_dao.get_by_type(selected_payment_method)
-    duration = plan.get_duration(selected_duration)
-
-    if not duration:
-        raise ValueError(f"Duration '{selected_duration}' not found in plan '{plan.name}'")
-
-    if not payment_gateway:
-        raise ValueError(f"Not found PaymentGateway by selected type '{selected_payment_method}'")
-
-    result_url = dialog_manager.dialog_data["payment_url"]
-    pricing_data = dialog_manager.dialog_data["final_pricing"]
-    pricing = retort.load(pricing_data, PriceDetailsDto)
-
-    key, kw = i18n_format_days(duration.days)
-    gateways = await payment_gateway_dao.get_active()
-
-    plan_is_modified = 1 if dialog_manager.dialog_data.get("plan_is_modified", False) else 0
-
-    return {
-        "purchase_type": purchase_type,
-        "plan": translate_or_literal(i18n, plan.name),
-        "description": translate_or_literal(i18n, plan.description) if plan.description else False,
-        "type": plan.type,
-        "devices": i18n_format_device_limit(plan.device_limit),
-        "traffic": i18n_format_traffic_limit(plan.traffic_limit),
-        "period": i18n.get(key, **kw),
-        "payment_method": selected_payment_method,
-        "payment_method_title": _get_gateway_title(i18n, payment_gateway),
-        "final_amount": pricing.final_amount,
-        "discount_percent": pricing.discount_percent,
-        "original_amount": pricing.original_amount,
-        "is_personal_discount": pricing_service.is_largest_discount_personal(user),
-        "currency": payment_gateway.currency.symbol,
-        "url": result_url,
-        "only_single_gateway": len(gateways) == 1,
-        "only_single_duration": only_single_duration,
-        "only_single_plan": only_single_plan,
-        "is_free": is_free,
-        "plan_is_modified": plan_is_modified,
-        # Per-plan banner on the confirmation screen too (falls back to
-        # choose_sub then default), matching the plan/duration screens.
-        "banner_candidates": plan_banner_candidates(translate_or_literal(i18n, plan.name), plan.id),
+        "url": pay["url"],
+        "purchase_type": dialog_manager.dialog_data.get("purchase_type"),
+        "only_single_gateway": len(active_gateways) == 1,
+        "only_single_duration": dialog_manager.dialog_data.get("only_single_duration", False),
+        "only_single_plan": dialog_manager.dialog_data.get("only_single_plan", False),
     }
 
 

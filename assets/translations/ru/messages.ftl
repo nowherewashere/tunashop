@@ -1679,10 +1679,20 @@ frg-duration-line = • { $period } — { $amount } { $currency }{ $discount ->
     *[other] { " " }(−{ $discount }%)
     }
 
+# Reusable «what happens to the current subscription» note, shown on the payment
+# screens (previously only on the removed confirmation screen).
+frg-purchase-notice = { $purchase_type ->
+    [RENEW] <i>⚠️ Текущая подписка будет <u>продлена</u> на выбранный срок.</i>
+    [CHANGE] <i>ℹ️ Текущая подписка будет <u>заменена</u> выбранной; оставшееся время пересчитается в бонусные дни нового тарифа.</i>
+    *[OTHER] { empty }
+    }
+
 msg-subscription-payment-method =
-    <b>💳 Выбери способ оплаты</b>
+    <b>💳 Выберите способ оплаты</b>
 
     { msg-subscription-details }
+
+    { frg-purchase-notice }
 
     { $plan_is_modified ->
     [0] { empty }
@@ -1690,7 +1700,7 @@ msg-subscription-payment-method =
     }
 
 msg-subscription-platega-method =
-    <b>💳 Выберите способ оплаты</b>
+    <b>💳 Способ оплаты Platega</b>
 
     <blockquote>
     • <b>Тариф</b>: { $plan }
@@ -1698,7 +1708,7 @@ msg-subscription-platega-method =
     • <b>Стоимость</b>: { $final_amount } { $currency }
     </blockquote>
 
-    Выберите удобный способ оплаты ниже.
+    { frg-purchase-notice }
 
 msg-subscription-confirm =
     <b>🛒 Подтверждение { $purchase_type ->
