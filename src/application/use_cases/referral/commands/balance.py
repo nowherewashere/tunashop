@@ -88,7 +88,11 @@ class PayWithBalance(Interactor[PayWithBalanceDto, PayWithBalanceResult]):
                 f"Balance {summary.balance_kop} kop < price {price_kop} kop"
             )
 
-        plan_snapshot = PlanSnapshotDto.from_plan(plan, data.duration_days)
+        # Record the amount paid from balance so a later plan change can prorate the
+        # remaining value into bonus days (SubscriptionProrationService).
+        plan_snapshot = PlanSnapshotDto.from_plan(
+            plan, data.duration_days, price=price_rub, price_currency=Currency.RUB
+        )
 
         async with self.uow:
             subscription = await self.subscription_dao.get_current(user.id)

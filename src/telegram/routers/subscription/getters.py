@@ -10,11 +10,12 @@ from dishka.integrations.aiogram_dialog import inject
 from src.application.common import TranslatorRunner
 from src.application.common.dao import PaymentGatewayDao, PlanDao, SettingsDao, SubscriptionDao
 from src.application.dto import PaymentGatewayDto, PlanDto, PriceDetailsDto, TelegramUserDto
+from src.application.dto.payment_gateway import PlategaGatewaySettingsDto
 from src.application.services import PricingService
 from src.application.use_cases.plan.queries.match import MatchPlan, MatchPlanDto
 from src.application.use_cases.user.queries.plans import GetAvailablePlans
 from src.core.config import AppConfig
-from src.core.enums import PurchaseType
+from src.core.enums import PaymentGatewayType, PlategaPaymentMethod, PurchaseType
 from src.core.utils.i18n_helpers import (
     i18n_format_days,
     i18n_format_device_limit,
@@ -321,6 +322,63 @@ async def payment_method_getter(
             False if plan.is_trial else pricing_service.is_largest_discount_personal(user)
         ),
         "plan_is_modified": plan_is_modified,
+    }
+
+
+@inject
+async def platega_method_getter(
+    dialog_manager: DialogManager,
+    user: TelegramUserDto,
+    retort: FromDishka[Retort],
+    i18n: FromDishka[TranslatorRunner],
+    payment_gateway_dao: FromDishka[PaymentGatewayDao],
+    pricing_service: FromDishka[PricingService],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    raw_plan = dialog_manager.dialog_data.get(PlanDto.__name__)
+
+    if not raw_plan:
+        raise UnknownIntent("PlanDto not found in subscription dialog data")
+
+    plan = retort.load(raw_plan, PlanDto)
+    selected_duration = dialog_manager.dialog_data["selected_duration"]
+    duration = plan.get_duration(selected_duration)
+
+    if not duration:
+        raise ValueError(f"Duration '{selected_duration}' not found in plan '{plan.name}'")
+
+    gateway = await payment_gateway_dao.get_by_type(PaymentGatewayType.PLATEGA)
+    if not gateway or not isinstance(gateway.settings, PlategaGatewaySettingsDto):
+        raise ValueError("Platega gateway is not configured")
+
+    price = pricing_service.calculate(
+        user,
+        duration.get_price(gateway.currency),
+        gateway.currency,
+        apply_discount=not plan.is_trial,
+    )
+
+    configs = {m.id: m for m in (gateway.settings.methods or [])}
+    methods = [
+        {
+            "id": method.value,
+            "label": configs[method.value].label or i18n.get(method.label_key),
+        }
+        for method in PlategaPaymentMethod
+        if configs.get(method.value) and configs[method.value].enabled
+    ]
+
+    key, kw = i18n_format_days(duration.days)
+
+    return {
+        "plan": translate_or_literal(i18n, plan.name),
+        "type": plan.type,
+        "devices": i18n_format_device_limit(plan.device_limit),
+        "traffic": i18n_format_traffic_limit(plan.traffic_limit),
+        "period": i18n.get(key, **kw),
+        "final_amount": price.final_amount,
+        "currency": gateway.currency.symbol,
+        "methods": methods,
     }
 
 

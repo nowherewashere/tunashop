@@ -15,7 +15,9 @@ from .base import BasePaymentGateway
 
 # https://core.telegram.org/api/stars/
 class TelegramStarsGateway(BasePaymentGateway):
-    async def handle_create_payment(self, amount: Decimal, details: str) -> PaymentResultDto:
+    async def handle_create_payment(
+        self, amount: Decimal, details: str, payment_method: int | None = None
+    ) -> PaymentResultDto:
         prices = [LabeledPrice(label=self.data.currency, amount=int(amount))]
         payment_id = uuid.uuid4()
 

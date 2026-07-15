@@ -45,7 +45,9 @@ class FreeKassaGateway(BasePaymentGateway):
 
         self._client = self._make_client(base_url=self.API_BASE)
 
-    async def handle_create_payment(self, amount: Decimal, details: str) -> PaymentResultDto:
+    async def handle_create_payment(
+        self, amount: Decimal, details: str, payment_method: int | None = None
+    ) -> PaymentResultDto:
         order_id = str(uuid.uuid4())
         payload = await self._create_payment_payload(str(amount), order_id)
         logger.debug(f"Creating payment payload: {payload}")

@@ -22,6 +22,7 @@ from src.application.services import (
     AccountMergeService,
     PricingService,
     RemnaWebhookService,
+    SubscriptionProrationService,
 )
 from src.core.config import AppConfig
 from src.infrastructure.services import (
@@ -71,6 +72,7 @@ class ServicesProvider(Provider):
     turnstile = provide(source=TurnstileVerifierImpl, provides=TurnstileVerifier)
     redirect = provide(source=RedirectImpl, provides=Redirect)
     pricing = provide(source=PricingService)
+    proration = provide(source=SubscriptionProrationService)
     event_bus = provide(EventBusImpl)
     publisher = alias(source=EventBusImpl, provides=EventPublisher)
     subscriber = alias(source=EventBusImpl, provides=EventSubscriber)

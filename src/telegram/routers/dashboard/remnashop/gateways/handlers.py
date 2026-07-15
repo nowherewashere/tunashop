@@ -13,7 +13,11 @@ from src.application.use_cases.gateways.commands.configuration import (
     MovePaymentGatewayUp,
     ResetPaymentGatewaySettingsDto,
     ResetPaymentGatewaySettingsField,
+    SetPlategaMethodLabel,
+    SetPlategaMethodLabelDto,
     TogglePaymentGatewayActive,
+    TogglePlategaMethod,
+    TogglePlategaMethodDto,
     UpdatePaymentGatewaySettings,
     UpdatePaymentGatewaySettingsDto,
 )
@@ -201,3 +205,76 @@ async def on_gateway_move(
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     gateway_id = int(dialog_manager.item_id)  # type: ignore[attr-defined]
     await move_payment_gateway_up(user, gateway_id)
+
+
+@inject
+async def on_platega_method_toggle(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    notifier: FromDishka[Notifier],
+    toggle_platega_method: FromDishka[TogglePlategaMethod],
+) -> None:
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    gateway_id = dialog_manager.dialog_data["gateway_id"]
+    method_id = int(dialog_manager.item_id)  # type: ignore[attr-defined]
+
+    try:
+        await toggle_platega_method(
+            user, TogglePlategaMethodDto(gateway_id=gateway_id, method_id=method_id)
+        )
+    except GatewayNotConfiguredError:
+        await notifier.notify_user(user, i18n_key="ntf-gateway.not-configured")
+
+
+async def on_platega_method_rename_select(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+) -> None:
+    method_id = int(dialog_manager.item_id)  # type: ignore[attr-defined]
+    dialog_manager.dialog_data["selected_method_id"] = method_id
+    await dialog_manager.switch_to(state=RemnashopGateways.METHOD_LABEL)
+
+
+@inject
+async def on_platega_method_label_input(
+    message: Message,
+    widget: MessageInput,
+    dialog_manager: DialogManager,
+    notifier: FromDishka[Notifier],
+    set_platega_method_label: FromDishka[SetPlategaMethodLabel],
+) -> None:
+    dialog_manager.show_mode = ShowMode.EDIT
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    gateway_id = dialog_manager.dialog_data["gateway_id"]
+    method_id = dialog_manager.dialog_data["selected_method_id"]
+
+    if not message.text:
+        await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
+        return
+
+    await set_platega_method_label(
+        user,
+        SetPlategaMethodLabelDto(gateway_id=gateway_id, method_id=method_id, label=message.text),
+    )
+    await dialog_manager.switch_to(state=RemnashopGateways.METHODS)
+
+
+@inject
+async def on_platega_method_label_reset(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    set_platega_method_label: FromDishka[SetPlategaMethodLabel],
+) -> None:
+    dialog_manager.show_mode = ShowMode.EDIT
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    gateway_id = dialog_manager.dialog_data["gateway_id"]
+    method_id = dialog_manager.dialog_data["selected_method_id"]
+
+    await set_platega_method_label(
+        user,
+        SetPlategaMethodLabelDto(gateway_id=gateway_id, method_id=method_id, label=None),
+    )
+    await dialog_manager.switch_to(state=RemnashopGateways.METHODS)

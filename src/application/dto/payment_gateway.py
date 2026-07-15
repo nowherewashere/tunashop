@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import SecretStr
 
-from src.core.enums import Currency, PaymentGatewayType
+from src.core.enums import Currency, PaymentGatewayType, PlategaPaymentMethod
 
 from .base import BaseDto, TrackableMixin
 
@@ -126,15 +126,45 @@ class PayMasterGatewaySettingsDto(GatewaySettingsDto):
 
 
 @dataclass(kw_only=True)
+class PlategaMethodConfigDto:
+    """A single Platega payment method exposed to the user (id = PlategaPaymentMethod).
+
+    ``label`` is an optional admin-set display name; when None the bot falls back to the
+    method's default i18n label.
+    """
+
+    id: int
+    enabled: bool = False
+    label: Optional[str] = None
+
+
+@dataclass(kw_only=True)
 class PlategaGatewaySettingsDto(GatewaySettingsDto):
     type: Literal[PaymentGatewayType.PLATEGA] = PaymentGatewayType.PLATEGA
     merchant_id: Optional[str] = None
     api_key: Optional[SecretStr] = None
+    # Hard-pin a single method (advanced): forces that one method for everyone, no picker.
     payment_method: Optional[int] = None
+    # User-selectable methods (СБП / карта / крипта …) configured in the dashboard. When
+    # 2+ are enabled the bot shows an in-bot picker; managed via a dedicated screen, so it
+    # is excluded from the generic field editor. None -> Platega's own multi-method page.
+    methods: Optional[list[PlategaMethodConfigDto]] = None
 
     @property
     def is_configured(self) -> bool:
         return self.merchant_id is not None and self.api_key is not None
+
+    def enabled_methods(self) -> list[PlategaMethodConfigDto]:
+        return [m for m in (self.methods or []) if m.enabled]
+
+    @staticmethod
+    def default_methods() -> list[PlategaMethodConfigDto]:
+        """Full method list with sensible defaults — used to seed the config on first edit."""
+        enabled = {m.value for m in PlategaPaymentMethod.default_enabled()}
+        return [
+            PlategaMethodConfigDto(id=method.value, enabled=method.value in enabled)
+            for method in PlategaPaymentMethod
+        ]
 
 
 @dataclass(kw_only=True)

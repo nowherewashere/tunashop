@@ -13,6 +13,7 @@ from src.application.common.uow import UnitOfWork
 from src.application.dto import PlanSnapshotDto, PromocodeDto, SubscriptionDto, UserDto
 from src.application.dto.promocode import PromocodeActivationDto
 from src.application.events.system import PromocodeActivatedEvent
+from src.application.services import SubscriptionProrationService
 from src.application.use_cases.promocode.queries.validate import (
     ValidatePromocode,
     ValidatePromocodeDto,
@@ -48,6 +49,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
         validate_promocode: ValidatePromocode,
         event_publisher: EventPublisher,
         retort: Retort,
+        proration: SubscriptionProrationService,
     ) -> None:
         self.uow = uow
         self.promocode_dao = promocode_dao
@@ -57,6 +59,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
         self.validate_promocode = validate_promocode
         self.event_publisher = event_publisher
         self.retort = retort
+        self.proration = proration
 
     async def _execute(self, actor: UserDto, data: ActivatePromocodeDto) -> PromocodeDto:
         user = data.user
@@ -229,26 +232,40 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
             return _PendingReward()
         plan = self.retort.load(promo.plan_snapshot, PlanSnapshotDto)
         if subscription:
-            updated = await self.remnawave.update_user(
-                user=user,
-                uuid=subscription.user_remna_id,
-                plan=plan,
-                reset_traffic=True,
+            # A promo reward carries no payment, so there is no monetary basis for
+            # value-proration: preserve the user's remaining days on top of the new
+            # plan's duration instead of wiping them. Computed BEFORE the snapshot is
+            # overwritten so it reads the current (old) plan's remaining time.
+            change = self.proration.compute_change_expiry(
+                current=subscription,
+                new_duration=plan.duration,
+                new_price=None,
+                new_currency=None,
             )
             # Keep the local subscription in sync with the new plan pushed to the
             # panel; otherwise the DB keeps stale limits/expiry and later updates
-            # would overwrite the panel with outdated values.
-            subscription.status = SubscriptionStatus(updated.status)
+            # would overwrite the panel with outdated values. Push the computed expiry
+            # via subscription=... (plan=... would reset it to now + new duration).
             subscription.traffic_limit = plan.traffic_limit
             subscription.device_limit = plan.device_limit
             subscription.traffic_limit_strategy = plan.traffic_limit_strategy
             subscription.tag = plan.tag
             subscription.internal_squads = plan.internal_squads
             subscription.external_squad = plan.external_squad
-            subscription.expire_at = updated.expire_at
-            subscription.url = updated.subscription_url
+            subscription.expire_at = change.new_expire
             subscription.plan_snapshot = plan
-            logger.info(f"{actor.log} SUBSCRIPTION reward applied")
+            updated = await self.remnawave.update_user(
+                user=user,
+                uuid=subscription.user_remna_id,
+                subscription=subscription,
+                reset_traffic=True,
+            )
+            subscription.status = SubscriptionStatus(updated.status)
+            subscription.url = updated.subscription_url
+            logger.info(
+                f"{actor.log} SUBSCRIPTION reward applied "
+                f"(basis={change.basis}, bonus_days={change.bonus_days})"
+            )
             return _PendingReward(subscription_update=subscription)
         created = await self.remnawave.create_user(user=user, plan=plan)
         new_sub = SubscriptionDto(

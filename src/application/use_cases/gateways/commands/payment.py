@@ -1,5 +1,6 @@
 import uuid
 from dataclasses import dataclass
+from typing import Optional
 from uuid import UUID
 
 from loguru import logger
@@ -140,6 +141,9 @@ class CreatePaymentDto:
     pricing: PriceDetailsDto
     purchase_type: PurchaseType
     gateway_type: PaymentGatewayType
+    # Optional gateway-specific method code (currently Platega: СБП / карта / крипта).
+    # Ignored by gateways that don't support method selection.
+    payment_method: Optional[int] = None
 
 
 class CreatePayment(Interactor[CreatePaymentDto, PaymentResultDto]):
@@ -224,6 +228,7 @@ class CreatePayment(Interactor[CreatePaymentDto, PaymentResultDto]):
             payment: PaymentResultDto = await gateway_instance.handle_create_payment(
                 amount=data.pricing.final_amount,
                 details=details,
+                payment_method=data.payment_method,
             )
 
             transaction.payment_id = payment.id

@@ -62,7 +62,9 @@ class YookassaGateway(BasePaymentGateway):
             ),
         )
 
-    async def handle_create_payment(self, amount: Decimal, details: str) -> PaymentResultDto:
+    async def handle_create_payment(
+        self, amount: Decimal, details: str, payment_method: int | None = None
+    ) -> PaymentResultDto:
         payload = await self._create_payment_payload(str(amount), details)
         headers = {"Idempotence-Key": str(uuid.uuid4())}
         logger.debug(f"Creating payment payload: {payload}")

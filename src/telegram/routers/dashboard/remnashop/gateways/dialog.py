@@ -26,6 +26,8 @@ from .getters import (
     gateway_getter,
     gateways_getter,
     placement_getter,
+    platega_method_label_getter,
+    platega_methods_getter,
 )
 from .handlers import (
     on_active_toggle,
@@ -36,6 +38,10 @@ from .handlers import (
     on_gateway_move,
     on_gateway_select,
     on_gateway_test,
+    on_platega_method_label_input,
+    on_platega_method_label_reset,
+    on_platega_method_rename_select,
+    on_platega_method_toggle,
 )
 
 gateways = Window(
@@ -120,6 +126,14 @@ gateway_settings = Window(
             on_click=on_field_select,
         ),
         width=2,
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-gateway.methods"),
+            id="platega_methods",
+            state=RemnashopGateways.METHODS,
+        ),
+        when=F["is_platega"],
     ),
     Row(
         CopyText(
@@ -225,10 +239,72 @@ placement = Window(
     getter=placement_getter,
 )
 
+platega_methods = Window(
+    Banner(BannerName.DASHBOARD),
+    I18nFormat("msg-gateways-methods", gateway_type=F["gateway_type"]),
+    ListGroup(
+        Row(
+            Button(
+                text=I18nFormat(
+                    "btn-gateway.method-toggle",
+                    enabled=F["item"]["enabled"],
+                    label=F["item"]["label"],
+                ),
+                id="method_toggle",
+                on_click=on_platega_method_toggle,
+            ),
+            Button(
+                text=I18nFormat("btn-gateway.method-rename"),
+                id="method_rename",
+                on_click=on_platega_method_rename_select,
+            ),
+        ),
+        id="methods_list",
+        item_id_getter=lambda item: item["id"],
+        items="methods",
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=RemnashopGateways.SETTINGS,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=RemnashopGateways.METHODS,
+    getter=platega_methods_getter,
+)
+
+platega_method_label = Window(
+    Banner(BannerName.DASHBOARD),
+    I18nFormat("msg-gateways-method-label", method=F["method_label"]),
+    Row(
+        Button(
+            text=I18nFormat("btn-gateway.method-label-reset"),
+            id="method_label_reset",
+            on_click=on_platega_method_label_reset,
+            when=F["is_custom"],
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=RemnashopGateways.METHODS,
+        ),
+    ),
+    MessageInput(func=on_platega_method_label_input),
+    IgnoreUpdate(),
+    state=RemnashopGateways.METHOD_LABEL,
+    getter=platega_method_label_getter,
+)
+
 router = Dialog(
     gateways,
     gateway_settings,
     gateway_field,
     default_currency,
     placement,
+    platega_methods,
+    platega_method_label,
 )

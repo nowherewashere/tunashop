@@ -352,7 +352,10 @@ async def purchase_trial_web(
         gateway.currency,
         apply_discount=False,
     )
-    plan_snapshot = PlanSnapshotDto.from_plan(plan, duration.days)
+    # Capture the paid amount so a later plan change can prorate the remaining value.
+    plan_snapshot = PlanSnapshotDto.from_plan(
+        plan, duration.days, price=pricing.final_amount, price_currency=gateway.currency
+    )
     payment = await create_payment(
         user,
         CreatePaymentDto(
@@ -417,11 +420,14 @@ async def purchase_subscription(
 
     current_subscription = await subscription_dao.get_current(user.id)
     purchase_type = PurchaseType.CHANGE if current_subscription else PurchaseType.NEW
-    plan_snapshot = PlanSnapshotDto.from_plan(plan, duration.days)
     pricing = pricing_service.calculate(
         user,
         duration.get_price(gateway.currency),
         gateway.currency,
+    )
+    # Capture the paid amount so a later plan change can prorate the remaining value.
+    plan_snapshot = PlanSnapshotDto.from_plan(
+        plan, duration.days, price=pricing.final_amount, price_currency=gateway.currency
     )
 
     payment = await create_payment(
@@ -502,7 +508,10 @@ async def extend_subscription(
         duration.get_price(gateway.currency),
         gateway.currency,
     )
-    plan_snapshot = PlanSnapshotDto.from_plan(matched_plan, duration.days)
+    # Capture the paid amount so a later plan change can prorate the remaining value.
+    plan_snapshot = PlanSnapshotDto.from_plan(
+        matched_plan, duration.days, price=pricing.final_amount, price_currency=gateway.currency
+    )
     payment = await create_payment(
         user,
         CreatePaymentDto(

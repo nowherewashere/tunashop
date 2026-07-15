@@ -52,12 +52,20 @@ class PlategaGateway(BasePaymentGateway):
         )
         self.selected_payment_method: Optional[str] = None
 
-    async def handle_create_payment(self, amount: Decimal, details: str) -> PaymentResultDto:
-        payload = await self._create_payment_payload(amount, details)
+    async def handle_create_payment(
+        self, amount: Decimal, details: str, payment_method: int | None = None
+    ) -> PaymentResultDto:
+        # A user-selected method (from the in-bot picker) takes precedence over the
+        # admin hard-pin. When either is set we hit the single-method endpoint and pass
+        # the code; otherwise Platega renders its own multi-method page.
+        effective_method = (
+            payment_method if payment_method is not None else self.settings.payment_method
+        )
+        payload = await self._create_payment_payload(amount, details, effective_method)
         logger.debug(f"Creating payment payload: {payload}")
         endpoint = (
             self.DEFAULT_SINGLE_METHOD_ENDPOINT
-            if self.settings.payment_method is not None
+            if effective_method is not None
             else self.DEFAULT_MULTI_METHOD_ENDPOINT
         )
 
@@ -111,7 +119,9 @@ class PlategaGateway(BasePaymentGateway):
 
         return payment_id, transaction_status
 
-    async def _create_payment_payload(self, amount: Decimal, details: str) -> dict[str, Any]:
+    async def _create_payment_payload(
+        self, amount: Decimal, details: str, payment_method: int | None
+    ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "paymentDetails": {
                 "amount": float(amount),
@@ -121,8 +131,8 @@ class PlategaGateway(BasePaymentGateway):
             "return": await self._get_bot_redirect_url(),
             "failedUrl": await self._get_bot_redirect_url(),
         }
-        if self.settings.payment_method is not None:
-            payload["paymentMethod"] = self.settings.payment_method
+        if payment_method is not None:
+            payload["paymentMethod"] = payment_method
 
         return payload
 
