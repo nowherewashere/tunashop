@@ -4,10 +4,11 @@ from decimal import ROUND_HALF_UP
 
 from loguru import logger
 
-from src.application.common import Interactor, Remnawave
+from src.application.common import EventPublisher, Interactor, Remnawave
 from src.application.common.dao import PlanDao, ReferralLedgerDao, SubscriptionDao
 from src.application.common.uow import UnitOfWork
 from src.application.dto import BalanceSpendDto, PlanSnapshotDto, UserDto
+from src.application.events import BalanceRenewalEvent
 from src.application.use_cases.referral.queries.summary import (
     GetReferralSummary,
     GetReferralSummaryDto,
@@ -20,6 +21,7 @@ from src.core.exceptions import (
     PlanError,
     PurchaseError,
 )
+from src.core.metrics import MetricSource
 from src.core.utils.time import datetime_now
 
 
@@ -28,6 +30,9 @@ class PayWithBalanceDto:
     user: UserDto
     plan_id: int
     duration_days: int
+    # Surface the renewal was triggered from (BOT / SITE), threaded into the emitted
+    # BalanceRenewalEvent so admin notice + metric row attribute to the right origin.
+    source: MetricSource
 
 
 @dataclass(frozen=True)
@@ -56,6 +61,7 @@ class PayWithBalance(Interactor[PayWithBalanceDto, PayWithBalanceResult]):
         referral_ledger_dao: ReferralLedgerDao,
         remnawave: Remnawave,
         get_referral_summary: GetReferralSummary,
+        event_publisher: EventPublisher,
     ) -> None:
         self.uow = uow
         self.plan_dao = plan_dao
@@ -63,6 +69,7 @@ class PayWithBalance(Interactor[PayWithBalanceDto, PayWithBalanceResult]):
         self.referral_ledger_dao = referral_ledger_dao
         self.remnawave = remnawave
         self.get_referral_summary = get_referral_summary
+        self.event_publisher = event_publisher
 
     async def _execute(self, actor: UserDto, data: PayWithBalanceDto) -> PayWithBalanceResult:
         user = data.user
@@ -135,6 +142,29 @@ class PayWithBalance(Interactor[PayWithBalanceDto, PayWithBalanceResult]):
             f"{user.log} paid {price_kop} kop from balance for '{data.duration_days}'d "
             f"of plan '{plan.name}'; balance now {new_balance} kop"
         )
+
+        # Publish AFTER commit (a rolled-back spend emits nothing). This is the single
+        # source of truth for balance-renewal side effects — it drives the stock
+        # `event-subscription.renew` admin/dev notice and a non-cash `subscription_renewed`
+        # metric for BOTH bot and site (this use case bypasses the PSP path, so no
+        # UserPurchaseEvent is ever produced for it).
+        await self.event_publisher.publish(
+            BalanceRenewalEvent(
+                user_id=user.id,
+                telegram_id=user.telegram_id,
+                username=user.username,
+                email=user.email,
+                name=user.name,
+                source=data.source,
+                amount=price_rub,
+                duration_days=data.duration_days,
+                plan_name=plan_snapshot.name,
+                plan_type=plan_snapshot.type,
+                plan_traffic_limit=plan_snapshot.traffic_limit,
+                plan_device_limit=plan_snapshot.device_limit,
+            )
+        )
+
         return PayWithBalanceResult(
             amount_kop=price_kop,
             new_expire_at=new_expire,

@@ -101,6 +101,12 @@ HEALTH_WINDOW_MINUTES: Final[int] = 15
 HEALTH_SUCCESS_THRESHOLD: Final[float] = 0.80
 HEALTH_MIN_SAMPLES: Final[int] = 3
 
+# `properties.method` marker for a balance-funded renewal (spec §3.4). The referral
+# balance is already-earned commission, so such a renewal writes a `subscription_renewed`
+# row tagged with this method and NO cash `payment` row — keeping revenue / the fee curve
+# honest while still exposing referral cannibalization.
+REFERRAL_BALANCE_METHOD: Final[str] = "referral_balance"
+
 # Offline business rollup lookback (daily job, spec §8).
 BUSINESS_ROLLUP_WINDOW_DAYS: Final[int] = 1
 

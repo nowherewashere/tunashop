@@ -39,6 +39,7 @@ from src.application.dto import (
 from src.application.events import ErrorEvent, NotificationErrorEvent, SystemEvent
 from src.application.events.base import BaseEvent, UserEvent
 from src.application.events.system import (
+    BalanceRenewalEvent,
     BlacklistRegistrationAttemptEvent,
     BotUpdateEvent,
     PromocodeActivatedEvent,
@@ -149,6 +150,7 @@ class NotificationService(Notifier):
                 UserFirstConnectionEvent,
                 UserDevicesUpdatedEvent,
                 UserPurchaseEvent,
+                BalanceRenewalEvent,
                 TrialActivatedEvent,
                 SubscriptionRevokedEvent,
                 PromocodeActivatedEvent,

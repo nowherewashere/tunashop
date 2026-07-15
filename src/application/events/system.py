@@ -1,6 +1,6 @@
 from dataclasses import asdict, dataclass, field
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Final, Optional
 from uuid import UUID
 
 from aiogram.utils.formatting import Text
@@ -10,6 +10,7 @@ from src.application.dto import BuildInfoDto, MediaDescriptorDto, MessagePayload
 from src.core.constants import REMNAWAVE_MAX_VERSION, REPOSITORY
 from src.core.enums import (
     AccessMode,
+    Currency,
     MediaType,
     PaymentGatewayType,
     PlanType,
@@ -17,7 +18,13 @@ from src.core.enums import (
     SubscriptionStatus,
     SystemNotificationType,
 )
+from src.core.metrics import MetricSource
 from src.core.types import NotificationType
+from src.core.utils.i18n_helpers import (
+    i18n_format_days,
+    i18n_format_device_limit,
+    i18n_format_traffic_limit,
+)
 
 from .base import BaseEvent, SystemEvent
 
@@ -481,6 +488,90 @@ class UserPurchaseEvent(UserEvent):
                 return "event-subscription.renew"
             case PurchaseType.CHANGE:
                 return "event-subscription.change"
+
+
+# Non-cash "gateway" label for a balance-funded renewal. It is NOT a real
+# `PaymentGatewayType` (there is no PSP and no commission) — it only labels the
+# payment-method line of the reused renew notice, via the shared `gateway-type`
+# i18n term ([REFERRAL_BALANCE] branch).
+REFERRAL_BALANCE_GATEWAY: Final[str] = "REFERRAL_BALANCE"
+
+
+@dataclass(frozen=True, kw_only=True)
+class BalanceRenewalEvent(SystemEvent):
+    """A subscription renewal paid from the user's referral balance (spec §3.4).
+
+    ``PayWithBalance`` extends a subscription straight from already-earned referral
+    commission, deliberately bypassing the PSP path (anti-commission-loop) — so it
+    never reaches ``ProcessPayment`` / :class:`UserPurchaseEvent` and, historically,
+    notified nobody. This event closes that gap while staying faithful to the stock
+    flow: it renders the **same** ``event-subscription.renew`` admin notice a normal
+    renewal produces (identical i18n kwargs), and drives a single *non-cash*
+    ``subscription_renewed`` metric — no cash ``payment`` row, since no money changed
+    hands. Only the payment-method line (referral balance) and amount source differ.
+    """
+
+    notification_type: NotificationType = field(
+        default=SystemNotificationType.SUBSCRIPTION,
+        init=False,
+    )
+
+    user_id: int
+    telegram_id: Optional[int]
+    username: Optional[str]
+    email: Optional[str]
+    name: str
+
+    # Surface the renewal came from (BOT / SITE) — carried into the metric row.
+    source: MetricSource
+
+    # Price paid from balance (RUB) and the term applied — the only economic facts
+    # that differ from a PSP renewal.
+    amount: Decimal
+    duration_days: int
+
+    # Plan snapshot (raw domain values; formatted into the renew template on render).
+    plan_name: str
+    plan_type: PlanType
+    plan_traffic_limit: Optional[int]
+    plan_device_limit: Optional[int]
+
+    is_trial_plan: bool = False  # balance renewals are never trials
+
+    @property
+    def event_key(self) -> str:
+        return "event-subscription.renew"
+
+    def as_payload(self) -> "MessagePayloadDto":
+        # Mirror UserPurchaseEvent(purchase_type=RENEW)'s kwargs exactly so the admin
+        # notice is byte-identical to a stock renewal (reuse the same fragments +
+        # helper-formatted plan values). Only the payment source differs: a synthetic
+        # (referral-balance) gateway label, full price, no discount.
+        return MessagePayloadDto(
+            i18n_key=self.event_key,
+            i18n_kwargs={
+                "payment_id": str(self.event_id),
+                "gateway_type": REFERRAL_BALANCE_GATEWAY,
+                "final_amount": self.amount,
+                "original_amount": self.amount,
+                "discount_percent": 0,
+                "currency": Currency.RUB.symbol,
+                #
+                "telegram_id": self.telegram_id,
+                "username": self.username,
+                "email": self.email,
+                "name": self.name,
+                #
+                "is_trial_plan": self.is_trial_plan,
+                "plan_name": (self.plan_name, {}),
+                "plan_type": self.plan_type,
+                "plan_traffic_limit": i18n_format_traffic_limit(self.plan_traffic_limit),
+                "plan_device_limit": i18n_format_device_limit(self.plan_device_limit),
+                "plan_duration": i18n_format_days(self.duration_days),
+            },
+            disable_default_markup=False,
+            delete_after=None,
+        )
 
 
 @dataclass(frozen=True, kw_only=True)
