@@ -180,6 +180,19 @@ class NotificationService(Notifier):
 
         payload = event.as_payload()
         payload.reply_markup = self._resolve_keyboard(event)
+        if isinstance(
+            event,
+            (
+                SubscriptionExpiresEvent,
+                SubscriptionExpiredEvent,
+                SubscriptionExpiredAgoEvent,
+                SubscriptionLimitedEvent,
+            ),
+        ):
+            # Subscription reminders (expiry / traffic-limit) carry a single «продлить»
+            # CTA and no stock «Закрыть»: tapping renew opens the subscription screen and
+            # closes the reminder (see routers/extra/goto.py::on_goto payment branch).
+            payload.disable_default_markup = True
         await self.notify_user(event.user, payload)
 
     @on_event(SystemEvent)

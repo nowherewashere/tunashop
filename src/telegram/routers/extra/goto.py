@@ -45,6 +45,14 @@ async def on_goto(
             mode=StartMode.RESET_STACK,
             show_mode=ShowMode.DELETE_AND_SEND,
         )
+        # Close the source reminder (e.g. the subscription-expiry follow-up) once the
+        # user has been taken to the subscription screen. Best-effort: a message older
+        # than 48h can no longer be deleted by the bot.
+        if isinstance(callback.message, Message):
+            try:
+                await callback.message.delete()
+            except Exception as e:
+                logger.debug(f"{user.log} Could not delete reminder on pay redirect: {e}")
         await callback.answer()
         return
 
