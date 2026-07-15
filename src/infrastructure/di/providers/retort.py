@@ -40,6 +40,7 @@ from src.application.dto.payment_gateway import (
     MulenPayGatewaySettingsDto,
     PayMasterGatewaySettingsDto,
     PlategaGatewaySettingsDto,
+    PlategaMethodConfigDto,
     RoboKassaGatewaySettingsDto,
     TelegramStarsGatewaySettingsDto,
     UrlPayGatewaySettingsDto,
@@ -123,7 +124,18 @@ class RetortProvider(Provider):
             if dto_class is None:
                 raise ValueError(f"Unknown gateway type: {pg_type}")
 
-            settings_dict = cryptographer.decrypt_recursive(settings_dict)
+            settings_dict = dict(cryptographer.decrypt_recursive(settings_dict))
+            # dto_class(**dict) is a shallow construction and does not convert nested
+            # dataclasses. Platega's `methods` is the only such field, so rebuild its
+            # items into DTOs; otherwise downstream attribute access (m.id / m.enabled)
+            # fails on the raw dicts loaded from the JSON column.
+            methods = settings_dict.get("methods")
+            if isinstance(methods, list):
+                load_method = retort.get_loader(PlategaMethodConfigDto)
+                settings_dict["methods"] = [
+                    m if isinstance(m, PlategaMethodConfigDto) else load_method(m)
+                    for m in methods
+                ]
             return dto_class(**settings_dict)
 
         def convert_settings(payment_gateway: PaymentGateway) -> Any:
