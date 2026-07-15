@@ -360,6 +360,7 @@ gateway-type = { $gateway_type ->
     [URLPAY] UrlPay
     [WATA] WATA
     [VALUTIX] Valutix
+    [REFERRAL_BALANCE] Реферальный баланс
     *[OTHER] { $gateway_type }
 }
 

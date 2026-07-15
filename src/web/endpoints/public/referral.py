@@ -28,6 +28,7 @@ from src.core.exceptions import (
     PurchaseError,
     ReferralError,
 )
+from src.core.metrics import MetricSource
 from src.core.utils.money import mask_wallet
 from src.web.schemas import (
     CryptoPayoutRequest,
@@ -214,7 +215,12 @@ async def pay_with_balance(
 
     try:
         result = await pay.system(
-            PayWithBalanceDto(user=user, plan_id=body.plan_id, duration_days=body.duration_days)
+            PayWithBalanceDto(
+                user=user,
+                plan_id=body.plan_id,
+                duration_days=body.duration_days,
+                source=MetricSource.SITE,
+            )
         )
     except InsufficientBalanceError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e

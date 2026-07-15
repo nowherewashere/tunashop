@@ -61,6 +61,7 @@ from src.core.exceptions import (
     PurchaseError,
     ReferralError,
 )
+from src.core.metrics import MetricSource
 from src.core.utils.i18n_helpers import i18n_format_expire_time
 from src.core.utils.money import kop_to_rub
 from src.core.utils.time import get_traffic_reset_delta
@@ -435,7 +436,9 @@ async def on_pay_with_balance_select(
 
     try:
         await pay_with_balance.system(
-            PayWithBalanceDto(user=user, plan_id=plan_id, duration_days=days)
+            PayWithBalanceDto(
+                user=user, plan_id=plan_id, duration_days=days, source=MetricSource.BOT
+            )
         )
     except InsufficientBalanceError:
         await notifier.notify_user(user=user, i18n_key="ntf-invite.pay-insufficient")

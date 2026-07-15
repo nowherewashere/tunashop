@@ -10,6 +10,7 @@ from src.application.events.metrics import (
     ReferralCommissionRecordedEvent,
 )
 from src.application.events.system import (
+    BalanceRenewalEvent,
     NodeConnectionLostEvent,
     NodeConnectionRestoredEvent,
     TrialActivatedEvent,
@@ -18,7 +19,13 @@ from src.application.events.system import (
 )
 from src.application.events.user import SubscriptionExpiredEvent
 from src.core.enums import PurchaseType
-from src.core.metrics import ConnectOutcome, MetricEvent, MetricSource, NodeStatus
+from src.core.metrics import (
+    REFERRAL_BALANCE_METHOD,
+    ConnectOutcome,
+    MetricEvent,
+    MetricSource,
+    NodeStatus,
+)
 from src.infrastructure.services.event_bus import on_event
 
 
@@ -142,6 +149,28 @@ class MetricsEventListener:
                 )
 
         await self._write("payment", write)
+
+    @on_event(BalanceRenewalEvent)
+    async def on_balance_renewal(self, event: BalanceRenewalEvent) -> None:
+        # A balance-funded renewal is NON-CASH: the referral balance is already-earned
+        # commission, not new revenue. Record retention (subscription_renewed) tagged
+        # with the method so referral cannibalization stays measurable — but write NO
+        # cash `payment` row, keeping the revenue / fee curve honest (spec §3.4, §9).
+        # It bypasses the PSP path, so there is no transaction to look up here.
+        async def write() -> None:
+            await self.events_dao.append(
+                event_type=MetricEvent.SUBSCRIPTION_RENEWED,
+                source=event.source,
+                user_ref=await self._user_ref_for_user_id(event.user_id),
+                properties={
+                    "plan": event.duration_days,
+                    "gross": "0",
+                    "net": "0",
+                    "method": REFERRAL_BALANCE_METHOD,
+                },
+            )
+
+        await self._write("balance_renewal", write)
 
     @on_event(SubscriptionExpiredEvent)
     async def on_churned(self, event: SubscriptionExpiredEvent) -> None:

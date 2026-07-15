@@ -1,5 +1,6 @@
 from .base import BaseEvent, SystemEvent, UserEvent
 from .system import (
+    BalanceRenewalEvent,
     BlacklistRegistrationAttemptEvent,
     BotInlineModeDisabledEvent,
     BotShutdownEvent,
@@ -62,6 +63,7 @@ __all__ = [
     "UserDeviceDeletedEvent",
     "UserFirstConnectionEvent",
     "UserPurchaseEvent",
+    "BalanceRenewalEvent",
     "UserRegisteredEvent",
     "BlacklistRegistrationAttemptEvent",
     #
