@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional, get_type_hints
 
 from adaptix import Retort
@@ -134,15 +134,22 @@ class UpdatePaymentGatewaySettings(Interactor[UpdatePaymentGatewaySettingsDto, N
                 raise
 
 
-def _ensure_methods(settings: PlategaGatewaySettingsDto) -> list[PlategaMethodConfigDto]:
-    """Return the method-config list, seeding defaults and backfilling any new codes."""
+def _current_methods(settings: PlategaGatewaySettingsDto) -> list[PlategaMethodConfigDto]:
+    """Full method-config list (every known code), seeding defaults on first use and
+    backfilling codes added later.
+
+    Returns a fresh list; callers apply their change and **assign it back** to
+    ``settings.methods``. PlategaMethodConfigDto is a plain dataclass (not a
+    ``TrackableMixin``), so mutating a method's field in place is invisible to
+    ``changed_data`` and would be silently dropped by ``gateway_dao.update``.
+    """
     if not settings.methods:
-        settings.methods = PlategaGatewaySettingsDto.default_methods()
-    present = {m.id for m in settings.methods}
-    for method in PlategaPaymentMethod:
-        if method.value not in present:
-            settings.methods.append(PlategaMethodConfigDto(id=method.value, enabled=False))
-    return settings.methods
+        return PlategaGatewaySettingsDto.default_methods()
+    existing = {m.id: m for m in settings.methods}
+    return [
+        existing.get(method.value, PlategaMethodConfigDto(id=method.value, enabled=False))
+        for method in PlategaPaymentMethod
+    ]
 
 
 @dataclass(frozen=True)
@@ -165,18 +172,21 @@ class TogglePlategaMethod(Interactor[TogglePlategaMethodDto, None]):
                 raise GatewayNotConfiguredError(
                     f"Gateway '{data.gateway_id}' is not a configured Platega gateway"
                 )
-            methods = _ensure_methods(gateway.settings)
-
-            target = next((m for m in methods if m.id == data.method_id), None)
-            if target is None:
+            methods = _current_methods(gateway.settings)
+            if not any(m.id == data.method_id for m in methods):
                 raise ValueError(f"Unknown Platega method '{data.method_id}'")
 
-            target.enabled = not target.enabled
+            updated = [
+                replace(m, enabled=not m.enabled) if m.id == data.method_id else m
+                for m in methods
+            ]
+            gateway.settings.methods = updated  # reassign so the change is tracked
             await self.gateway_dao.update(gateway)
             await self.uow.commit()
 
+        new_enabled = next(m.enabled for m in updated if m.id == data.method_id)
         logger.info(
-            f"{actor.log} Platega method '{data.method_id}' set enabled='{target.enabled}' "
+            f"{actor.log} Platega method '{data.method_id}' set enabled='{new_enabled}' "
             f"for gateway '{data.gateway_id}'"
         )
 
@@ -202,19 +212,20 @@ class SetPlategaMethodLabel(Interactor[SetPlategaMethodLabelDto, None]):
                 raise GatewayNotConfiguredError(
                     f"Gateway '{data.gateway_id}' is not a configured Platega gateway"
                 )
-            methods = _ensure_methods(gateway.settings)
-
-            target = next((m for m in methods if m.id == data.method_id), None)
-            if target is None:
+            methods = _current_methods(gateway.settings)
+            if not any(m.id == data.method_id for m in methods):
                 raise ValueError(f"Unknown Platega method '{data.method_id}'")
 
-            label = (data.label or "").strip()
-            target.label = label or None
+            label = (data.label or "").strip() or None
+            updated = [
+                replace(m, label=label) if m.id == data.method_id else m for m in methods
+            ]
+            gateway.settings.methods = updated  # reassign so the change is tracked
             await self.gateway_dao.update(gateway)
             await self.uow.commit()
 
         logger.info(
-            f"{actor.log} Platega method '{data.method_id}' label set to '{target.label}' "
+            f"{actor.log} Platega method '{data.method_id}' label set to '{label}' "
             f"for gateway '{data.gateway_id}'"
         )
 
