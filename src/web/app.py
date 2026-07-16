@@ -18,6 +18,7 @@ from .endpoints import (
     public_router,
     remnawave_router,
 )
+from .middleware import NoStoreCacheControlMiddleware
 
 
 def resolve_cors(origins: list[str]) -> tuple[list[str], bool]:
@@ -44,6 +45,8 @@ def get_app(config: AppConfig, dispatcher: Dispatcher) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Outermost (added last): covers every /api/v1 response, incl. CORS preflight.
+    app.add_middleware(NoStoreCacheControlMiddleware)
 
     app.include_router(health_router)
     app.include_router(connect_router)
