@@ -1,8 +1,8 @@
 """Metrics & analytics vocabulary (metrics spec §3–§6).
 
 Central, dependency-free catalog for the append-only ``events`` table: the event
-types, the ``source`` discriminator, the onboarding funnel steps and the health
-thresholds. Kept in ``core`` (no application imports) so models, DAOs, the event
+types, the ``source`` discriminator and the onboarding funnel steps. Kept in
+``core`` (no application imports) so models, DAOs, the event
 listener, the web endpoint and the offline jobs all speak the same strings —
 single source of truth, exactly like ``core.enums`` is for the domain.
 
@@ -20,7 +20,6 @@ class MetricSource(StrEnum):
 
     BOT = "bot"
     SITE = "site"
-    PROBE = "probe"
     PSP = "psp"
 
 
@@ -39,9 +38,8 @@ class MetricEvent(StrEnum):
     # Funnel steps (spec §5) — same name on bot and site for comparability.
     FUNNEL_STEP = "funnel_step"
 
-    # Health / viability (spec §6) — node status from Remnawave + active probes.
+    # Health / viability (spec §6) — node status from Remnawave node webhooks.
     NODE_STATUS = "node_status"
-    PROBE = "probe"
 
 
 class FunnelStep(StrEnum):
@@ -75,7 +73,7 @@ FUNNEL_UI_STEPS: Final[frozenset[str]] = frozenset(
 
 
 class ConnectOutcome(StrEnum):
-    """``properties.outcome`` for connect / node / probe events (spec §6.1)."""
+    """``properties.outcome`` for connect / node events (spec §6.1)."""
 
     SUCCESS = "success"
     FAIL = "fail"
@@ -87,19 +85,6 @@ class NodeStatus(StrEnum):
     UP = "up"
     DOWN = "down"
 
-
-# --- Health thresholds & probe cadence (spec §6.2, §6.5, §8) ------------------
-# Deliberately module constants, not settings rows: "one threshold = one alert,
-# no anomaly engine" (spec §6.5). Tune here; no admin surface in the release.
-
-# Active probe: TCP reachability timeout per (node × protocol) check.
-PROBE_TCP_TIMEOUT_SECONDS: Final[float] = 5.0
-
-# Health rollup window and the alert rule (spec §6.5): success rate over the last
-# N minutes below the threshold, with at least a floor of samples to avoid noise.
-HEALTH_WINDOW_MINUTES: Final[int] = 15
-HEALTH_SUCCESS_THRESHOLD: Final[float] = 0.80
-HEALTH_MIN_SAMPLES: Final[int] = 3
 
 # `properties.method` marker for a balance-funded renewal (spec §3.4). The referral
 # balance is already-earned commission, so such a renewal writes a `subscription_renewed`

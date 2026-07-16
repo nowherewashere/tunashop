@@ -1,10 +1,17 @@
 # Metrics & Analytics Layer — Runbook
 
 Implements `specs/tuna-vpn-metrics-spec-en.md`. One append-only `events` table in
-the shared Postgres, written async by bot + site + probes and keyed on
-`remnawave_uuid`; business events close the economic hypotheses, dimensioned
-connect/probe events give passive VPN-health monitoring. Offline computation only —
-no live dashboards.
+the shared Postgres, written async by bot + site and keyed on `remnawave_uuid`;
+business events close the economic hypotheses, and `node_status` rows (from
+Remnawave node webhooks) give passive node-health monitoring. Offline computation
+only — no live dashboards.
+
+> Note: the in-fork active TCP probe + threshold alert (metrics spec §6.2/§6.5)
+> were removed — node health relies on stock Remnawave node webhooks
+> (`node.connection_lost/restored/traffic_notify`) → `NodeConnectionLostEvent` /
+> `NodeConnectionRestoredEvent` / `NodeTrafficReachedEvent` (admin notifications +
+> `node_status` metric rows). Passive `first_connect` from real RU users stays the
+> primary viability signal.
 
 ## What was built
 
@@ -14,22 +21,21 @@ no live dashboards.
 | `EventsDao` (append + offline aggregation SQL) | `application/common/dao/event.py`, `infrastructure/database/dao/event.py` |
 | `MetricsEventListener` (maps ~7 business + node events) | `infrastructure/services/metrics.py` |
 | Metric-signal events (`FunnelStepEvent`, `ReferralCommissionRecordedEvent`) | `application/events/metrics.py` |
-| Vocabulary (event types, sources, funnel steps, thresholds) | `core/metrics.py` |
+| Vocabulary (event types, sources, funnel steps) | `core/metrics.py` |
 | `net_rub` capture (**seam only — not wired to a gateway yet**, see TODO) | gateway seam `payment_gateways/base.py` (`settled_amount`); persisted in `web/endpoints/payments.py`; column `transactions.net_amount` |
 | `referral_attributed` emit | `use_cases/referral/commands/commission.py` (at the ledger-insert seam) |
 | Funnel — site endpoint | `web/endpoints/public/events.py` → `POST /api/v1/public/events/funnel` |
 | Funnel — bot emits | `telegram/routers/onboarding/{handlers,getters,metrics}.py` |
 | Funnel — site emits | `tuna-site`: `lib/api.ts` `trackFunnel()`, `app/connect/page.tsx` |
-| Offline jobs + probe | `use_cases/metrics/commands/*`; cron in `infrastructure/taskiq/tasks/metrics.py` |
-| Health alert copy | `assets/translations/ru/metrics.ftl` |
+| Offline job | `use_cases/metrics/commands/*`; cron in `infrastructure/taskiq/tasks/metrics.py` |
 
 ## Event catalog (`events.event_type`)
 
 Business (§4): `trial_started, first_connect, trial_converted, payment,
 subscription_renewed, churned, referral_attributed`. Funnel (§5): `funnel_step`.
-Health (§6): `node_status` (from Remnawave node webhooks), `probe` (active checks).
+Health (§6): `node_status` (from Remnawave node webhooks).
 
-`source` ∈ `bot | site | probe | psp`. Business events are backend-origin (`bot`),
+`source` ∈ `bot | site | psp`. Business events are backend-origin (`bot`),
 except `payment`/`subscription_renewed` which are `psp` (PSP-webhook driven). Funnel
 rows carry the true surface. Per-user rows are keyed by `user_ref = remnawave_uuid`
 (`Subscription.user_remna_id`), resolved from the current subscription.
@@ -49,8 +55,6 @@ Every write is off the user's critical path and swallows its own errors:
 | Task | Cron | Job |
 |---|---|---|
 | `compute_daily_business_metrics_task` | `17 3 * * *` | conversion, lifetime cohort, plan mix, fee curve, funnel deltas |
-| `compute_node_health_task` | `*/10 * * * *` | (node×protocol×operator) success rate + threshold alert |
-| `run_node_probes_task` | `*/5 * * * *` | TCP reachability per node → `probe` rows |
 
 ## Operating
 
@@ -58,12 +62,10 @@ Every write is off the user's critical path and swallows its own errors:
   `[metrics] daily business rollup:` (conversion rate, avg paying lifetime, plan mix,
   real net/gross fee curve by ₽ bucket, funnel step counts + drops). No dashboard by
   design; grep the logs or pipe the returned dict to a sink later.
-- **Health alert** fires to the ops chat when a (node×protocol) slice drops below
-  `HEALTH_SUCCESS_THRESHOLD` (80%) over `HEALTH_WINDOW_MINUTES` (15) with ≥
-  `HEALTH_MIN_SAMPLES` (3) samples. Copy: `event-metrics-health-alert`
-  (`assets/translations/ru/metrics.ftl`); routed via
-  `SystemNotificationType.NODE_STATUS_CHANGED` (falls back to admins if unrouted).
-  Tune thresholds in `core/metrics.py`.
+- **Node health** is reported by stock Remnawave node webhooks: `node.connection_lost`
+  / `node.connection_restored` / `node.traffic_notify` → admin notifications (routed
+  via `SystemNotificationType.NODE_STATUS_CHANGED`, falls back to admins if unrouted)
+  + `node_status` metric rows. No in-fork probe or threshold alert.
 
 ## Coverage & known limits (honest, per spec)
 
@@ -74,14 +76,13 @@ Every write is off the user's critical path and swallows its own errors:
   once it is, set `self.settled_amount` inside that provider's `handle_webhook` from
   its raw webhook body (the settled-after-fee amount) — a one-line change; everything
   downstream already works.
-- **Probes** are **node-level TCP reachability** (`address:port`) — the honest limit
-  of an external probe ("is the node up at all?", §6.4). `protocol`/`operator` are
-  left null; per-protocol probing needs the hosts/inbounds inventory
-  (`sdk.hosts`/`sdk.inbounds`) and is a clean follow-up. Don't over-weight external
-  probes — passive `first_connect` from real RU users is the real ТСПУ signal.
+- **Node health** comes from stock Remnawave node webhooks only (`node_status` rows +
+  admin notifications) — the in-fork active probe + threshold alert were removed. The
+  honest limit stands: passive `first_connect` from real RU users is the real ТСПУ
+  signal; don't over-weight node-level up/down.
 - **Connect dimensions (§6.1)**: the Remnawave `FIRST_CONNECTED` webhook carries no
   node/protocol, so `first_connect` records `outcome=success` without them; the
-  dimensioned health signal comes from `node_status` + `probe`.
+  node-health signal comes from `node_status` (Remnawave node webhooks).
 - **Funnel**: bot emits `start → device_selected → app_install_shown → config_issued`
   (`device_selected` bot-only; the site auto-detects the device). `first_connect` and
   `trial_converted` complete the funnel as business events — the client never emits
@@ -105,5 +106,5 @@ PYTHONPATH=. uv run python scripts/smoke_metrics.py   # (see the session's scrat
 cd tuna-site && npx tsc --noEmit && npx eslint src/
 ```
 
-Full offline-job/probe/health-alert runs need a live Postgres + Redis + Remnawave
-nodes and are exercised in staging, not the sandbox.
+Full offline-job runs need a live Postgres + Redis and are exercised in staging,
+not the sandbox.

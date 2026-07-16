@@ -2,11 +2,11 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
-from sqlalchemy import Float, case, cast, func, select
+from sqlalchemy import Float, cast, func, select
 
 from src.application.common.dao import EventsDao
-from src.application.dto.metrics import HealthRow, PaymentFeeRow
-from src.core.metrics import ConnectOutcome, MetricEvent
+from src.application.dto.metrics import PaymentFeeRow
+from src.core.metrics import MetricEvent
 from src.infrastructure.database.models.event import Event
 
 from .base import BaseDaoImpl
@@ -147,35 +147,6 @@ class EventsDaoImpl(BaseDaoImpl, EventsDao):
         )
         result = await self.session.execute(stmt)
         return [float(value) for (value,) in result.all() if value is not None]
-
-    async def node_protocol_health(self, *, since: datetime) -> list[HealthRow]:
-        node = Event.properties["node_id"].astext
-        protocol = Event.properties["protocol"].astext
-        operator = Event.properties["operator"].astext
-        outcome = Event.properties["outcome"].astext
-
-        success = func.sum(case((outcome == ConnectOutcome.SUCCESS, 1), else_=0))
-        total = func.count()
-        stmt = (
-            select(node, protocol, operator, success, total)
-            .where(
-                Event.event_type == MetricEvent.PROBE,
-                Event.ts >= since,
-                node.is_not(None),
-            )
-            .group_by(node, protocol, operator)
-        )
-        result = await self.session.execute(stmt)
-        return [
-            HealthRow(
-                node_id=str(node_id),
-                protocol=proto,
-                operator=oper,
-                success=int(ok or 0),
-                total=int(count or 0),
-            )
-            for node_id, proto, oper, ok, count in result.all()
-        ]
 
     @staticmethod
     def _to_decimal(raw: Optional[str]) -> Optional[Decimal]:

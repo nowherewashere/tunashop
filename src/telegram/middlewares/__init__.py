@@ -2,7 +2,6 @@ from aiogram import Router
 
 from .access import AccessMiddleware
 from .base import EventTypedMiddleware
-from .captcha import CaptchaMiddleware
 from .channel import ChannelMiddleware
 from .error import ErrorMiddleware
 from .garbage import GarbageMiddleware
@@ -23,9 +22,6 @@ def setup_middlewares(router: Router) -> None:
         # Throttle before the heavier Rules/Channel checks (DB/Telegram API) so flood
         # is short-circuited early.
         ThrottlingMiddleware(),
-        # Adaptive-friction captcha: only holds users already flagged for abuse (§8),
-        # after throttling but before the funnel-bearing Rules/Channel checks.
-        CaptchaMiddleware(),
         RulesMiddleware(),
         ChannelMiddleware(),
     ]

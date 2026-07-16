@@ -32,7 +32,6 @@ A second layer, built to the Tuna UX spec v2 (`specs/tuna-vpn-bot-ux-spec-v2-en.
 - **Hub & purchase screens.** `/start` shows a greeting (`👋 Привет, {name}!`) under the `Tuna VPN 🐟 / Рассекаем волны блокировок` slogan instead of a profile block — the user's Telegram **ID is not shown** — with the active **plan name in the subscription header**. The primary button switches **🚀 Подключиться ↔ ➕ Новое подключение** on `connected_once`; a `💳 Оформить Standard` upsell + coral "trial ending" status appear when a trial has <4h left. The plan‑selection screen renders a **dynamic card per plan** (traffic / devices / shared locations); the duration screen lists every term with its price and an **auto‑computed savings %** (vs the 1‑month rate), one per row. The **Subscription** screen shows the active plan's card above a green **Продлить** / blue **Изменить**; plan buttons are blue. The **devices** screen leads with a bold `Подключено: N/M` count, colours device rows blue, and offers a green **📱 Добавить устройство** that stays available until the device limit — where it flips to a green **💳 Изменить подписку** (→ Subscription), the only way to raise the cap. Device rows drop the add‑date (kept in the per‑device card).
 - **Referral screen (spec §4.7).** Rewritten to the spec's money‑model **copy** — «🤝 Реферальная система», the «Приглашай и зарабатывай» value‑props, and a 5‑line stats block — ahead of the payout backend: the ₽ lines (доход / выведено / доступно к выводу) render as `0` placeholders and no withdraw/balance buttons are shown yet. Two links (bot + a `https://{site}/r/{code}` site link when `REFERRAL_SITE_URL` is set). The copy‑link button is gone; **QR** is blue, **Пригласить** green.
 - **Onboarding guard & polish.** «🎉 Работает!» won't advance to the success screen until the user has actually connected (`connected_once`); otherwise a branded alert nudges them to finish first. Funnel copy is bolded per spec; the connect CTA reads **➕ Добавить Tuna VPN**, «Не получается» is red, and the iOS store buttons are region‑labelled (App Store вне РФ / App Store РФ). The TV screen moves the Web‑Import fallback into a standalone «Важно:» note.
-- **Adaptive‑friction captcha.** `CaptchaMiddleware` challenges only users flagged for a `/start` burst with a one‑tap "нажми тунца"; clean users never see it.
 
 **Referral rewards backend** stays upstream's points/days engine (no real‑money rebuild yet) — the spec's 50%/payout/balance model is **screen copy only** for now. A few spec items are **admin config, not code**: create a single "Standard" plan with 1/3/6/12‑month durations (249/674/1199/2099 ₽); turn off the `device_all_reset` + `link_reset` flags (leaves per‑device unbind); a 72h referred trial = an `INVITED`‑availability trial plan alongside the 24h base.
 
@@ -98,7 +97,8 @@ Customization via env (`ONBOARDING_*`, all optional — see `.env.example`):
 Separate from the `ONBOARDING_*` group (both `APP_`‑scoped):
 
 - `REFERRAL_SITE_URL` (default empty) — the marketing site base for the second referral link (`{site}/r/{code}`); empty ⇒ only the bot link is shown.
-- `PLAN_LOCATIONS` (default `🇩🇪 | 🇯🇵 | 🇷🇺 | 🇨🇭`) — the server‑locations line shown identically on every plan card, editable without a rebuild.
+
+The server‑locations line («Локации») is now a **per‑plan** field edited in the dashboard plan editor (not an env var), so each plan can list its own flags.
 
 ### Banners (optional)
 
