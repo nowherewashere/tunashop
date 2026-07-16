@@ -82,6 +82,9 @@ class PlanDto(BaseDto, TrackableMixin, TimestampMixin):
     name: str = ""
     description: Optional[str] = None
     tag: Optional[str] = None
+    # Per-plan flag/location string shown on the plan card (opaque emoji text). Lives on
+    # the live plan only — not snapshotted — so admin edits reflect everywhere at once.
+    locations: Optional[str] = None
 
     type: PlanType = PlanType.BOTH
     availability: PlanAvailability = PlanAvailability.ALL

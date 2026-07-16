@@ -1,5 +1,5 @@
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 from adaptix import Retort
 from aiogram_dialog import DialogManager
@@ -24,6 +24,15 @@ from src.core.utils.i18n_helpers import (
 )
 from src.telegram.utils import translate_or_literal
 from src.telegram.widgets.banner import plan_banner_candidates
+
+
+def _locations_line(i18n: TranslatorRunner, locations: Optional[str]) -> str:
+    """Pre-render the plan-card «Локации» line, or '' when the plan has no locations.
+
+    Kept out of the fluent card so a plan without locations shows no empty line
+    (per-plan locations replaced the former shared APP_PLAN_LOCATIONS env value).
+    """
+    return i18n.get("frg-plan-locations", locations=locations) if locations else ""
 
 
 def _get_gateway_title(i18n: TranslatorRunner, gateway: PaymentGatewayDto) -> str:
@@ -72,10 +81,10 @@ def _build_durations_info(i18n: TranslatorRunner, durations: list[dict[str, Any]
 @inject
 async def subscription_getter(
     dialog_manager: DialogManager,
-    config: AppConfig,
     user: TelegramUserDto,
     i18n: FromDishka[TranslatorRunner],
     subscription_dao: FromDishka[SubscriptionDao],
+    plan_dao: FromDishka[PlanDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
     current_subscription = await subscription_dao.get_current(user.id)
@@ -83,18 +92,20 @@ async def subscription_getter(
     is_unlimited = current_subscription.is_unlimited if current_subscription else False
 
     # Show the active plan's card above renew/change (spec fix #20), same shape as
-    # the plan-selection screen (frg-plan-card with shared locations).
+    # the plan-selection screen. Locations are read from the live plan (single source
+    # of truth) resolved by the snapshot's id, so admin edits reflect immediately.
     subscription_info = ""
     banner_candidates: tuple[str, ...] = ()
     if has_active and current_subscription is not None:
         snapshot = current_subscription.plan_snapshot
         plan_name = translate_or_literal(i18n, snapshot.name)
+        plan = await plan_dao.get_by_id(snapshot.id)
         subscription_info = i18n.get(
             "frg-plan-card",
             name=plan_name,
             traffic=i18n_format_traffic_limit(current_subscription.traffic_limit),
             devices=i18n_format_device_limit(current_subscription.device_limit),
-            locations=config.plan_locations,
+            locations_line=_locations_line(i18n, plan.locations if plan else None),
         )
         # DataBanner shows the current plan's own image here (→ choose_sub → default).
         banner_candidates = plan_banner_candidates(plan_name, snapshot.id)
@@ -153,17 +164,12 @@ async def plan_getter(
 @inject
 async def plans_getter(
     dialog_manager: DialogManager,
-    config: AppConfig,
     user: TelegramUserDto,
     i18n: FromDishka[TranslatorRunner],
     get_available_plans: FromDishka[GetAvailablePlans],
     **kwargs: Any,
 ) -> dict[str, Any]:
     plans = await get_available_plans.system(user)
-
-    # Locations are shared identically across all plans and editable via env
-    # (APP_PLAN_LOCATIONS), so the list stays in sync without per-plan config.
-    locations = config.plan_locations
 
     formatted_plans = [
         {
@@ -175,14 +181,14 @@ async def plans_getter(
 
     # Pre-render one card per plan (spec fix #8) — a dynamic list can't be looped
     # inside fluent, so it is assembled here and injected as { $plans_info }.
-    # Cards are separated by a blank line for readability.
+    # Cards are separated by a blank line for readability. Locations are per-plan.
     plans_info = "\n\n".join(
         i18n.get(
             "frg-plan-card",
             name=translate_or_literal(i18n, plan.name),
             traffic=i18n_format_traffic_limit(plan.traffic_limit),
             devices=i18n_format_device_limit(plan.device_limit),
-            locations=locations,
+            locations_line=_locations_line(i18n, plan.locations),
         )
         for plan in plans
     )

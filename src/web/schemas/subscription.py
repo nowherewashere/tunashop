@@ -16,6 +16,9 @@ class SubscriptionInfoResponse(BaseModel):
     expire_at: datetime
     url: str
     plan_name: str
+    # Per-plan flag/location string of the live plan (opaque emoji text), or null when
+    # the plan has none set or was removed. Resolved live, not from the snapshot.
+    plan_locations: Optional[str] = None
     plan_duration_days: int
     used_traffic_bytes: Optional[int] = None
     lifetime_used_traffic_bytes: Optional[int] = None
@@ -131,6 +134,8 @@ class PlanOfferResponse(BaseModel):
     public_code: str
     name: str
     description: Optional[str] = None
+    # Per-plan flag/location string (opaque emoji text), e.g. "🇩🇪 | 🇯🇵 | 🇷🇺".
+    locations: Optional[str] = None
     traffic_limit: int
     device_limit: int
     type: str

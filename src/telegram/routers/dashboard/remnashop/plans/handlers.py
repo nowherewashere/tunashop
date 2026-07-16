@@ -33,6 +33,8 @@ from src.application.use_cases.plan.commands.edit import (
     UpdatePlanDescriptionDto,
     UpdatePlanDevice,
     UpdatePlanDeviceDto,
+    UpdatePlanLocations,
+    UpdatePlanLocationsDto,
     UpdatePlanName,
     UpdatePlanNameDto,
     UpdatePlanPrice,
@@ -349,6 +351,52 @@ async def on_tag_remove(
 
     dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(plan)
     logger.info(f"{user.log} Removed tag for plan ID '{plan.id}'")
+
+
+@inject
+async def on_locations_input(
+    message: Message,
+    widget: MessageInput,
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    notifier: FromDishka[Notifier],
+    update_plan_locations: FromDishka[UpdatePlanLocations],
+) -> None:
+    dialog_manager.show_mode = ShowMode.EDIT
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+
+    if message.text is None:
+        await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
+        return
+
+    current_plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
+
+    try:
+        updated_plan = await update_plan_locations(
+            user,
+            UpdatePlanLocationsDto(current_plan, message.text),
+        )
+        dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(updated_plan)
+        await dialog_manager.switch_to(state=RemnashopPlans.CONFIGURATOR)
+
+    except ValueError:
+        await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
+
+
+@inject
+async def on_locations_remove(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+) -> None:
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+
+    plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
+    plan.locations = None
+
+    dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(plan)
+    logger.info(f"{user.log} Removed locations for plan ID '{plan.id}'")
 
 
 # NOTE: The following toggles/selects mutate an in-memory PlanDto draft kept in

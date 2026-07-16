@@ -222,6 +222,7 @@ class RemnashopPlans(StatesGroup):
     NAME = State()
     DESCRIPTION = State()
     TAG = State()
+    LOCATIONS = State()
     TYPE = State()
     AVAILABILITY = State()
     TRAFFIC = State()

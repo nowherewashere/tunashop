@@ -66,6 +66,27 @@ class UpdatePlanDescription(Interactor[UpdatePlanDescriptionDto, PlanDto]):
 
 
 @dataclass(frozen=True)
+class UpdatePlanLocationsDto:
+    plan: PlanDto
+    input_locations: str
+
+
+class UpdatePlanLocations(Interactor[UpdatePlanLocationsDto, PlanDto]):
+    required_permission = Permission.REMNASHOP_PLAN_EDITOR
+
+    async def _execute(self, actor: UserDto, data: UpdatePlanLocationsDto) -> PlanDto:
+        locations = data.input_locations.strip()
+
+        if len(locations) > TEXT_MEDIA_MAX_LENGTH:
+            logger.warning(f"{actor.log} Locations too long: '{len(locations)}' symbols")
+            raise ValueError("Locations is too long")
+
+        data.plan.locations = locations
+        logger.info(f"{actor.log} Updated plan locations in memory to '{locations}'")
+        return data.plan
+
+
+@dataclass(frozen=True)
 class UpdatePlanTagDto:
     plan: PlanDto
     input_tag: str

@@ -1435,6 +1435,19 @@ msg-plan-tag =
 
     Введите новый тег плана (только латинские заглавные буквы, цифры и символ подчеркивания).
 
+msg-plan-locations =
+    <b>🚩 Изменить локации</b>
+
+    { $locations ->
+    [0] { space }
+    *[HAS]
+    <blockquote>
+    { $locations }
+    </blockquote>
+    }
+
+    Введите флаги/локации плана (например: <code>🇩🇪 | 🇯🇵 | 🇷🇺</code>). Отображаются на карточке плана в строке «Локации».
+
 msg-plan-type =
     <b>🔖 Изменить тип</b>
 
@@ -1597,15 +1610,18 @@ msg-subscription-plans =
 
     { $plans_info }
 
-# One card per available plan — assembled in plans_getter and injected above.
-# Locations are shared across all plans (APP_PLAN_LOCATIONS) and editable via env.
+# One card per available plan — assembled in the getters and injected above.
+# Locations are per-plan (edited in the dashboard); the getter pre-renders the
+# frg-plan-locations line into { $locations_line }, or "" when the plan has none.
 frg-plan-card =
     <b>{ $name }</b>
     <blockquote>
     • <b>Трафик</b>: { $traffic }
-    • <b>Устройства</b>: { $devices }
-    • <b>Локации</b>: { $locations }
+    • <b>Устройства</b>: { $devices }{ $locations_line }
     </blockquote>
+frg-plan-locations =
+    { "" }
+    • <b>Локации</b>: { $locations }
 msg-subscription-new-success = Чтобы начать пользоваться сервисом, нажми кнопку <code>`{ btn-subscription.connect }`</code> и следуй инструкциям!
 msg-subscription-renew-success = Твоя подписка продлена на { $added_duration }.
 

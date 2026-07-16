@@ -21,6 +21,9 @@ class Plan(BaseSql, TimestampMixin):
     name: Mapped[str] = mapped_column(unique=True, index=True)
     description: Mapped[Optional[str]]
     tag: Mapped[Optional[str]]
+    # Per-plan flag/location string (e.g. "🇩🇪 | 🇯🇵 | 🇷🇺") shown on the plan card;
+    # replaces the former global PLAN_LOCATIONS env. Opaque text, edited in the bot.
+    locations: Mapped[Optional[str]]
 
     type: Mapped[PlanType]
     availability: Mapped[PlanAvailability]

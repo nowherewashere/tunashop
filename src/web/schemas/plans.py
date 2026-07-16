@@ -7,6 +7,8 @@ class PublicPlanLandingResponse(BaseModel):
     public_code: str
     name: str
     description: Optional[str] = None
+    # Per-plan flag/location string (opaque emoji text), e.g. "🇩🇪 | 🇯🇵 | 🇷🇺".
+    locations: Optional[str] = None
     traffic_limit: int
     device_limit: int
     monthly_from_rub: str

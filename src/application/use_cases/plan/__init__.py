@@ -8,6 +8,7 @@ from .commands.durations import AddPlanDuration, RemovePlanDuration
 from .commands.edit import (
     UpdatePlanDescription,
     UpdatePlanDevice,
+    UpdatePlanLocations,
     UpdatePlanName,
     UpdatePlanPrice,
     UpdatePlanTag,
@@ -30,6 +31,7 @@ PLAN_USE_CASES: Final[tuple[type[Interactor], ...]] = (
     RemovePlanDuration,
     UpdatePlanDescription,
     UpdatePlanDevice,
+    UpdatePlanLocations,
     UpdatePlanName,
     UpdatePlanPrice,
     UpdatePlanTag,

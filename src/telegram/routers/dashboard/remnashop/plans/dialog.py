@@ -32,6 +32,7 @@ from .getters import (
     export_getter,
     external_squads_getter,
     internal_squads_getter,
+    locations_getter,
     name_getter,
     plans_getter,
     price_getter,
@@ -59,6 +60,8 @@ from .handlers import (
     on_external_squad_select,
     on_import_input,
     on_internal_squad_select,
+    on_locations_input,
+    on_locations_remove,
     on_name_input,
     on_plan_confirm,
     on_plan_delete,
@@ -244,6 +247,13 @@ configurator = Window(
             id="tag",
             state=RemnashopPlans.TAG,
         ),
+        SwitchTo(
+            text=I18nFormat("btn-plans.locations"),
+            id="locations",
+            state=RemnashopPlans.LOCATIONS,
+        ),
+    ),
+    Row(
         Button(
             text=I18nFormat("btn-plans.squads"),
             id="squads",
@@ -371,6 +381,30 @@ tag = Window(
     IgnoreUpdate(),
     state=RemnashopPlans.TAG,
     getter=tag_getter,
+)
+
+locations = Window(
+    Banner(BannerName.DASHBOARD),
+    I18nFormat("msg-plan-locations"),
+    Row(
+        Button(
+            text=I18nFormat("btn-plans.locations-remove"),
+            id="remove",
+            on_click=on_locations_remove,
+        ),
+        when=F["locations"],
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=RemnashopPlans.CONFIGURATOR,
+        ),
+    ),
+    MessageInput(func=on_locations_input),
+    IgnoreUpdate(),
+    state=RemnashopPlans.LOCATIONS,
+    getter=locations_getter,
 )
 
 plan_type = Window(
@@ -707,6 +741,7 @@ router = Dialog(
     name,
     description,
     tag,
+    locations,
     plan_type,
     availability,
     traffic,

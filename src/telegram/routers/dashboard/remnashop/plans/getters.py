@@ -159,6 +159,16 @@ async def tag_getter(
 
 
 @inject
+async def locations_getter(
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
+    return {"locations": plan.locations}
+
+
+@inject
 async def type_getter(
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],

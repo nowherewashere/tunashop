@@ -60,6 +60,7 @@ async def get_public_landing_plans(
                 public_code=plan.public_code,
                 name=plan.name,
                 description=plan.description,
+                locations=plan.locations,
                 traffic_limit=plan.traffic_limit,
                 device_limit=plan.device_limit,
                 monthly_from_rub=_normalize_decimal_str(monthly_from),
