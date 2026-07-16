@@ -1716,7 +1716,7 @@ msg-subscription-payment-method =
     }
 
 msg-subscription-platega-method =
-    <b>💳 Способ оплаты Platega</b>
+    <b>💳 Способ оплаты</b>
 
     <blockquote>
     • <b>Тариф</b>: { $plan }
