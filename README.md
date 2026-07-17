@@ -88,8 +88,10 @@ Customization via env (`ONBOARDING_*`, all optional — see `.env.example`):
 | `ONBOARDING_HAPP_LINK_ANDROID` | Google Play | Android Happ download link |
 | `ONBOARDING_HAPP_LINK_WINDOWS` | GitHub releases | Windows Happ download link |
 | `ONBOARDING_HAPP_LINK_MAC` | App Store | macOS Happ download link |
+| `ONBOARDING_HAPP_LINK_IOS_RU` | App Store (INCY) | Apple-only alternative client, shown when Happ is unavailable in the RU App Store |
 | `ONBOARDING_REFRESH_VIDEO_URL` | *(empty)* | "How to refresh" video; the button is hidden when unset |
-| `ONBOARDING_HAPP_IMPORT_TEMPLATE` | `happ://add/{sub_url}` | Import deeplink template |
+| `ONBOARDING_HAPP_IMPORT_TEMPLATE` | `happ://add/{sub_url}` | Happ import deeplink template |
+| `ONBOARDING_INCY_IMPORT_TEMPLATE` | `incy://add/{sub_url}` | INCY import deeplink template (Apple only) |
 | `ONBOARDING_NUDGE_DELAYS_HOURS` | `0.5,3,24` | Pre‑connect nudge schedule |
 | `ONBOARDING_NUDGE_MIN_GAP_MINUTES` | `180` | Min gap between nudges to one user |
 | `ONBOARDING_NUDGE_DAILY_CAP` | `4` | Max nudges per user per day |

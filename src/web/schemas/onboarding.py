@@ -25,6 +25,7 @@ class OnboardingConfigResponse(BaseModel):
     """Canonical Happ install data (single source: OnboardingConfig, shared with the bot)."""
 
     happ_import_template: str
+    incy_import_template: str
     refresh_video_url: Optional[str] = None
     store_links: OnboardingStoreLinks
     store_link_ios_ru: str

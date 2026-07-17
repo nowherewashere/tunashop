@@ -11,9 +11,9 @@ _DEFAULT_HAPP_WINDOWS: Final[str] = (
 )
 _DEFAULT_HAPP_MAC: Final[str] = "https://apps.apple.com/app/happ-proxy-utility/id6504287215"
 _DEFAULT_HAPP_LINUX: Final[str] = "https://github.com/happ-proxy"
-# RU App Store has a separate Happ listing (the global one is geo-blocked there),
-# so Apple devices get an extra "RU region" download button.
-_DEFAULT_HAPP_IOS_RU: Final[str] = "https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643"
+# Happ's App Store listing is geo-blocked for RU, so Apple devices get an extra
+# button pointing at Incy — an alternative client that stays available there.
+_DEFAULT_INCY_IOS: Final[str] = "https://apps.apple.com/us/app/incy/id6756943388"
 # TV clients import the subscription via a web page (no custom-scheme deep link on
 # TV), with per-platform setup FAQs.
 _DEFAULT_TV_WEB_IMPORT: Final[str] = "https://tv.happ.su"
@@ -30,7 +30,8 @@ class OnboardingConfig(BaseConfig, env_prefix="ONBOARDING_"):
     """
 
     happ_link_ios: str = _DEFAULT_HAPP_IOS
-    happ_link_ios_ru: str = _DEFAULT_HAPP_IOS_RU
+    # RU-region alternative Apple client (Incy) — shown as an extra download button.
+    happ_link_ios_ru: str = _DEFAULT_INCY_IOS
     happ_link_android: str = _DEFAULT_HAPP_ANDROID
     happ_link_windows: str = _DEFAULT_HAPP_WINDOWS
     happ_link_mac: str = _DEFAULT_HAPP_MAC
@@ -47,6 +48,10 @@ class OnboardingConfig(BaseConfig, env_prefix="ONBOARDING_"):
     # Template that wraps the personal subscription URL into a one-tap Happ import
     # deeplink. Kept configurable so a different client scheme can be swapped in.
     happ_import_template: str = "happ://add/{sub_url}"
+    # Same one-tap import deeplink for INCY — the Apple-only alternative client. Its
+    # custom scheme is assumed to mirror Happ's (``<scheme>://add/<full sub url>``);
+    # kept configurable so it can be corrected without a code change if it differs.
+    incy_import_template: str = "incy://add/{sub_url}"
 
     # Pre-connect nudge schedule (hours after funnel start) and frequency cap.
     nudge_delays_hours: str = "0.5,3,24"

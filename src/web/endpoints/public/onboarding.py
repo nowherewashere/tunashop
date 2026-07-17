@@ -26,6 +26,7 @@ async def get_onboarding_config(
     ob = config.onboarding
     return OnboardingConfigResponse(
         happ_import_template=ob.happ_import_template,
+        incy_import_template=ob.incy_import_template,
         refresh_video_url=ob.refresh_video_url or None,
         store_links=OnboardingStoreLinks(
             ios=ob.happ_link_ios,

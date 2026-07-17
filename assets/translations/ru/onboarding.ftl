@@ -18,16 +18,28 @@ msg-onboarding-device =
 msg-onboarding-connect =
     <b>Подключаемся за 3 шага 👇</b>
 
-    <b>1️⃣ Установи Happ</b>
+    <b>1️⃣ Установи { $platform ->
+        [ios] Happ / INCY
+       *[other] Happ
+    }</b>
     <blockquote>
-    Приложение, через которое работает VPN.
+    { $platform ->
+        [ios]
+            Приложения, через которые работает VPN.
+            Happ может быть недоступен для российского региона AppStore.
+       *[other]
+            Приложение, через которое работает VPN.
+    }
     Кнопка «<b>{ btn-onboarding.store }</b>» ниже.
     </blockquote>
 
     <b>2️⃣ Добавь Tuna</b>
     <blockquote>
     Нажми кнопку «<b>{ btn-onboarding.open }</b>» ниже.
-    Если не сработало — скопируй ссылку и добавь её в Happ вручную.
+    Если не сработало — скопируй ссылку и добавь её в { $platform ->
+        [ios] Happ / INCY
+       *[other] Happ
+    } вручную.
     </blockquote>
 
     <b>Ссылка:</b> <code>{ $subscription_url }</code>
@@ -122,8 +134,9 @@ btn-onboarding =
     .web-import = 🌐 Веб-импорт (tv.happ.su)
     .store = ⬇️ Happ для { $platform_title }
     .store-global = ⬇️ Happ (App Store вне РФ)
-    .store-ru = ⬇️ Happ (App Store РФ)
+    .store-ru = ⬇️ Скачать INCY (для РФ)
     .open = ➕ Добавить Tuna VPN
+    .open-incy = ➕ Добавить в INCY
     .copy-link = 📋 Скопировать ссылку Happ
     .works = 🎉 Работает!
     .fail = 😕 Не получается

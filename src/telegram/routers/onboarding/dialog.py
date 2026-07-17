@@ -113,6 +113,16 @@ connect = Window(
             style=Style(ButtonStyle.SUCCESS),
         ),
     ),
+    # INCY import — Apple-only alternative client (getter gates open_url_incy on iOS).
+    Row(
+        Url(
+            text=I18nFormat("btn-onboarding.open-incy"),
+            url=Format("{open_url_incy}"),
+            id="open_incy",
+            when="has_open_url_incy",
+            style=Style(ButtonStyle.SUCCESS),
+        ),
+    ),
     Row(
         Button(
             text=I18nFormat("btn-onboarding.works"),

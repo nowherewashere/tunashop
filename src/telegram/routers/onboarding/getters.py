@@ -62,18 +62,19 @@ def platform_title(platform: str) -> str:
     return PLATFORM_TITLES.get(platform, _PLATFORM_TITLE_DEFAULT)
 
 
-def _happ_open_url(domain: str, sub_url: str) -> str:
-    """HTTPS bouncer URL that redirects to the ``happ://add/<url>`` deep link.
+def _app_open_url(app: str, domain: str, sub_url: str) -> str:
+    """HTTPS bouncer URL that redirects to a client's ``<app>://add/<url>`` deep link.
 
     Telegram rejects custom-scheme URLs in inline buttons, so a real "Открыть в
-    Happ" button must point at an https page that redirects — served by the
-    ``/connect/happ/{payload}`` endpoint. Empty ⇒ the button is hidden.
+    <app>" button must point at an https page that redirects — served by the
+    ``/connect/{app}/{payload}`` endpoint (``app`` allowlisted there). Empty ⇒ the
+    button is hidden.
     """
     if not domain or not sub_url:
         return ""
     payload = base64.urlsafe_b64encode(sub_url.encode()).decode()
     # Must match connect_router's mount (API_V1 prefix) — see connect.py.
-    return f"https://{domain}{API_V1}/connect/happ/{payload}"
+    return f"https://{domain}{API_V1}/connect/{app}/{payload}"
 
 
 async def _emit_connect_funnel(
@@ -114,7 +115,11 @@ async def connect_getter(
     sub_url = current_subscription.url if current_subscription else ""
 
     platform = str(dialog_manager.dialog_data.get("platform", "ios"))
-    open_url = _happ_open_url(config.domain.get_secret_value(), sub_url)
+    is_apple = platform == "ios"
+    domain = config.domain.get_secret_value()
+    open_url = _app_open_url("happ", domain, sub_url)
+    # INCY is the Apple-only alternative client, so its import button only exists there.
+    open_url_incy = _app_open_url("incy", domain, sub_url) if is_apple else ""
 
     await _emit_connect_funnel(
         dialog_manager, event_publisher, user.telegram_id, platform, bool(sub_url)
@@ -125,10 +130,12 @@ async def connect_getter(
         "platform_title": platform_title(platform),
         "store_link": config.onboarding.store_link(platform),
         "store_link_ru": config.onboarding.happ_link_ios_ru,
-        "is_apple": platform == "ios",
+        "is_apple": is_apple,
         "open_url": open_url,
+        "open_url_incy": open_url_incy,
         "subscription_url": sub_url,
         "has_open_url": bool(open_url),
+        "has_open_url_incy": bool(open_url_incy),
     }
 
 
