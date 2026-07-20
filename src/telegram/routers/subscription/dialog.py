@@ -69,6 +69,7 @@ subscription = Window(
             text=I18nFormat("btn-subscription.promocode"),
             id="goto_promocode",
             on_click=lambda c, w, m: m.switch_to(Subscription.PROMOCODE),
+            style=Style(ButtonStyle.SUCCESS),
         ),
     ),
     *back_main_menu_button,
@@ -122,6 +123,7 @@ plans = Window(
             text=I18nFormat("btn-subscription.promocode"),
             id="goto_promocode_plans",
             on_click=lambda c, w, m: m.switch_to(Subscription.PROMOCODE),
+            style=Style(ButtonStyle.SUCCESS),
         ),
     ),
     Row(
