@@ -114,6 +114,16 @@ plans = Window(
             style=Style(ButtonStyle.PRIMARY),
         ),
     ),
+    # Also surfaced here (not just on MAIN): trial and no-subscription users reach the
+    # plan list directly from the menu (goto_buy) and never pass through MAIN, so without
+    # this Row they'd have no way to the secret-code screen.
+    Row(
+        Button(
+            text=I18nFormat("btn-subscription.promocode"),
+            id="goto_promocode_plans",
+            on_click=lambda c, w, m: m.switch_to(Subscription.PROMOCODE),
+        ),
+    ),
     Row(
         SwitchTo(
             text=I18nFormat("btn-back.general"),
