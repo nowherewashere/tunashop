@@ -6,22 +6,14 @@ from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 from loguru import logger
 
-from src.application.common import Notifier
-from src.application.common.dao import SubscriptionDao
+from src.application.common import EventPublisher, Notifier
 from src.application.dto import TelegramUserDto
-from src.application.use_cases.promocode.queries.validate import (
-    ValidatePromocode,
-    ValidatePromocodeDto,
-)
+from src.application.use_cases.promocode.commands.activate import ActivatePromocode
 from src.application.use_cases.user.queries.plans import GetAvailablePlanByCode
+from src.core.config import AppConfig
 from src.core.constants import GOTO_PREFIX, PAYMENT_PREFIX, TARGET_USER_ID
-from src.core.enums import Deeplink, PromocodeRewardType
-from src.core.exceptions import (
-    PromocodeAlreadyActivatedError,
-    PromocodeExpiredError,
-    PromocodeNotAvailableError,
-    PromocodeNotFoundError,
-)
+from src.core.enums import Deeplink
+from src.telegram.routers.subscription.promocode_handlers import activate_and_resolve
 from src.telegram.states import DashboardUser, MainMenu, Subscription, state_from_string
 
 router = Router(name=__name__)
@@ -158,9 +150,9 @@ async def on_goto_promocode(
     command: CommandObject,
     dialog_manager: DialogManager,
     user: TelegramUserDto,
-    validate_promocode: FromDishka[ValidatePromocode],
-    subscription_dao: FromDishka[SubscriptionDao],
-    notifier: FromDishka[Notifier],
+    activate_promocode: FromDishka[ActivatePromocode],
+    event_publisher: FromDishka[EventPublisher],
+    config: FromDishka[AppConfig],
 ) -> None:
     args = command.args or ""
     prefix = Deeplink.PROMOCODE.with_underscore
@@ -179,38 +171,22 @@ async def on_goto_promocode(
         )
         return
 
-    try:
-        promo = await validate_promocode(user, ValidatePromocodeDto(code=code, user=user))
-    except PromocodeAlreadyActivatedError:
-        await notifier.notify_user(user=user, i18n_key="ntf-promocode.already-activated")
-        return
-    except PromocodeExpiredError:
-        await notifier.notify_user(user=user, i18n_key="ntf-promocode.expired")
-        return
-    except (PromocodeNotFoundError, PromocodeNotAvailableError):
-        await notifier.notify_user(user=user, i18n_key="ntf-promocode.not-found")
-        return
-
-    will_replace = False
-    if promo.reward_type == PromocodeRewardType.SUBSCRIPTION:
-        current = await subscription_dao.get_current(user.id)
-        will_replace = current is not None
-
-    logger.info(f"{user.log} Deeplink promocode '{code}' validated, redirecting")
+    # `promo_<CODE>`: activate immediately (one-step) and land on the result screen.
+    target, data = await activate_and_resolve(
+        user,
+        code,
+        activate_promocode=activate_promocode,
+        event_publisher=event_publisher,
+        config=config,
+    )
+    logger.info(f"{user.log} Deeplink promocode '{code}' → {target.state}")
 
     await dialog_manager.bg(
         user_id=user.telegram_id,
         chat_id=user.telegram_id,
     ).start(
-        state=Subscription.PROMOCODE,
-        data={
-            "prefill_dto": {
-                "code": promo.code,
-                "reward_type": promo.reward_type.value,
-                "reward": promo.reward,
-            },
-            "prefill_replace": will_replace,
-        },
+        state=target,
+        data=data,
         mode=StartMode.RESET_STACK,
         show_mode=ShowMode.DELETE_AND_SEND,
     )

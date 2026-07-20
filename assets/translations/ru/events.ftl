@@ -471,12 +471,12 @@ event-promocode =
     .activated =
     #PromocodeActivatedEvent
 
-    <b>🔅 Событие: Активация промокода!</b>
+    <b>🔅 Событие: Активация секретного кода!</b>
 
     { hdr-user }
     { frg-user-info }
 
-    <b>🎟 Промокод</b>
+    <b>🎟 Секретный код</b>
     <blockquote>
     • <b>Код</b>: <code>{ $promocode_code }</code>
     • <b>Тип</b>: { promocode-type }

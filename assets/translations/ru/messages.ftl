@@ -408,10 +408,10 @@ msg-statistics-transactions =
     }
 
 msg-statistics-promocodes =
-    <b>🎁 Статистика по промокодам</b>
+    <b>🎁 Статистика по секретным кодам</b>
 
     <blockquote>
-    • <b>Всего промокодов</b>: { $total_promocodes }
+    • <b>Всего кодов</b>: { $total_promocodes }
     • <b>Активных</b>: { $active_promocodes }
     • <b>Всего активаций</b>: { $total_activations }
     </blockquote>
@@ -432,7 +432,7 @@ msg-statistics-promocodes =
     </blockquote>
 
 msg-statistics-promocode-detail =
-    <b>🎁 Промокод</b> <code>{ $code }</code>
+    <b>🎁 Секретный код</b> <code>{ $code }</code>
 
     <blockquote>
     • <b>Тип</b>: { promocode-type }
@@ -1853,10 +1853,10 @@ msg-importer-sync-bot-completed =
 
 
 # Promocodes
-msg-promocodes-main = <b>🎟 Промокоды</b>
+msg-promocodes-main = <b>🎟 Секретные коды</b>
 
 msg-promocode-configurator =
-    <b>🎟 Конфигуратор промокода</b>
+    <b>🎟 Конфигуратор секретного кода</b>
 
     <blockquote>
     • <b>Код</b>: <code>{ $code }</code>
@@ -1931,7 +1931,7 @@ msg-promocode-select-plan-duration =
 msg-promocode-select-availability =
     <b>✴️ Изменить доступность</b>
 
-    Выберите доступность промокода.
+    Выберите доступность секретного кода.
 
 msg-promocode-input-expires =
     <b>⌛ Действует до</b>
@@ -1962,12 +1962,51 @@ msg-promocode-input-max-activations =
     Введите максимальное количество активаций.
 
 msg-promocode-input =
-    <b>🎟 Промокод</b>
+    <b>❓ Секретный код</b>
 
-    Введи промокод.
+    Вводи секретный код и получай бонусы от Tuna VPN 🐟
 
+    ✍️ Отправь код сообщением в чат — активируем разовый бонус.
+
+msg-promocode-success =
+    <b>✅ Секретный код активирован!</b>
+
+    Бонус активирован — { $reward_type ->
+        [DURATION] { $reward ->
+            [0] подписка стала <b>бессрочной</b>.
+            *[OTHER] <b>{ $reward } { $reward ->
+                [one] день
+                [few] дня
+                *[more] дней
+            }</b> добавлено к сроку подписки.
+        }
+        [TRAFFIC] { $reward ->
+            [0] <b>безлимитный трафик</b> в подписке.
+            *[OTHER] <b>+{ $reward } ГБ</b> к лимиту трафика.
+        }
+        [DEVICES] { $reward ->
+            [0] <b>безлимит по устройствам</b>.
+            *[OTHER] <b>+{ $reward } { $reward ->
+                [one] устройство
+                [few] устройства
+                *[more] устройств
+            }</b> к лимиту устройств.
+        }
+        [SUBSCRIPTION] подписка обновлена на <b>новый план</b>.
+        [PERSONAL_DISCOUNT] скидка <b>{ $reward }%</b> применится к любым покупкам.
+        [PURCHASE_DISCOUNT] скидка <b>{ $reward }%</b> применится к следующей покупке, на любом тарифе.
+        *[OTHER] бонус зачислен на аккаунт.
+    }
+
+msg-promocode-failed =
+    <b>🤔 Секретный код не сработал</b>
+
+    Проверь символы или попробуй другой — возможно, срок действия уже истёк.
+
+# Legacy two-step confirm screen — unused since secret codes activate in one step
+# (kept only so the FTL key resolves; safe to prune later).
 msg-promocode-confirm =
-    <b>🎟 Промокод <code>{ $promo_code }</code></b>
+    <b>🎟 Секретный код <code>{ $promo_code }</code></b>
 
     🎁 Ты получишь: { $reward_type ->
         [DURATION] { $reward ->

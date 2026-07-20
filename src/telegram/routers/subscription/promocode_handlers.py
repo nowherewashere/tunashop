@@ -1,125 +1,62 @@
-from typing import Any, cast
+from typing import Any
 
-from aiogram.types import CallbackQuery, Message
-from aiogram_dialog import DialogManager, ShowMode, StartMode
+from aiogram.fsm.state import State
+from aiogram.types import Message
+from aiogram_dialog import DialogManager, ShowMode
 from aiogram_dialog.widgets.input import MessageInput
-from aiogram_dialog.widgets.kbd import Button
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 from loguru import logger
 
-from src.application.common import EventPublisher, Notifier
-from src.application.common.dao import SubscriptionDao
+from src.application.common import EventPublisher
 from src.application.dto import TelegramUserDto
 from src.application.events import ErrorEvent
 from src.application.use_cases.promocode.commands.activate import (
     ActivatePromocode,
     ActivatePromocodeDto,
 )
-from src.application.use_cases.promocode.queries.validate import (
-    ValidatePromocode,
-    ValidatePromocodeDto,
-)
 from src.core.config import AppConfig
 from src.core.constants import USER_KEY
-from src.core.enums import PromocodeRewardType
 from src.core.exceptions import (
     PromocodeAlreadyActivatedError,
     PromocodeExpiredError,
     PromocodeNotAvailableError,
     PromocodeNotFoundError,
 )
-from src.telegram.states import MainMenu
-from src.telegram.utils import is_double_click
+from src.telegram.states import Subscription
 
-PENDING_PROMO_KEY = "pending_promo_code"
-PENDING_PROMO_DTO_KEY = "pending_promo_dto"
-PENDING_PROMO_REPLACE_KEY = "pending_promo_replace"
-
-
-@inject
-async def on_promocode_input(
-    message: Message,
-    widget: MessageInput,
-    dialog_manager: DialogManager,
-    validate_promocode: FromDishka[ValidatePromocode],
-    subscription_dao: FromDishka[SubscriptionDao],
-    notifier: FromDishka[Notifier],
-) -> None:
-    dialog_manager.show_mode = ShowMode.EDIT
-    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
-    code = (message.text or "").strip().upper()
-
-    if not code:
-        return
-
-    try:
-        promo = await validate_promocode(user, ValidatePromocodeDto(code=code, user=user))
-    except PromocodeNotFoundError:
-        await notifier.notify_user(user, i18n_key="ntf-promocode.not-found")
-        return
-    except PromocodeAlreadyActivatedError:
-        await notifier.notify_user(user, i18n_key="ntf-promocode.already-activated")
-        return
-    except PromocodeExpiredError:
-        await notifier.notify_user(user, i18n_key="ntf-promocode.expired")
-        return
-    except PromocodeNotAvailableError:
-        await notifier.notify_user(user, i18n_key="ntf-promocode.not-available")
-        return
-
-    will_replace = False
-    if promo.reward_type == PromocodeRewardType.SUBSCRIPTION:
-        current = await subscription_dao.get_current(user.id)
-        will_replace = current is not None
-
-    logger.info(f"{user.log} Promocode '{code}' validated, pending confirmation")
-
-    dialog_manager.dialog_data[PENDING_PROMO_KEY] = promo.code
-    dialog_manager.dialog_data[PENDING_PROMO_DTO_KEY] = {
-        "code": promo.code,
-        "reward_type": promo.reward_type.value,
-        "reward": promo.reward,
-    }
-    dialog_manager.dialog_data[PENDING_PROMO_REPLACE_KEY] = will_replace
+# Keys under which the success screen's reward wording is passed (dialog_data for the
+# in-dialog input flow, start_data for the deeplink flow — see getter_promocode_success).
+REWARD_TYPE_KEY = "reward_type"
+REWARD_KEY = "reward"
 
 
-@inject
-async def on_promocode_confirm(
-    callback: CallbackQuery,
-    widget: Button,
-    dialog_manager: DialogManager,
-    activate_promocode: FromDishka[ActivatePromocode],
-    notifier: FromDishka[Notifier],
-    event_publisher: FromDishka[EventPublisher],
-    config: FromDishka[AppConfig],
-) -> None:
-    if is_double_click(dialog_manager, key="promo_confirm"):
-        return
+async def activate_and_resolve(
+    user: TelegramUserDto,
+    code: str,
+    *,
+    activate_promocode: ActivatePromocode,
+    event_publisher: EventPublisher,
+    config: AppConfig,
+) -> tuple[State, dict[str, Any]]:
+    """Activate `code` and resolve which result window to show plus its render data.
 
-    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
-    code = dialog_manager.dialog_data.get(PENDING_PROMO_KEY)
-
-    if not code:
-        return
-
+    Shared by the in-dialog message input and the `promo_<CODE>` deeplink so both drive
+    the same one-step flow (send code → «принят» / «не сработал»). Every validation
+    failure collapses to the single failed window; unexpected errors are reported via
+    an ErrorEvent (as before) and also land on the failed window.
+    """
     try:
         promo = await activate_promocode(user, ActivatePromocodeDto(code=code, user=user))
-    except PromocodeAlreadyActivatedError:
-        await notifier.notify_user(user, i18n_key="ntf-promocode.already-activated")
-        return
-    except PromocodeExpiredError:
-        await notifier.notify_user(user, i18n_key="ntf-promocode.expired")
-        return
-    except PromocodeNotFoundError:
-        await notifier.notify_user(user, i18n_key="ntf-promocode.not-found")
-        return
-    except PromocodeNotAvailableError:
-        await notifier.notify_user(user, i18n_key="ntf-promocode.not-available")
-        return
+    except (
+        PromocodeNotFoundError,
+        PromocodeExpiredError,
+        PromocodeAlreadyActivatedError,
+        PromocodeNotAvailableError,
+    ):
+        return Subscription.PROMOCODE_FAILED, {}
     except Exception as exc:
         logger.exception(f"{user.log} Promocode '{code}' activation failed unexpectedly")
-        await notifier.notify_user(user, i18n_key="ntf-promocode.activation-failed")
         await event_publisher.publish(
             ErrorEvent(
                 **config.build.data,
@@ -129,36 +66,50 @@ async def on_promocode_confirm(
                 exception=exc,
             )
         )
-        return
+        return Subscription.PROMOCODE_FAILED, {}
 
     logger.info(f"{user.log} Activated promocode '{promo.code}'")
-    await notifier.notify_user(user, i18n_key="ntf-promocode.activated")
-    await dialog_manager.start(MainMenu.MAIN, mode=StartMode.RESET_STACK)
-
-
-async def getter_promocode(dialog_manager: DialogManager, **kwargs: Any) -> dict[str, Any]:
-    if dialog_manager.start_data and not dialog_manager.dialog_data.get(PENDING_PROMO_KEY):
-        start_data = cast(dict[str, Any], dialog_manager.start_data)
-        prefill_dto = start_data.get("prefill_dto")
-        if prefill_dto:
-            dialog_manager.dialog_data[PENDING_PROMO_KEY] = prefill_dto["code"]
-            dialog_manager.dialog_data[PENDING_PROMO_DTO_KEY] = prefill_dto
-            dialog_manager.dialog_data[PENDING_PROMO_REPLACE_KEY] = start_data.get(
-                "prefill_replace", False
-            )
-
-    promo_data: dict[str, Any] = cast(
-        dict[str, Any], dialog_manager.dialog_data.get(PENDING_PROMO_DTO_KEY, {})
-    )
-    reward_type = promo_data.get("reward_type", "")
-    return {
-        "has_promo": bool(promo_data),
-        "promo_code": promo_data.get("code", dialog_manager.dialog_data.get(PENDING_PROMO_KEY, "")),
-        "promo_reward_type": reward_type,
-        "promo_reward": promo_data.get("reward") or 0,
-        "show_reset_warning": reward_type
-        in {PromocodeRewardType.TRAFFIC.value, PromocodeRewardType.DEVICES.value},
-        "will_replace_subscription": bool(
-            dialog_manager.dialog_data.get(PENDING_PROMO_REPLACE_KEY)
-        ),
+    return Subscription.PROMOCODE_SUCCESS, {
+        REWARD_TYPE_KEY: promo.reward_type.value,
+        # reward is None for SUBSCRIPTION-type codes; that branch ignores it, and 0 is a
+        # legitimate value elsewhere (DURATION 0 = «бессрочно»).
+        REWARD_KEY: promo.reward if promo.reward is not None else 0,
     }
+
+
+@inject
+async def on_promocode_input(
+    message: Message,
+    widget: MessageInput,
+    dialog_manager: DialogManager,
+    activate_promocode: FromDishka[ActivatePromocode],
+    event_publisher: FromDishka[EventPublisher],
+    config: FromDishka[AppConfig],
+) -> None:
+    dialog_manager.show_mode = ShowMode.EDIT
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    code = (message.text or "").strip().upper()
+
+    if not code:
+        return
+
+    target, data = await activate_and_resolve(
+        user,
+        code,
+        activate_promocode=activate_promocode,
+        event_publisher=event_publisher,
+        config=config,
+    )
+    dialog_manager.dialog_data.update(data)
+    await dialog_manager.switch_to(target)
+
+
+async def getter_promocode_success(dialog_manager: DialogManager, **kwargs: Any) -> dict[str, Any]:
+    start_data = dialog_manager.start_data if isinstance(dialog_manager.start_data, dict) else {}
+    reward_type = (
+        dialog_manager.dialog_data.get(REWARD_TYPE_KEY) or start_data.get(REWARD_TYPE_KEY) or ""
+    )
+    reward = dialog_manager.dialog_data.get(REWARD_KEY)
+    if reward is None:
+        reward = start_data.get(REWARD_KEY, 0)
+    return {"reward_type": reward_type, "reward": reward or 0}

@@ -48,6 +48,8 @@ class Onboarding(StatesGroup):
 class Subscription(StatesGroup):
     MAIN = State()
     PROMOCODE = State()
+    PROMOCODE_SUCCESS = State()  # «Секретный код активирован»
+    PROMOCODE_FAILED = State()  # «Секретный код не сработал»
     PLAN = State()
     PLANS = State()
     DURATION = State()

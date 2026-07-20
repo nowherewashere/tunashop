@@ -37,7 +37,7 @@ from .handlers import (
     on_subscription_plans,
     on_subscription_start,
 )
-from .promocode_handlers import getter_promocode, on_promocode_confirm, on_promocode_input
+from .promocode_handlers import getter_promocode_success, on_promocode_input
 
 subscription = Window(
     DataBanner(),
@@ -64,15 +64,13 @@ subscription = Window(
             style=Style(ButtonStyle.PRIMARY),
         ),
     ),
-    # Promocode entry hidden for now (per product decision). The PROMOCODE screen
-    # and its handlers are left intact — restore this Row to re-enable it.
-    # Row(
-    #     Button(
-    #         text=I18nFormat("btn-subscription.promocode"),
-    #         id="goto_promocode",
-    #         on_click=lambda c, w, m: m.switch_to(Subscription.PROMOCODE),
-    #     ),
-    # ),
+    Row(
+        Button(
+            text=I18nFormat("btn-subscription.promocode"),
+            id="goto_promocode",
+            on_click=lambda c, w, m: m.switch_to(Subscription.PROMOCODE),
+        ),
+    ),
     *back_main_menu_button,
     IgnoreUpdate(),
     state=Subscription.MAIN,
@@ -319,39 +317,60 @@ failed = Window(
     state=Subscription.FAILED,
 )
 
+# Secret-code entry. Sending a code activates it immediately (one step) and routes
+# to the success/failed result window — see on_promocode_input.
 promocode_window = Window(
     Banner(BannerName.PROMOCODE),
-    I18nFormat("msg-promocode-input", ~F["has_promo"]),
-    I18nFormat(
-        "msg-promocode-confirm",
-        F["has_promo"],
-        promo_code=F["promo_code"],
-        reward_type=F["promo_reward_type"],
-        reward=F["promo_reward"],
-        show_reset_warning=F["show_reset_warning"],
-        will_replace_subscription=F["will_replace_subscription"],
-    ),
+    I18nFormat("msg-promocode-input"),
     MessageInput(on_promocode_input),
-    Row(
-        Button(
-            text=I18nFormat("btn-subscription.promocode-confirm"),
-            id="confirm_promo",
-            on_click=on_promocode_confirm,
-            when=F["has_promo"],
-        ),
-    ),
     SwitchTo(
         text=I18nFormat("btn-back.general"),
-        id="back_main",
+        id="promo_back",
         state=Subscription.MAIN,
     ),
     state=Subscription.PROMOCODE,
-    getter=getter_promocode,
+)
+
+# «Секретный код активирован» — reuses the payment-success banner. Reward wording is
+# rendered from reward_type/reward supplied by getter_promocode_success.
+promocode_success = Window(
+    Banner(BannerName.SUCCESS),
+    I18nFormat(
+        "msg-promocode-success",
+        reward_type=F["reward_type"],
+        reward=F["reward"],
+    ),
+    Button(
+        text=I18nFormat("btn-subscription.promocode-goto"),
+        id="promo_goto_sub",
+        on_click=lambda c, w, m: m.switch_to(Subscription.MAIN),
+        style=Style(ButtonStyle.PRIMARY),
+    ),
+    *back_main_menu_button,
+    IgnoreUpdate(),
+    state=Subscription.PROMOCODE_SUCCESS,
+    getter=getter_promocode_success,
+)
+
+# «Секретный код не сработал» — single copy covers every validation failure.
+promocode_failed = Window(
+    Banner(BannerName.PROMOCODE),
+    I18nFormat("msg-promocode-failed"),
+    SwitchTo(
+        text=I18nFormat("btn-subscription.promocode-retry"),
+        id="promo_retry",
+        state=Subscription.PROMOCODE,
+    ),
+    *back_main_menu_button,
+    IgnoreUpdate(),
+    state=Subscription.PROMOCODE_FAILED,
 )
 
 router = Dialog(
     subscription,
     promocode_window,
+    promocode_success,
+    promocode_failed,
     plan,
     plans,
     duration,

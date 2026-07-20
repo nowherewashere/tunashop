@@ -465,7 +465,7 @@ notification-type = { $notification_type ->
     [BOT_UPDATE] Обновления бота
     [USER_REGISTERED] Регистрация пользователя
     [SUBSCRIPTION] Оформление подписки
-    [PROMOCODE_ACTIVATED] Активация промокода
+    [PROMOCODE_ACTIVATED] Активация секретного кода
     [TRIAL_ACTIVATED] Активация пробника
     [NODE_STATUS_CHANGED] Статус узла
     [NODE_TRAFFIC_REACHED] Трафик узла
