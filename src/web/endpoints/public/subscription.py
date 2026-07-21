@@ -681,4 +681,6 @@ async def get_subscription_offers(
         current_subscription_status=(
             current_subscription.current_status.value if current_subscription else None
         ),
+        discount_percent=pricing_service.get_effective_discount(user),
+        discount_is_personal=pricing_service.is_largest_discount_personal(user),
     )

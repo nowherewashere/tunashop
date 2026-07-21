@@ -148,3 +148,10 @@ class SubscriptionOffersResponse(BaseModel):
     plans: list[PlanOfferResponse]
     has_current_subscription: bool
     current_subscription_status: Optional[str] = None
+    # Effective user discount (%), already baked into every price above (0 = none) —
+    # lets the site show a «скидка активна» indicator without recomputing prices.
+    discount_percent: int = 0
+    # True when that discount is the persistent personal one; False when it's the
+    # one-time purchase discount (spent on the next purchase). Mirrors the bot's
+    # «персональной / разовой скидки» wording.
+    discount_is_personal: bool = False
