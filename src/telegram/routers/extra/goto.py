@@ -79,11 +79,17 @@ async def on_goto(
         return
 
     logger.debug(f"{user.log} Redirected to '{state}'")
+    # Landing directly on the plan list bypasses the Subscription.MAIN chooser, so
+    # the purchase is always NEW. Seed it via `goto_buy` (handled in
+    # on_subscription_start), exactly like the menu's direct-to-PLANS buttons —
+    # otherwise `purchase_type` stays unset and the payment steps raise KeyError.
+    start_data = {"goto_buy": True} if state == Subscription.PLANS else None
     await dialog_manager.bg(
         user_id=user.telegram_id,
         chat_id=user.telegram_id,
     ).start(
         state=state,
+        data=start_data,
         mode=StartMode.RESET_STACK,
         show_mode=ShowMode.DELETE_AND_SEND,
     )

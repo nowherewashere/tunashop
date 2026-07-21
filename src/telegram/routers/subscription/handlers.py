@@ -53,6 +53,20 @@ CURRENT_DURATION_KEY = "selected_duration"
 CURRENT_METHOD_KEY = "selected_payment_method"
 
 
+def _resolve_purchase_type(dialog_manager: DialogManager) -> PurchaseType:
+    # Single source of truth for reading purchase_type off the dialog context. It is
+    # seeded on entry (on_subscription_start via goto_buy/trial_plan, or on_subscription_plans
+    # on the MAIN chooser), but a stale/desynced context — an old inline keyboard tapped after
+    # a stack reset, storage eviction, or a bot restart mid-flow — can reach the payment steps
+    # with it unset. Default to NEW (bypassing the MAIN chooser always implies a new purchase)
+    # so a missing key recovers safely instead of crashing the whole flow to the main menu.
+    purchase_type = dialog_manager.dialog_data.get("purchase_type")
+    if purchase_type is None:
+        logger.warning("purchase_type missing in dialog_data; defaulting to NEW")
+        return PurchaseType.NEW
+    return cast(PurchaseType, purchase_type)
+
+
 class CachedPaymentData(TypedDict):
     payment_id: str
     payment_url: Optional[str]
@@ -105,7 +119,7 @@ async def _create_payment_and_get_data(
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     duration = plan.get_duration(duration_days)
     payment_gateway = await payment_gateway_dao.get_by_type(gateway_type)
-    purchase_type: PurchaseType = dialog_manager.dialog_data["purchase_type"]
+    purchase_type = _resolve_purchase_type(dialog_manager)
 
     if not duration or not payment_gateway:
         logger.error(f"{user.log} Failed to find duration or gateway for payment creation")
@@ -234,53 +248,6 @@ async def _resolve_renew_plan(
     logger.warning(f"{user.log} Tried to renew, but no matching plan found")
     await notifier.notify_user(user, i18n_key="ntf-subscription.renew-plan-unavailable")
     return True
-
-
-@inject
-async def on_purchase_type_select(
-    purchase_type: PurchaseType,
-    dialog_manager: DialogManager,
-    retort: FromDishka[Retort],
-    subscription_dao: FromDishka[SubscriptionDao],
-    payment_gateway_dao: FromDishka[PaymentGatewayDao],
-    notifier: FromDishka[Notifier],
-    match_plan: FromDishka[MatchPlan],
-    get_available_plans: FromDishka[GetAvailablePlans],
-) -> None:
-    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
-    plans: list[PlanDto] = await get_available_plans.system(user)
-    gateways = await payment_gateway_dao.get_active()
-    dialog_manager.dialog_data["purchase_type"] = purchase_type
-    dialog_manager.dialog_data.pop(CURRENT_DURATION_KEY, None)
-    dialog_manager.dialog_data.pop(PAYMENT_CACHE_KEY, None)
-
-    if not plans:
-        logger.warning(f"{user.log} No available subscription plans")
-        await notifier.notify_user(user, i18n_key="ntf-subscription.plans-unavailable")
-        return
-
-    if not gateways:
-        logger.warning(f"{user.log} No active payment gateways")
-        await notifier.notify_user(user, i18n_key="ntf-subscription.gateways-unavailable")
-        return
-
-    current_subscription = await subscription_dao.get_current(user.id)
-
-    if purchase_type == PurchaseType.RENEW:
-        if await _resolve_renew_plan(
-            user, dialog_manager, current_subscription, plans, match_plan, notifier, retort
-        ):
-            return
-
-    if len(plans) == 1:
-        logger.info(f"{user.log} Auto-selected single plan '{plans[0].id}'")
-        dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(plans[0])
-        dialog_manager.dialog_data["only_single_plan"] = True
-        await dialog_manager.switch_to(state=Subscription.DURATION)
-        return
-
-    dialog_manager.dialog_data["only_single_plan"] = False
-    await dialog_manager.switch_to(state=Subscription.PLANS)
 
 
 @inject
@@ -480,7 +447,7 @@ async def on_duration_select(
         if routed:
             return
 
-        purchase_type: PurchaseType = dialog_manager.dialog_data["purchase_type"]
+        purchase_type = _resolve_purchase_type(dialog_manager)
         cache = _load_payment_data(dialog_manager)
         cache_key = _get_cache_key(
             selected_duration, selected_payment_method, purchase_type, payment_method
@@ -535,7 +502,7 @@ async def on_payment_method_select(
 
     selected_duration = dialog_manager.dialog_data[CURRENT_DURATION_KEY]
     dialog_manager.dialog_data[CURRENT_METHOD_KEY] = selected_payment_method
-    purchase_type: PurchaseType = dialog_manager.dialog_data["purchase_type"]
+    purchase_type = _resolve_purchase_type(dialog_manager)
 
     raw_plan = dialog_manager.dialog_data.get(PlanDto.__name__)
 
@@ -611,7 +578,7 @@ async def on_platega_method_select(
     dialog_manager.dialog_data["selected_platega_method"] = selected_method
 
     selected_duration = dialog_manager.dialog_data[CURRENT_DURATION_KEY]
-    purchase_type: PurchaseType = dialog_manager.dialog_data["purchase_type"]
+    purchase_type = _resolve_purchase_type(dialog_manager)
     gateway_type = PaymentGatewayType.PLATEGA  # the picker is only reached for Platega
 
     raw_plan = dialog_manager.dialog_data.get(PlanDto.__name__)
