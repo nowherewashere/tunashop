@@ -104,6 +104,7 @@ class DashboardPromocodes(StatesGroup):
     PLAN_DURATION = State()
     EXPIRES = State()
     MAX_ACTIVATIONS = State()
+    OWNER = State()  # владелец/инфлюенсер: привязка активировавших к его рефералке
 
 
 class DashboardAccess(StatesGroup):

@@ -278,6 +278,7 @@ btn-promocodes =
     .plan = 📦 План
     .expires = ⌛ Срок действия
     .max-activations = 🔢 Лимит активаций
+    .owner = 👤 Владелец (инфлюенсер)
     .reset = 🔄 Сбросить
 
     .plan-duration = { $days -> 

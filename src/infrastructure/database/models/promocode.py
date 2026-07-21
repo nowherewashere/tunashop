@@ -28,6 +28,13 @@ class Promocode(BaseSql, TimestampMixin):
     max_activations: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     is_reusable: Mapped[bool] = mapped_column(nullable=False, server_default=text("false"))
 
+    # Optional influencer/owner: on successful activation the redeeming user is attached to
+    # this owner's referral (they earn commission on the user's future payments). SET NULL —
+    # deleting the owner must never delete the promocode; the merge DAO repoints it instead.
+    owner_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     activations: Mapped[list["PromocodeActivation"]] = relationship(
         back_populates="promocode",
         cascade="all, delete-orphan",

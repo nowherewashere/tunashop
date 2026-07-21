@@ -9,6 +9,7 @@ from src.infrastructure.database.models import (
     BalanceSpend,
     BroadcastMessage,
     Payout,
+    Promocode,
     PromocodeActivation,
     Referral,
     ReferralCodeAlias,
@@ -64,6 +65,14 @@ class AccountMergeDaoImpl(AccountMergeDao):
             update(BalanceSpend)
             .where(BalanceSpend.user_id == loser_id)
             .values(user_id=survivor_id)
+        )
+        # Influencer promocodes owned by the loser: keep them earning for the survivor.
+        # owner_user_id is ON DELETE SET NULL, so omitting this would silently detach the
+        # absorbed influencer's codes (their commission would stop) once the loser is deleted.
+        await self.session.execute(
+            update(Promocode).where(Promocode.owner_user_id == loser_id).values(
+                owner_user_id=survivor_id
+            )
         )
 
         await self._reassign_referrals(survivor_id, loser_id)

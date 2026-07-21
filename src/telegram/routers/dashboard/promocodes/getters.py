@@ -6,6 +6,7 @@ from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 
 from src.application.common import TranslatorRunner
+from src.application.common.dao import UserDao
 from src.application.common.policy import Permission, PermissionPolicy
 from src.application.dto import PromocodeDto
 from src.application.use_cases.promocode.queries.get import (
@@ -49,11 +50,27 @@ async def getter_promocodes_main(
     }
 
 
+async def _owner_label(owner_user_id: int | None, user_dao: UserDao) -> str:
+    # Prefer @username, then Telegram ID — both are HTML-safe. The arbitrary display name
+    # is deliberately not rendered (it could contain markup breaking the HTML message).
+    if owner_user_id is None:
+        return "—"
+    owner = await user_dao.get_by_id(owner_user_id)
+    if not owner:
+        return f"#{owner_user_id}"
+    if owner.username:
+        return f"@{owner.username}"
+    if owner.telegram_id:
+        return f"ID {owner.telegram_id}"
+    return f"#{owner_user_id}"
+
+
 @inject
 async def getter_configurator(
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
     i18n: FromDishka[TranslatorRunner],
+    user_dao: FromDishka[UserDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
     raw = dialog_manager.dialog_data.get(PromocodeDto.__name__)
@@ -90,6 +107,7 @@ async def getter_configurator(
         "max_activations": str(promo.max_activations)
         if promo.max_activations is not None
         else i18n.get("unlimited"),
+        "owner": await _owner_label(promo.owner_user_id, user_dao),
         "can_manage": can_manage,
     }
 
@@ -222,4 +240,23 @@ async def getter_max_activations(
     return {
         "has_max_activations": promo.max_activations is not None,
         "max_activations": str(promo.max_activations) if promo.max_activations is not None else 0,
+    }
+
+
+@inject
+async def getter_owner(
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    user_dao: FromDishka[UserDao],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    raw = dialog_manager.dialog_data.get(PromocodeDto.__name__)
+    if not raw:
+        return {"has_owner": False, "owner": 0}
+    promo = retort.load(raw, PromocodeDto)
+    has_owner = promo.owner_user_id is not None
+    # 0 is the "not set" sentinel for the FTL branch; a real owner is a non-empty string.
+    return {
+        "has_owner": has_owner,
+        "owner": await _owner_label(promo.owner_user_id, user_dao) if has_owner else 0,
     }

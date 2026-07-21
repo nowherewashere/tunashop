@@ -40,6 +40,7 @@ class PromocodeDaoImpl(PromocodeDao):
             expires_at=promocode.expires_at,
             max_activations=promocode.max_activations,
             is_reusable=promocode.is_reusable,
+            owner_user_id=promocode.owner_user_id,
         )
         self.session.add(db)
         try:

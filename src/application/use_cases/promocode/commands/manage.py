@@ -22,6 +22,7 @@ class CreatePromocodeDto:
     expires_at: Optional[datetime] = None
     max_activations: Optional[int] = None
     is_reusable: bool = False
+    owner_user_id: Optional[int] = None
 
 
 class CreatePromocode(Interactor[CreatePromocodeDto, PromocodeDto]):
@@ -79,6 +80,7 @@ class CreatePromocode(Interactor[CreatePromocodeDto, PromocodeDto]):
             expires_at=data.expires_at,
             max_activations=data.max_activations,
             is_reusable=data.is_reusable,
+            owner_user_id=data.owner_user_id,
         )
 
         async with self.uow:

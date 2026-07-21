@@ -17,6 +17,7 @@ from .getters import (
     getter_configurator,
     getter_expires,
     getter_max_activations,
+    getter_owner,
     getter_plan_duration_select,
     getter_plan_select,
     getter_promocodes_main,
@@ -33,6 +34,8 @@ from .handlers import (
     on_expires_reset,
     on_max_activations_input,
     on_max_activations_reset,
+    on_owner_clear,
+    on_owner_input,
     on_page_next,
     on_page_prev,
     on_plan_duration_select,
@@ -159,6 +162,13 @@ configurator = Window(
             text=I18nFormat("btn-promocodes.max-activations"),
             id="max_activations",
             state=DashboardPromocodes.MAX_ACTIVATIONS,
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-promocodes.owner"),
+            id="owner",
+            state=DashboardPromocodes.OWNER,
         ),
     ),
     Row(
@@ -394,6 +404,30 @@ max_activations_input = Window(
     getter=getter_max_activations,
 )
 
+owner_input = Window(
+    Banner(BannerName.DASHBOARD),
+    I18nFormat("msg-promocode-input-owner"),
+    Row(
+        Button(
+            text=I18nFormat("btn-promocodes.reset"),
+            id="reset",
+            on_click=on_owner_clear,
+            when=F["has_owner"],
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=DashboardPromocodes.CONFIGURATOR,
+        ),
+    ),
+    MessageInput(func=on_owner_input),
+    IgnoreUpdate(),
+    state=DashboardPromocodes.OWNER,
+    getter=getter_owner,
+)
+
 router = Dialog(
     promocodes_main,
     configurator,
@@ -405,4 +439,5 @@ router = Dialog(
     availability_select,
     expires_input,
     max_activations_input,
+    owner_input,
 )

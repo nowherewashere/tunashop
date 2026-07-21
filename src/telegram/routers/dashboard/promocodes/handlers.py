@@ -22,6 +22,7 @@ from src.application.use_cases.promocode.commands.manage import (
 from src.application.use_cases.promocode.queries.generate import GeneratePromocodeCode
 from src.application.use_cases.promocode.queries.get import GetPromocode
 from src.application.use_cases.user.queries.plans import GetAvailablePlans
+from src.application.use_cases.user.queries.search import SearchUsers, SearchUsersDto
 from src.core.constants import TIMEZONE, USER_KEY
 from src.core.enums import PromocodeAvailability, PromocodeRewardType
 from src.core.utils.time import datetime_now
@@ -141,6 +142,7 @@ async def on_promo_confirm(
                     availability=promo.availability,
                     expires_at=promo.expires_at,
                     max_activations=promo.max_activations,
+                    owner_user_id=promo.owner_user_id,
                 ),
             )
         except ValueError:
@@ -423,6 +425,59 @@ async def on_max_activations_reset(
 ) -> None:
     promo = _load(dialog_manager, retort)
     promo.max_activations = None
+    _save(dialog_manager, retort, promo)
+    await dialog_manager.switch_to(DashboardPromocodes.CONFIGURATOR)
+
+
+@inject
+async def on_owner_input(
+    message: Message,
+    widget: MessageInput,
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    notifier: FromDishka[Notifier],
+    search_users: FromDishka[SearchUsers],
+) -> None:
+    dialog_manager.show_mode = ShowMode.EDIT
+    user = dialog_manager.middleware_data[USER_KEY]
+    raw = (message.text or "").strip()
+    if not raw:
+        await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
+        return
+
+    # Reuse the dashboard user resolver (@username / Telegram ID / internal id). `.system`
+    # bypasses its USER_SEARCH permission — the actor here already holds MANAGE_PROMOCODE.
+    found = await search_users.system(SearchUsersDto(query=raw))
+    if not found:
+        await notifier.notify_user(user, i18n_key="ntf-promocode.owner-not-found")
+        return
+    if len(found) > 1:
+        # A partial-name query can match several accounts; only an exact @username
+        # disambiguates. Otherwise ask the admin to use a Telegram ID.
+        handle = raw.removeprefix("@").casefold()
+        exact = [u for u in found if (u.username or "").casefold() == handle]
+        if len(exact) != 1:
+            await notifier.notify_user(user, i18n_key="ntf-promocode.owner-ambiguous")
+            return
+        found = exact
+
+    owner = found[0]
+    promo = _load(dialog_manager, retort)
+    promo.owner_user_id = owner.id
+    _save(dialog_manager, retort, promo)
+    await notifier.notify_user(user, i18n_key="ntf-promocode.owner-set")
+    await dialog_manager.switch_to(DashboardPromocodes.CONFIGURATOR)
+
+
+@inject
+async def on_owner_clear(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+) -> None:
+    promo = _load(dialog_manager, retort)
+    promo.owner_user_id = None
     _save(dialog_manager, retort, promo)
     await dialog_manager.switch_to(DashboardPromocodes.CONFIGURATOR)
 

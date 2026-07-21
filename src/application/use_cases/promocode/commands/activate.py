@@ -18,6 +18,10 @@ from src.application.use_cases.promocode.queries.validate import (
     ValidatePromocode,
     ValidatePromocodeDto,
 )
+from src.application.use_cases.referral.commands.attachment import (
+    AttachReferral,
+    AttachReferralDto,
+)
 from src.core.enums import PromocodeRewardType, SubscriptionStatus
 from src.core.utils.converters import days_to_datetime
 from src.core.utils.time import datetime_now
@@ -47,6 +51,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
         subscription_dao: SubscriptionDao,
         remnawave: Remnawave,
         validate_promocode: ValidatePromocode,
+        attach_referral: AttachReferral,
         event_publisher: EventPublisher,
         retort: Retort,
         proration: SubscriptionProrationService,
@@ -57,6 +62,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
         self.subscription_dao = subscription_dao
         self.remnawave = remnawave
         self.validate_promocode = validate_promocode
+        self.attach_referral = attach_referral
         self.event_publisher = event_publisher
         self.retort = retort
         self.proration = proration
@@ -92,6 +98,10 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
 
         logger.info(f"{actor.log} Activated promocode '{promo.code}'")
 
+        # Influencer attribution runs only after the activation has committed (reward granted),
+        # so a code whose reward could not apply never attaches a referrer.
+        await self._attach_owner_referral(user, promo)
+
         event = PromocodeActivatedEvent(
             user_id=user.id,
             telegram_id=user.telegram_id,
@@ -107,6 +117,33 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
         await self.event_publisher.publish(event)
 
         return promo
+
+    async def _attach_owner_referral(self, user: UserDto, promo: PromocodeDto) -> None:
+        """Attach the redeeming user to the promocode owner's (influencer's) referral.
+
+        AttachReferral is the single authority on attribution: it already skips when the
+        referral system is off, on self-referral, and — crucially — when the user ALREADY
+        has a referrer (a promocode must never overwrite an existing inviter). No guard is
+        duplicated here. Best-effort: a failure must not undo the reward just granted.
+        """
+        if promo.owner_user_id is None:
+            return
+        owner = await self.user_dao.get_by_id(promo.owner_user_id)
+        if not owner or not owner.referral_code:
+            logger.warning(
+                f"Promocode '{promo.code}' owner id={promo.owner_user_id} is missing or has "
+                f"no referral code; skipping influencer attribution"
+            )
+            return
+        try:
+            await self.attach_referral.system(
+                AttachReferralDto(user_id=user.id, referral_code=owner.referral_code)
+            )
+        except Exception as exc:
+            logger.error(
+                f"Failed to attach influencer referral for promocode '{promo.code}' "
+                f"(owner id={promo.owner_user_id}, user id={user.id}): {exc}"
+            )
 
     async def _apply_reward_remote(
         self,
