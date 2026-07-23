@@ -22,6 +22,7 @@ from src.application.use_cases.statistics.queries.users import GetUsersStatistic
 from src.core.constants import USER_KEY
 from src.core.enums import Currency, PromocodeRewardType
 from src.core.utils.i18n_helpers import i18n_format_days
+from src.telegram.utils import translate_or_literal
 
 PROMO_STAT_PAGE_KEY = "promo_stat_page"
 PROMO_STAT_ID_KEY = "promo_stat_id"
@@ -237,7 +238,7 @@ def _detail_reward(
     plan_name = "—"
     if plan_snapshot:
         raw_name = plan_snapshot.get("name", "?")
-        name = i18n.get(raw_name) if raw_name else "?"
+        name = translate_or_literal(i18n, raw_name) if raw_name else "?"
         duration = plan_snapshot.get("duration")
         plan_name = f"{name} ({i18n.get('unit-day', value=duration)})" if duration else str(name)
     return i18n.get(

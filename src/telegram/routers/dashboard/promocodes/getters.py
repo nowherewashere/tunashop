@@ -16,6 +16,7 @@ from src.application.use_cases.promocode.queries.get import (
 from src.application.use_cases.user.queries.plans import GetAvailablePlans
 from src.core.constants import USER_KEY
 from src.core.enums import PromocodeAvailability, PromocodeRewardType
+from src.telegram.utils import translate_or_literal
 
 PROMO_PAGE_KEY = "promo_page"
 PAGE_SIZE = 10
@@ -116,7 +117,7 @@ def _format_plan_snapshot(snapshot: dict[str, Any] | None, i18n: TranslatorRunne
     if not snapshot:
         return "—"
     raw_name = snapshot.get("name", "?")
-    name = i18n.get(raw_name) if raw_name else "?"
+    name = translate_or_literal(i18n, raw_name) if raw_name else "?"
     duration = snapshot.get("duration")
     return f"{name} ({i18n.get('unit-day', value=duration)})" if duration else str(name)
 
@@ -148,7 +149,7 @@ async def getter_plan_select(
     user = dialog_manager.middleware_data[USER_KEY]
     plans = await get_available_plans.system(user)
     return {
-        "plans": [{"id": p.id, "name": i18n.get(p.name)} for p in plans],
+        "plans": [{"id": p.id, "name": translate_or_literal(i18n, p.name)} for p in plans],
     }
 
 

@@ -86,7 +86,12 @@ class TranslatorRunnerImpl(TranslatorRunner):
             and isinstance(data[0], str)
             and isinstance(data[1], dict)
         ):
-            return self.get(data[0], **self._translate_values(data[1]))
+            translated_kwargs = self._translate_values(data[1])
+            if not translated_kwargs:
+                # Every (key, {}) pair in events carries a plan snapshot name, which may
+                # be an admin-entered literal rather than a key — resolve it quietly.
+                return self.get_optional(data[0]) or data[0]
+            return self.get(data[0], **translated_kwargs)
 
         if isinstance(data, dict) and "key" in data:
             key = data.pop("key")
