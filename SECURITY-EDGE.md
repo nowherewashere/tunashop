@@ -80,8 +80,23 @@ of logs and rotate it if there is any doubt.
 
 It also publishes no source ranges, which is why `/api/v1/payments/` carries a rate
 limit but **no** allow/deny list: a blanket allowlist there would reject every real
-Platega callback. Only `/api/v1/telegram` is allowlisted, where the ranges are
-documented and stable.
+Platega callback.
+
+## No IP allowlists at the edge, by decision
+
+No webhook route is pinned to a source address — not payments, not `/api/v1/telegram`,
+not `/api/v1/remnawave`. Every one of them is already authenticated by something the
+caller cannot guess (a constant-time secret token for Telegram, an HMAC over the raw
+body for Remnawave and most gateways), so an allowlist would add little beyond
+insurance against a leaked secret.
+
+What it *would* add is a silent failure mode: Telegram delivering from a new range, or
+a panel migration changing an address, stops the webhook with no error anyone sees
+until users complain. That trade was judged not worth it. Rate limits carry the volume
+protection instead.
+
+If a secret is ever suspected of leaking, rotate it — that is the response this design
+relies on.
 
 ## Out of scope
 
