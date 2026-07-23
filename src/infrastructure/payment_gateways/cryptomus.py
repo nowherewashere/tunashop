@@ -139,10 +139,10 @@ class CryptomusGateway(BasePaymentGateway):
         return PaymentResultDto(id=UUID(payment_id_str), url=str(payment_url))
 
     def _verify_webhook(self, request: Request, data: dict) -> bool:
-        ip = self._get_ip(request.headers)
+        ip = self._get_ip(request)
 
         if not self._is_ip_trusted(ip):
-            logger.critical(f"Webhook received from untrusted IP: '{ip}'")
+            self._log_untrusted_ip(ip)
             return False
 
         sign = data.pop("sign", None)

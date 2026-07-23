@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from decimal import Decimal
-from ipaddress import ip_address, ip_network
 from typing import Optional, Protocol, Union
 from uuid import UUID
 
@@ -9,12 +8,23 @@ from aiogram import Bot
 from fastapi import Request, Response
 from httpx import AsyncClient, Timeout
 from loguru import logger
-from starlette.datastructures import Headers
 
 from src.application.dto import PaymentGatewayDto, PaymentResultDto
 from src.core.config import AppConfig
 from src.core.constants import T_ME
 from src.core.enums import TransactionStatus
+from src.core.utils.log_throttle import LogThrottle, log_throttled
+from src.core.utils.net import (
+    CF_CONNECTING_IP_HEADER,
+    FORWARDED_FOR_HEADER,
+    UNKNOWN_IP,
+    is_ip_in_networks,
+    resolve_client_ip,
+)
+
+# Shared across gateway instances on purpose: instances are built per request, so a
+# per-instance throttle would reset every time and suppress nothing.
+_REJECTION_LOG = LogThrottle()
 
 
 class PaymentGatewayFactory(Protocol):
@@ -92,24 +102,40 @@ class BasePaymentGateway(ABC):
     def _is_test_payment(self, payment_id: str) -> bool:
         return payment_id.startswith("test:")
 
-    def _is_ip_in_network(self, ip: str, network: str) -> bool:
-        try:
-            return ip_address(ip) in ip_network(network, strict=False)
-        except Exception as e:
-            logger.error(f"Failed to check IP '{ip}' in network '{network}': {e}")
-            return False
-
     def _is_ip_trusted(self, ip: str) -> bool:
-        return any(self._is_ip_in_network(ip, net) for net in self.NETWORKS)
+        return is_ip_in_networks(ip, self.NETWORKS)
 
-    def _get_ip(self, headers: Headers) -> str:
-        ip = (
-            headers.get("CF-Connecting-IP")
-            or headers.get("X-Real-IP")
-            or headers.get("X-Forwarded-For")
+    def _log_rejection(self, kind: str, message: str, level: str = "WARNING") -> None:
+        """Report a rejected webhook, at most once per interval per kind.
+
+        Anyone can POST at these endpoints, so one line per rejection let an
+        attacker drive disk writes and drown out the genuine alerts. ``kind`` must
+        stay low-cardinality — never an IP or other caller-supplied value.
+        """
+        log_throttled(_REJECTION_LOG, f"{kind}:{self.__class__.__name__}", level, message)
+
+    def _log_untrusted_ip(self, ip: str) -> None:
+        self._log_rejection(
+            "untrusted-ip", f"Webhook received from untrusted IP: '{ip}'", "CRITICAL"
         )
 
-        if not ip:
-            raise PermissionError("Client IP not found in request headers")
+    def _get_ip(self, request: Request) -> str:
+        """Source address of the webhook call.
+
+        Resolved through the shared walker so the provider allowlists below key on
+        a hop we can actually attribute; reading the client-settable first hop (as
+        this used to) made them spoofable. They stay defence in depth regardless —
+        the signature check in each gateway is the real gate.
+        """
+        ip = resolve_client_ip(
+            peer_ip=request.client.host if request.client else None,
+            forwarded_for=request.headers.get(FORWARDED_FOR_HEADER),
+            trusted_proxy_cidrs=self.config.trusted_proxy_cidrs,
+            proxy_header_ip=request.headers.get(CF_CONNECTING_IP_HEADER),
+            trust_proxy_header=self.config.trust_cf_connecting_ip,
+        )
+
+        if ip == UNKNOWN_IP:
+            raise PermissionError("Client IP could not be determined from the request")
 
         return ip

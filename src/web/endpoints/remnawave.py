@@ -18,8 +18,14 @@ from src.application.events import ErrorEvent
 from src.application.services import RemnaWebhookService
 from src.core.config import AppConfig
 from src.core.constants import API_V1, REMNAWAVE_WEBHOOK_PATH
+from src.core.utils.log_throttle import LogThrottle, log_throttled
 
 router = APIRouter(prefix=API_V1, include_in_schema=False)
+
+# This endpoint is reachable by anyone, and every rejection below used to write its
+# own line — a traceback, in the parse case. Collapse repeats so a junk-POST flood
+# cannot drive disk writes or bury the real events.
+_REJECTION_LOG = LogThrottle()
 
 
 def _adapt_hwid_device_payload(body: dict[str, Any]) -> None:
@@ -66,7 +72,9 @@ async def _process_remnawave_webhook(
             headers=dict(request.headers),
             webhook_secret=config.remnawave.webhook_secret.get_secret_value(),
         ):
-            logger.warning("Webhook signature validation failed")
+            log_throttled(
+                _REJECTION_LOG, "bad-signature", "WARNING", "Webhook signature validation failed"
+            )
             raise HTTPException(status_code=401)
 
         body = json.loads(raw_str)
@@ -81,11 +89,22 @@ async def _process_remnawave_webhook(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Webhook validation failed with error '{e}'")
+        # Kept at exception level so a genuine bug still yields a traceback, but
+        # throttled: a malformed body is client-controlled and would otherwise print
+        # a full traceback per request.
+        log_throttled(
+            _REJECTION_LOG,
+            "validation-error",
+            "ERROR",
+            f"Webhook validation failed: '{e}'",
+            exception=True,
+        )
         raise HTTPException(status_code=401)
 
     if not payload:
-        logger.warning("Payload is empty after validation")
+        log_throttled(
+            _REJECTION_LOG, "empty-payload", "WARNING", "Payload is empty after validation"
+        )
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     try:

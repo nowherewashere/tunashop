@@ -29,4 +29,10 @@ class EmailConfig(BaseConfig, env_prefix="EMAIL_"):
     # (captcha + per-email are the tighter gates). Tune via EMAIL_CODE_* env.
     code_max_per_email: int = 5
     code_max_per_ip: int = 60
+    # Backstop across every caller: per-email caps protect one victim, but nothing
+    # bounded a spray across many distinct addresses, which is what turns this
+    # endpoint into a spam cannon (sender reputation, provider cost). Deliberately
+    # generous — locking real users out of login is worse than a bounded burst — so
+    # raise it via EMAIL_CODE_MAX_GLOBAL if legitimate volume ever approaches it.
+    code_max_global: int = 1000
     code_rate_window_seconds: int = 3600

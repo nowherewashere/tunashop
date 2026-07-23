@@ -132,13 +132,14 @@ async def request_email_login_code(
     body: RequestEmailLoginCodeRequest,
     request: Request,
     request_login_code: FromDishka[RequestEmailLoginCode],
+    config: FromDishka[AppConfig],
 ) -> RequestEmailLoginCodeResponse:
     try:
         result = await request_login_code.system(
             RequestEmailLoginCodeDto(
                 email=body.email,
                 referral_code=body.referral_code,
-                ip=get_client_ip(request),
+                ip=get_client_ip(request, config),
                 turnstile_token=body.turnstile_token,
             )
         )

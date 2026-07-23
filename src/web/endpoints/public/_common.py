@@ -13,6 +13,11 @@ from src.application.common.dao.auth import AuthSessionDao
 from src.application.dto import UserDto
 from src.core.config import AppConfig
 from src.core.constants import ACCESS_TOKEN_TTL_SECONDS, REFRESH_TOKEN_TTL_SECONDS
+from src.core.utils.net import (
+    CF_CONNECTING_IP_HEADER,
+    FORWARDED_FOR_HEADER,
+    resolve_client_ip,
+)
 from src.web.schemas import AuthResponse
 
 
@@ -38,16 +43,20 @@ def decode_access_token(token: str, key: str) -> int:
         raise jwt.InvalidTokenError("Invalid 'sub' claim") from e
 
 
-def get_client_ip(request: Request) -> str:
-    # Behind Cloudflare + nginx: prefer CF's real-client header, then the first
-    # X-Forwarded-For hop, then the direct peer.
-    cf_ip = request.headers.get("cf-connecting-ip")
-    if cf_ip:
-        return cf_ip.strip()
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+def get_client_ip(request: Request, config: AppConfig) -> str:
+    """Client address for IP-keyed controls (rate limits), or ``"unknown"``.
+
+    Delegates to the shared resolver so the web layer and the payment gateways
+    agree on what a client IP is — see ``src/core/utils/net.py`` for why the
+    X-Forwarded-For walk runs right-to-left instead of trusting the first hop.
+    """
+    return resolve_client_ip(
+        peer_ip=request.client.host if request.client else None,
+        forwarded_for=request.headers.get(FORWARDED_FOR_HEADER),
+        trusted_proxy_cidrs=config.trusted_proxy_cidrs,
+        proxy_header_ip=request.headers.get(CF_CONNECTING_IP_HEADER),
+        trust_proxy_header=config.trust_cf_connecting_ip,
+    )
 
 
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:

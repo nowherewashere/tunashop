@@ -44,6 +44,20 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
     turnstile_site_key: str = Field(default="", validation_alias="TURNSTILE_SITE_KEY")
     assets_dir: Path = ASSETS_DIR
     origins: StringList = StringList("")
+    # Reverse proxies whose X-Forwarded-For hops may be believed. The real client is
+    # recovered by walking that header from the right while hops fall inside these
+    # networks (src/core/utils/net.py), so this list defines what "our infrastructure"
+    # means — everything IP-keyed (rate limits, gateway source checks) depends on it.
+    # Defaults cover loopback plus the RFC1918 ranges Docker allocates its bridge from,
+    # matching the "nginx on the host -> container" deployment. Add a CDN's egress
+    # ranges here when one is placed in front, or its edge becomes the "client".
+    trusted_proxy_cidrs: StringList = StringList(
+        "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128"
+    )
+    # Believe CF-Connecting-IP. Only enable when Cloudflare genuinely fronts the origin
+    # and overwrites the header; with nothing in front, any client can set it freely and
+    # forge its own address (which is exactly how this used to be exploitable).
+    trust_cf_connecting_ip: bool = False
     swagger_enabled: bool = False
     web_enabled: bool = Field(default=False, validation_alias="WEB_ENABLED")
     web_cabinet_url: str = Field(default="", validation_alias="WEB_CABINET_URL")

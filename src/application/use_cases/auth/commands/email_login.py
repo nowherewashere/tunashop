@@ -53,9 +53,11 @@ class RequestEmailLoginCode(Interactor[RequestEmailLoginCodeDto, EmailLoginCodeR
     ``email_verification_code_hash``/``email_verification_expires_at`` columns.
 
     NOTE: this endpoint is anonymous and creates a user row for an unseen email, so it MUST be
-    fronted by rate-limiting (email+IP) and a captcha (Cloudflare Turnstile) to prevent account
-    farming and email bombing — see the website-backend spec §9.3. The per-email resend cooldown
-    below only throttles repeat requests for an already-seen email.
+    fronted by rate-limiting (email+IP+global) and a captcha (Cloudflare Turnstile) to prevent
+    account farming and email bombing — see the website-backend spec §9.3. The per-email resend
+    cooldown below only throttles repeat requests for an already-seen email. The captcha is the
+    only gate that does not depend on the client IP being attributable, so the global cap is what
+    still holds if IP attribution is ever wrong.
     """
 
     required_permission = None
@@ -150,6 +152,15 @@ class RequestEmailLoginCode(Interactor[RequestEmailLoginCodeDto, EmailLoginCodeR
             "otp_email",
             data.email,
             limit=email_cfg.code_max_per_email,
+            window_seconds=email_cfg.code_rate_window_seconds,
+        ):
+            raise too_many
+        # Checked last, so a single abusive email/IP is rejected above without
+        # spending the shared budget that keeps everyone else able to log in.
+        if not await self.rate_limiter.hit(
+            "otp_global",
+            "all",
+            limit=email_cfg.code_max_global,
             window_seconds=email_cfg.code_rate_window_seconds,
         ):
             raise too_many

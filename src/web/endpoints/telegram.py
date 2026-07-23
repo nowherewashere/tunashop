@@ -9,7 +9,18 @@ from dishka.integrations.fastapi import FromDishka, inject
 from fastapi import Body, FastAPI, Header, HTTPException, Response, status
 from loguru import logger
 
+from src.core.utils.log_throttle import LogThrottle, log_throttled
+
+# How many updates may execute dispatcher work at once (bounds DB connections etc.).
 _MAX_CONCURRENT_UPDATES = 100
+# Ceiling on updates accepted but not yet finished. The semaphore bounds how many
+# *run*, not how many pile up waiting for it, so a burst previously grew the task
+# set — and memory — without limit while every caller still got a 200 and any
+# update lost to an overloaded process vanished silently. Past this ceiling the
+# delivery is failed instead, so Telegram redelivers it later.
+_MAX_INFLIGHT_UPDATES = 1000
+# Overload is a sustained condition; one line a minute is enough to see it.
+_OVERLOAD_LOG_INTERVAL_SECONDS = 60.0
 
 
 class TelegramWebhookEndpoint:
@@ -22,6 +33,7 @@ class TelegramWebhookEndpoint:
         self.secret_token = secret_token
         self._feed_update_tasks = set()
         self._semaphore = asyncio.Semaphore(_MAX_CONCURRENT_UPDATES)
+        self._overload_log = LogThrottle(_OVERLOAD_LOG_INTERVAL_SECONDS)
 
     async def startup(self) -> None:
         await self.dispatcher.emit_startup(**self.dispatcher.workflow_data)
@@ -77,6 +89,19 @@ class TelegramWebhookEndpoint:
             logger.warning(f"Invalid secret token provided for update '{update.update_id}'")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid secret token"
+            )
+
+        if len(self._feed_update_tasks) >= _MAX_INFLIGHT_UPDATES:
+            log_throttled(
+                self._overload_log,
+                "inflight-full",
+                "ERROR",
+                f"Update backlog at capacity ({_MAX_INFLIGHT_UPDATES}); "
+                f"rejecting update '{update.update_id}' for redelivery",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Update backlog is full",
             )
 
         task = asyncio.create_task(self._feed_update(bot, update))

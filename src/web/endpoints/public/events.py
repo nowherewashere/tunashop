@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from src.application.common import EventPublisher
 from src.application.common.dao import RateLimiter
 from src.application.events.metrics import FunnelStepEvent
+from src.core.config import AppConfig
 from src.core.metrics import FUNNEL_UI_STEPS, FunnelStep, MetricSource
 from src.web.endpoints.public._common import get_client_ip
 
@@ -18,6 +19,13 @@ router = APIRouter(prefix="/events", tags=["Public - Metrics"])
 # Abuse guard for the open (pre-auth) write endpoint: generous, per-IP, fixed window.
 _FUNNEL_RATE_LIMIT = 120
 _FUNNEL_RATE_WINDOW_SECONDS = 60
+# Absolute backstop across all callers. Per-IP attribution is only as good as the
+# proxy chain (src/core/utils/net.py); this endpoint is unauthenticated, uncaptcha'd
+# and writes a row per accepted call, so a ceiling that holds even when attribution
+# fails is what actually bounds the damage. ~50 events/s sits far above realistic
+# onboarding traffic — dropping telemetry above it is acceptable by the
+# fire-and-forget contract below.
+_FUNNEL_GLOBAL_RATE_LIMIT = 3000
 _PLATFORM_MAX_LEN = 32
 
 
@@ -36,6 +44,7 @@ async def track_funnel_step(
     request: Request,
     event_publisher: FromDishka[EventPublisher],
     rate_limiter: FromDishka[RateLimiter],
+    config: FromDishka[AppConfig],
 ) -> Response:
     """Record one onboarding funnel step from the static site (metrics spec §5).
 
@@ -53,8 +62,10 @@ async def track_funnel_step(
     if payload.step not in FUNNEL_UI_STEPS:
         return no_content
 
-    ip = get_client_ip(request)
+    ip = get_client_ip(request, config)
     try:
+        # Per-IP first, so one noisy source is stopped without eating the shared
+        # budget that protects everyone else.
         within_limit = await rate_limiter.hit(
             "funnel_metrics",
             ip,
@@ -62,6 +73,15 @@ async def track_funnel_step(
             window_seconds=_FUNNEL_RATE_WINDOW_SECONDS,
         )
         if not within_limit:
+            return no_content
+
+        within_global_limit = await rate_limiter.hit(
+            "funnel_metrics_global",
+            "all",
+            limit=_FUNNEL_GLOBAL_RATE_LIMIT,
+            window_seconds=_FUNNEL_RATE_WINDOW_SECONDS,
+        )
+        if not within_global_limit:
             return no_content
 
         await event_publisher.publish(

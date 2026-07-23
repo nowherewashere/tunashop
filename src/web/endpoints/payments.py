@@ -15,11 +15,19 @@ from src.core.config import AppConfig
 from src.core.constants import API_V1, PAYMENTS_WEBHOOK_PATH
 from src.core.enums import PaymentGatewayType, TransactionStatus
 from src.core.exceptions import GatewayNotConfiguredError
+from src.core.utils.log_throttle import LogThrottle, log_throttled
 from src.infrastructure.payment_gateways import PlategaGateway
 from src.infrastructure.payment_gateways.base import BasePaymentGateway
 from src.infrastructure.taskiq.tasks.payments import handle_payment_transaction_task
 
 router = APIRouter(prefix=API_V1 + PAYMENTS_WEBHOOK_PATH, include_in_schema=False)
+
+# Unauthenticated callers reach every rejection path below, so repeats are collapsed
+# into one line per interval — otherwise a junk-POST flood is a disk-write amplifier
+# and drowns out real payment failures.
+_REJECTION_LOG = LogThrottle()
+# The gateway segment comes straight from the URL; echo only enough to diagnose.
+_GATEWAY_ECHO_MAX_LEN = 32
 
 
 async def _build_response(
@@ -102,7 +110,14 @@ async def _process_payment_webhook(
     try:
         gateway_enum = PaymentGatewayType(gateway_type.upper())
     except ValueError:
-        logger.exception(f"Invalid gateway type received: '{gateway_type}'")
+        # Not an error condition: anyone can POST an arbitrary path segment. It used
+        # to log a full traceback per request, which is a free amplifier.
+        log_throttled(
+            _REJECTION_LOG,
+            "unknown-gateway",
+            "WARNING",
+            f"Invalid gateway type received: '{gateway_type[:_GATEWAY_ECHO_MAX_LEN]}'",
+        )
         return Response(status_code=status.HTTP_404_NOT_FOUND)
 
     gateway: Optional[BasePaymentGateway] = None
@@ -110,13 +125,32 @@ async def _process_payment_webhook(
         gateway = await get_payment_gateway_instance.system(gateway_enum)
         result = await gateway.handle_webhook(request)
     except GatewayNotConfiguredError:
-        logger.warning(f"Webhook received for inactive/unconfigured gateway '{gateway_enum}'")
+        log_throttled(
+            _REJECTION_LOG,
+            f"not-configured:{gateway_enum}",
+            "WARNING",
+            f"Webhook received for inactive/unconfigured gateway '{gateway_enum}'",
+        )
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     except PermissionError:
-        logger.warning(f"Webhook signature verification failed for '{gateway_enum}'")
+        log_throttled(
+            _REJECTION_LOG,
+            f"bad-signature:{gateway_enum}",
+            "WARNING",
+            f"Webhook signature verification failed for '{gateway_enum}'",
+        )
         return Response(status_code=status.HTTP_403_FORBIDDEN)
     except Exception as e:
-        logger.exception(f"Error processing webhook for '{gateway_type}': {e}")
+        # Throttled but kept at exception level, and the ErrorEvent below is still
+        # published every time: a real gateway fault must stay visible even while a
+        # flood is in progress.
+        log_throttled(
+            _REJECTION_LOG,
+            f"processing-error:{gateway_enum}",
+            "ERROR",
+            f"Error processing webhook for '{gateway_enum}': {e}",
+            exception=True,
+        )
         error_event = ErrorEvent(**config.build.data, exception=e)
         await event_publisher.publish(error_event)
         return await _build_response(gateway, request, gateway_type)

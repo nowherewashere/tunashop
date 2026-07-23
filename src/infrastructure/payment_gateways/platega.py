@@ -156,18 +156,35 @@ class PlategaGateway(BasePaymentGateway):
         return payment_method or None
 
     def _verify_webhook(self, request: Request) -> bool:
+        """Authenticate a Platega callback by its static credential headers.
+
+        Weaker than the other gateways by the provider's design: Cryptomus, CryptoPay
+        and Remnawave sign the request *body*, so a tampered payload fails. Platega
+        sends a fixed X-Secret instead, which proves only that the caller knows the
+        shared secret — there is no body integrity and nothing binds a callback to a
+        single delivery, so anyone holding that secret can forge or replay any
+        payment. Consequences: the secret must never reach logs or error reports, and
+        rotating it invalidates every forged copy at once.
+
+        Platega publishes no source IP ranges, so NETWORKS is empty for this gateway
+        and the edge deliberately does not allowlist /api/v1/payments/ either — doing
+        so would reject every real callback (see deploy/nginx/nginx.conf). If the
+        provider ever documents its egress, pin it in both places.
+        """
         merchant_id = request.headers.get("X-MerchantId")
         secret = request.headers.get("X-Secret")
 
         if not merchant_id or not secret:
-            logger.warning("Webhook is missing X-MerchantId or X-Secret headers")
+            self._log_rejection(
+                "missing-headers", "Webhook is missing X-MerchantId or X-Secret headers"
+            )
             return False
 
         merchant_id_ok = hmac.compare_digest(merchant_id, self.merchant_id)
         secret_ok = hmac.compare_digest(secret, self.api_key)
 
         if not merchant_id_ok or not secret_ok:
-            logger.warning("Invalid Platega webhook credentials")
+            self._log_rejection("bad-credentials", "Invalid Platega webhook credentials")
             return False
 
         return True
