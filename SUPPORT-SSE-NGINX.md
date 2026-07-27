@@ -41,7 +41,7 @@ limit_conn_zone $binary_remote_addr zone=support_sse_conn:10m;
 limit_req_zone  $binary_remote_addr zone=support_sse_req:10m rate=30r/m;
 ```
 
-## Add this to the edge nginx `server { … }` for tuna-vpn.com
+## Add this to the edge nginx `server { … }` for the site domain (`v-tuna.com`)
 
 Place it **before** the generic `location /api/v1/ { … }` block so it wins for this
 exact path. Copy your existing `/api/v1/` block's `proxy_pass` target and forwarded
@@ -112,7 +112,7 @@ block, so ordering doesn't matter. Reload nginx — for the Dockerised edge here
 ```bash
 # Should stream (stays open), NOT return all-at-once. Expect an immediate ": keep-alive"
 # comment within ~20s if idle, and headers with no Content-Length + X-Accel-Buffering: no.
-curl -N -H 'Cookie: access_token=<valid>' https://tuna-vpn.com/api/v1/public/support/stream
+curl -N -H 'Cookie: access_token=<valid>' https://v-tuna.com/api/v1/public/support/stream
 ```
 
 If `curl -N` blocks and then dumps everything only when the connection closes, buffering
