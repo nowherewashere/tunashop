@@ -8,6 +8,7 @@ from loguru import logger
 
 from src.application.common import BotService, Interactor
 from src.application.common.dao import BotLoginDao, BotLoginRequest, UserDao
+from src.application.common.policy import Permission
 from src.application.dto import UserDto
 from src.application.use_cases.auth.commands.oauth import hash_binding
 from src.core.config import AppConfig
@@ -84,7 +85,10 @@ class ResolveBotLogin(Interactor[ResolveBotLoginDto, bool]):
     the bot turns into "ссылка устарела" rather than a silent no-op.
     """
 
-    required_permission = None
+    # PUBLIC, not None: `None` means "only ever invoked via .system()", and the base
+    # Interactor refuses a real actor on that setting. This one is deliberately called
+    # with the pressing user, so it needs an actual permission — same as LinkTelegram.
+    required_permission = Permission.PUBLIC
 
     def __init__(self, bot_login_dao: BotLoginDao) -> None:
         self.bot_login_dao = bot_login_dao
