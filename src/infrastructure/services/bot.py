@@ -125,6 +125,12 @@ class BotService:
         base_url = await self._get_bot_redirect_url()
         return Deeplink.USERCARD.build_url(base_url, str(user_id))
 
+    async def get_web_login_url(self, token: str) -> str:
+        # Opens this bot with a one-time token from a sign-in started on the website;
+        # on_web_login asks the person to confirm before it is honoured.
+        base_url = await self._get_bot_redirect_url()
+        return Deeplink.WEBLOGIN.build_url(base_url, token)
+
     def get_support_url(self, text: Optional[str] = None) -> str:
         # When the in-bot support chat is on, funnel every "contact support" button into
         # this bot's ?start=support deep link (handled by on_support_entry) instead of the

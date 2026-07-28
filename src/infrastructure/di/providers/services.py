@@ -10,6 +10,7 @@ from src.application.common import (
     FileDownloader,
     HttpClient,
     Notifier,
+    OAuthClientRegistry,
     PasswordHasher,
     PaymentNotificationDispatcher,
     Redirect,
@@ -40,6 +41,7 @@ from src.infrastructure.services import (
     NotificationQueue,
     NotificationService,
     NotificationWorker,
+    OAuthClientRegistryImpl,
     PasswordHasherImpl,
     PaymentNotificationDispatcherImpl,
     RedirectImpl,
@@ -67,6 +69,13 @@ class ServicesProvider(Provider):
         if config.email.console:
             return ConsoleEmailSender()
         return SmtpEmailSender(config)
+
+    @provide(scope=Scope.APP)
+    def oauth_clients(self, config: AppConfig) -> OAuthClientRegistry:
+        # Built from config at startup: only providers that are both enabled and
+        # implemented get a client, so a misconfiguration shows up in the boot log
+        # rather than mid-redirect on a user's first click.
+        return OAuthClientRegistryImpl(config)
 
     http_client = provide(source=AiohttpClient, provides=HttpClient)
     turnstile = provide(source=TurnstileVerifierImpl, provides=TurnstileVerifier)

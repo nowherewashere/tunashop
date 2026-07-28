@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,3 +24,7 @@ class UserOAuthProvider(BaseSql, TimestampMixin):
     )
     provider: Mapped[OAuthProvider] = mapped_column(String(32))
     provider_id: Mapped[str] = mapped_column(String(255))
+    # Address the provider reported at link time. DISPLAY ONLY — never an input to an
+    # authentication decision (see migration 0053); matching happens on provider_id,
+    # or on users.email guarded by the provider's signed email_verified claim.
+    provider_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

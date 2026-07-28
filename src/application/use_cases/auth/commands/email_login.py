@@ -1,4 +1,5 @@
 import hmac
+import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
@@ -7,7 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from src.application.common import Interactor, TurnstileVerifier
-from src.application.common.dao import RateLimiter, UserDao
+from src.application.common.dao import EmailLoginLinkDao, RateLimiter, UserDao
 from src.application.common.email_sender import EmailSender
 from src.application.common.uow import UnitOfWork
 from src.application.dto import UserDto
@@ -22,10 +23,10 @@ from src.application.use_cases.user.commands.web_registration import (
 )
 from src.core.config import AppConfig
 from src.core.constants import (
-    EMAIL_VERIFICATION_BODY_TEMPLATE,
     EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
-    EMAIL_VERIFICATION_SUBJECT,
+    TIME_1M,
 )
+from src.core.email_templates import render_login_code_email
 from src.core.enums import AuthType
 from src.core.exceptions import EmailDeliveryDisabledError
 from src.core.utils.time import datetime_now
@@ -71,6 +72,7 @@ class RequestEmailLoginCode(Interactor[RequestEmailLoginCodeDto, EmailLoginCodeR
         register_web_user: RegisterWebUser,
         rate_limiter: RateLimiter,
         turnstile: TurnstileVerifier,
+        email_login_link: EmailLoginLinkDao,
     ) -> None:
         self.config = config
         self.uow = uow
@@ -79,6 +81,7 @@ class RequestEmailLoginCode(Interactor[RequestEmailLoginCodeDto, EmailLoginCodeR
         self.register_web_user = register_web_user
         self.rate_limiter = rate_limiter
         self.turnstile = turnstile
+        self.email_login_link = email_login_link
 
     async def _execute(
         self, actor: UserDto, data: RequestEmailLoginCodeDto
@@ -111,12 +114,27 @@ class RequestEmailLoginCode(Interactor[RequestEmailLoginCodeDto, EmailLoginCodeR
         expires_at = datetime_now() + timedelta(minutes=ttl_minutes)
         code_hash = hash_email_verification_code(code, self.config.crypt_key.get_secret_value())
 
+        # One-tap alternative to typing the code. Stored before the send so a link that
+        # reaches an inbox is always live; an unused token just expires with the code.
+        # Skipped when no site URL is configured — then the email carries only the code.
+        link_url = None
+        site_url = self.config.web_cabinet_url.rstrip("/")
+        if site_url:
+            link_token = secrets.token_urlsafe(32)
+            await self.email_login_link.put(link_token, data.email, ttl=ttl_minutes * TIME_1M)
+            link_url = f"{site_url}/login/link?t={link_token}"
+
+        message = render_login_code_email(
+            code=code, minutes=ttl_minutes, link_url=link_url, site_url=site_url
+        )
+
         # Send first; persist/create only on successful delivery so a failed send does not
         # leave a started cooldown or a phantom account (mirrors RequestEmailVerification).
         await self.email_sender.send(
             to=data.email,
-            subject=EMAIL_VERIFICATION_SUBJECT,
-            body=EMAIL_VERIFICATION_BODY_TEMPLATE.format(code=code, minutes=ttl_minutes),
+            subject=message.subject,
+            body=message.text,
+            html=message.html,
         )
 
         if user is None:
@@ -194,6 +212,67 @@ class RequestEmailLoginCode(Interactor[RequestEmailLoginCodeDto, EmailLoginCodeR
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="User creation conflict"
             ) from e
+
+
+@dataclass
+class VerifyEmailLoginLinkDto:
+    token: str
+
+
+class VerifyEmailLoginLink(Interactor[VerifyEmailLoginLinkDto, UserDto]):
+    """Consume a mailed one-tap sign-in link.
+
+    The link is a bearer credential — anyone holding it is treated as the address's
+    owner, exactly like the code — so it is single-use, expires with the code, and is
+    stored only as a hash.
+
+    It is deliberately consumed by a POST the user triggers on a confirmation page, not
+    by opening the link: corporate mail scanners and link-preview crawlers follow URLs
+    in email, and a GET that signed the user in would be burned before they ever
+    clicked. That page is the only reason this flow is safe to mail at all.
+    """
+
+    required_permission = None
+
+    def __init__(
+        self,
+        uow: UnitOfWork,
+        user_dao: UserDao,
+        email_login_link: EmailLoginLinkDao,
+    ) -> None:
+        self.uow = uow
+        self.user_dao = user_dao
+        self.email_login_link = email_login_link
+
+    async def _execute(self, actor: UserDto, data: VerifyEmailLoginLinkDto) -> UserDto:
+        invalid = HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired link"
+        )
+        email = await self.email_login_link.consume(data.token)
+        if not email:
+            raise invalid
+
+        user = await self.user_dao.get_by_email(email)
+        if user is None:
+            raise invalid
+        if user.is_blocked:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is blocked")
+
+        # Delivery to that address is the proof of ownership, same as the code path —
+        # and the pending code is dropped so one request cannot be used twice.
+        user.is_email_verified = True
+        user.email_verification_code_hash = None
+        user.email_verification_expires_at = None
+
+        async with self.uow:
+            updated = await self.user_dao.update(user)
+            if not updated:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found during link login",
+                )
+            await self.uow.commit()
+        return updated
 
 
 @dataclass

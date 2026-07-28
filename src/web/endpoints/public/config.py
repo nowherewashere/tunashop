@@ -2,6 +2,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import inject
 from fastapi import APIRouter
 
+from src.application.common import OAuthClientRegistry
 from src.application.common.dao import PlanDao
 from src.core.config import AppConfig
 from src.core.constants import T_ME
@@ -15,6 +16,7 @@ router = APIRouter(tags=["Public - Config"])
 async def get_public_config(
     config: FromDishka[AppConfig],
     plan_dao: FromDishka[PlanDao],
+    oauth_clients: FromDishka[OAuthClientRegistry],
 ) -> PublicConfigResponse:
     """Public, unauthenticated frontend config (Turnstile key, referral trial bonus)."""
     # Referred-friend trial length — single source shared with the bot invite screens
@@ -32,4 +34,8 @@ async def get_public_config(
         turnstile_site_key=config.turnstile_site_key or None,
         referred_trial_days=referred_trial_days,
         support=support,
+        # Only providers that are both configured AND implemented — the registry is
+        # the single source of truth, so the SPA can never render a button for a
+        # provider whose endpoints would 404.
+        oauth_providers=list(oauth_clients.enabled),
     )

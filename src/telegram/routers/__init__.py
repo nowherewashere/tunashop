@@ -17,6 +17,9 @@ def setup_routers(router: Router) -> None:
         extra.member.router,
         extra.channel_member.router,
         extra.goto.router,
+        # Before menu's generic /start, like the support entry above: the web-login
+        # deep link must be answered with its confirmation prompt, not the main menu.
+        extra.web_login.router,
         extra.inline.router,
         #
         menu.handlers.router,

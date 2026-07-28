@@ -118,6 +118,8 @@ class UserOAuthProviderDto(BaseDto):
     user_id: int
     provider: OAuthProvider
     provider_id: str
+    # Display only — see the column comment on UserOAuthProvider. Never matched on.
+    provider_email: Optional[str] = None
 
 
 @dataclass(kw_only=True)

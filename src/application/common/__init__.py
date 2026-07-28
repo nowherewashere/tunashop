@@ -7,6 +7,12 @@ from .file_downloader import FileDownloader
 from .http_client import HttpClient
 from .interactor import Interactor
 from .notifier import Notifier
+from .oauth import (
+    OAuthAuthorizeRequest,
+    OAuthClientRegistry,
+    OAuthIdentity,
+    OAuthProviderClient,
+)
 from .password_hasher import PasswordHasher
 from .redirect import Redirect
 from .remnawave import Remnawave
@@ -26,6 +32,10 @@ __all__ = [
     "Interactor",
     "Notifier",
     "BroadcastDispatcher",
+    "OAuthAuthorizeRequest",
+    "OAuthClientRegistry",
+    "OAuthIdentity",
+    "OAuthProviderClient",
     "PasswordHasher",
     "PaymentNotificationDispatcher",
     "Redirect",

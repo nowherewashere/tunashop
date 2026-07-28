@@ -19,10 +19,9 @@ from src.application.use_cases.auth._codes import (
 )
 from src.core.config import AppConfig
 from src.core.constants import (
-    EMAIL_VERIFICATION_BODY_TEMPLATE,
     EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
-    EMAIL_VERIFICATION_SUBJECT,
 )
+from src.core.email_templates import render_email_verification_email
 from src.core.exceptions import EmailDeliveryDisabledError
 from src.core.utils.time import datetime_now
 
@@ -136,14 +135,19 @@ class RequestEmailVerification(Interactor[RequestEmailVerificationDto, EmailVeri
             minutes=self.config.email.verification_code_ttl_minutes
         )
 
+        message = render_email_verification_email(
+            code=code,
+            minutes=self.config.email.verification_code_ttl_minutes,
+            site_url=self.config.web_cabinet_url.rstrip("/"),
+        )
+
         # FIX: send first; persist code/expiry only on success so a failed SMTP
         # delivery does not leave committed state and a started cooldown.
         await self.email_sender.send(
             to=target_email,
-            subject=EMAIL_VERIFICATION_SUBJECT,
-            body=EMAIL_VERIFICATION_BODY_TEMPLATE.format(
-                code=code, minutes=self.config.email.verification_code_ttl_minutes
-            ),
+            subject=message.subject,
+            body=message.text,
+            html=message.html,
         )
 
         actor.email_verification_code_hash = hash_email_verification_code(

@@ -85,6 +85,14 @@ class EmailDeliveryError(Exception): ...
 class EmailDeliveryDisabledError(Exception): ...
 
 
+class OAuthExchangeError(Exception):
+    """A provider exchange failed (network, HTTP error, bad token, bad claims).
+
+    Always fails the sign-in. Unlike the captcha, this path must never fail open:
+    an unreachable token endpoint is not evidence that anyone is who they claim.
+    """
+
+
 class SupportUnavailableError(Exception):
     """Support is disabled (SUPPORT_ENABLED=false) or its operator group is unset."""
 

@@ -16,6 +16,7 @@ from .build import BuildConfig
 from .database import DatabaseConfig
 from .email import EmailConfig
 from .log import LogConfig
+from .oauth import OAuthConfig
 from .onboarding import OnboardingConfig
 from .payout import PayoutConfig
 from .redis import RedisConfig
@@ -77,6 +78,18 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
     payout: PayoutConfig = Field(default_factory=PayoutConfig)
     stars: StarsConfig = Field(default_factory=StarsConfig)
     support: SupportConfig = Field(default_factory=SupportConfig)
+    oauth: OAuthConfig = Field(default_factory=OAuthConfig)
+
+    @property
+    def oauth_public_base_url(self) -> str:
+        """Site origin the OAuth callback redirects back to.
+
+        Falls back to the cabinet URL, which is the same origin today. The override
+        exists so the two can diverge during a domain rotation: the new redirect URI
+        has to be registered with the provider before traffic moves, and until then
+        OAUTH_PUBLIC_BASE_URL must be able to lag WEB_CABINET_URL.
+        """
+        return (self.oauth.public_base_url or self.web_cabinet_url).rstrip("/")
 
     @property
     def default_assets_dir(self) -> Path:
@@ -127,6 +140,21 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
                 raise ValueError(
                     "APP_JWT_SECRET must be set when WEB_ENABLED=true; "
                     "do not reuse APP_CRYPT_KEY for JWT signing"
+                )
+        # OAuth's own consistency lives in OAuthConfig; only the cross-config parts
+        # can be checked here, where the sub-config can finally see its parent.
+        if self.oauth.is_active:
+            if not self.web_enabled:
+                raise ValueError(
+                    "WEB_ENABLED must be true to enable OAuth sign-in; "
+                    "the public API router is not mounted otherwise"
+                )
+            if not self.oauth_public_base_url:
+                raise ValueError(
+                    "OAUTH_PUBLIC_BASE_URL (or WEB_CABINET_URL) must be set when an "
+                    "OAuth provider is enabled; it is the site origin the provider "
+                    "redirects back to, and it must match the redirect URI registered "
+                    "in the provider's console byte-for-byte"
                 )
         return self
 

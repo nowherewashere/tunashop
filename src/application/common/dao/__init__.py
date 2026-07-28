@@ -2,10 +2,13 @@ from .account_merge import AccountMergeDao
 from .activity import RecentActivityDao
 from .ad_link import AdLinkDao
 from .auth import AuthSessionDao
+from .bot_login import BotLoginDao, BotLoginRequest, BotLoginStatus
 from .broadcast import BroadcastDao
+from .email_login_link import EmailLoginLinkDao
 from .event import EventsDao
 from .lifecycle_followup import LifecycleFollowupDao
 from .oauth_provider import UserOAuthProviderDao
+from .oauth_state import OAuthFlowMode, OAuthFlowState, OAuthStateDao
 from .onboarding_nudge import OnboardingNudgeDao
 from .payment_gateway import PaymentGatewayDao
 from .plan import PlanDao
@@ -27,10 +30,17 @@ __all__ = [
     "RecentActivityDao",
     "AdLinkDao",
     "AuthSessionDao",
+    "BotLoginDao",
+    "BotLoginRequest",
+    "BotLoginStatus",
     "BroadcastDao",
+    "EmailLoginLinkDao",
     "EventsDao",
     "LifecycleFollowupDao",
     "UserOAuthProviderDao",
+    "OAuthFlowMode",
+    "OAuthFlowState",
+    "OAuthStateDao",
     "OnboardingNudgeDao",
     "PaymentGatewayDao",
     "PlanDao",

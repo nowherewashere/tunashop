@@ -1,4 +1,14 @@
-from . import channel_member, commands, goto, inline, member, notification, payment, test
+from . import (
+    channel_member,
+    commands,
+    goto,
+    inline,
+    member,
+    notification,
+    payment,
+    test,
+    web_login,
+)
 
 __all__ = [
     "channel_member",
@@ -9,4 +19,5 @@ __all__ = [
     "notification",
     "payment",
     "test",
+    "web_login",
 ]

@@ -11,6 +11,7 @@ from .lifecycle_followup import LifecycleFollowupHandler
 from .metrics import MetricsEventListener
 from .notification import NotificationService
 from .notification_queue import NotificationQueue, NotificationWorker
+from .oauth import OAuthClientRegistryImpl
 from .password_hasher import PasswordHasherImpl
 from .redirect import RedirectImpl
 from .remnawave import RemnawaveImpl
@@ -35,6 +36,7 @@ __all__ = [
     "NotificationService",
     "NotificationQueue",
     "NotificationWorker",
+    "OAuthClientRegistryImpl",
     "PasswordHasherImpl",
     "PaymentNotificationDispatcherImpl",
     "RedirectImpl",

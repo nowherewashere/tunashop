@@ -2,6 +2,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from src.core.enums import OAuthProvider
+
 
 class SupportConfigResponse(BaseModel):
     # True when the live in-cabinet support chat is on (SUPPORT_ENABLED). When false,
@@ -20,3 +22,6 @@ class PublicConfigResponse(BaseModel):
     referred_trial_days: Optional[int] = None
     # Support-chat availability + fallback contact for the cabinet widget.
     support: SupportConfigResponse = Field(default_factory=SupportConfigResponse)
+    # Social sign-in providers that are both enabled and implemented. Empty => the SPA
+    # renders no social buttons at all, which is how the feature ships dark.
+    oauth_providers: list[OAuthProvider] = Field(default_factory=list)

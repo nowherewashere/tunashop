@@ -1,5 +1,8 @@
 from .auth import (
     AuthResponse,
+    BotLoginClaimRequest,
+    BotLoginStartResponse,
+    BotLoginStatusResponse,
     ChangeEmailRequest,
     ChangeEmailResponse,
     ChangePasswordRequest,
@@ -10,6 +13,7 @@ from .auth import (
     LogoutResponse,
     MeResponse,
     MigrateTelegramRequest,
+    OAuthProviderInfoResponse,
     RegisterRequest,
     RequestEmailLoginCodeRequest,
     RequestEmailLoginCodeResponse,
@@ -19,6 +23,7 @@ from .auth import (
     TelegramLinkResponse,
     TelegramWebAppAuthRequest,
     VerifyEmailLoginCodeRequest,
+    VerifyEmailLoginLinkRequest,
 )
 from .config import PublicConfigResponse, SupportConfigResponse
 from .health import (
@@ -86,10 +91,14 @@ __all__ = [
     "ChangePasswordResponse",
     "ConfirmEmailVerificationRequest",
     "ConfirmEmailVerificationResponse",
+    "BotLoginClaimRequest",
+    "BotLoginStartResponse",
+    "BotLoginStatusResponse",
     "LoginRequest",
     "LogoutResponse",
     "MeResponse",
     "MigrateTelegramRequest",
+    "OAuthProviderInfoResponse",
     "RegisterRequest",
     "RequestEmailLoginCodeRequest",
     "RequestEmailLoginCodeResponse",
@@ -99,6 +108,7 @@ __all__ = [
     "TelegramLinkResponse",
     "TelegramWebAppAuthRequest",
     "VerifyEmailLoginCodeRequest",
+    "VerifyEmailLoginLinkRequest",
     # config
     "PublicConfigResponse",
     "SupportConfigResponse",

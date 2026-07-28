@@ -75,3 +75,24 @@ class RefreshTokenKey(StorageKey, prefix="refresh"):
 @dataclass(frozen=True)
 class UserTokensKey(StorageKey, prefix="user_tokens"):
     user_id: int
+
+
+@dataclass(frozen=True)
+class EmailLoginLinkKey(StorageKey, prefix="email_login_link"):
+    # sha256 of the mailed token, never the token itself — see the repository.
+    token_hash: str
+
+
+@dataclass(frozen=True)
+class BotLoginKey(StorageKey, prefix="bot_login"):
+    # One in-flight "confirm this website sign-in in the bot" handshake. Short TTL:
+    # the whole exchange is a person tapping a link and pressing a button.
+    token: str
+
+
+@dataclass(frozen=True)
+class OAuthStateKey(StorageKey, prefix="oauth_state"):
+    # One in-flight social sign-in. Holds the CSRF state's payload (PKCE verifier,
+    # mode, referral code, browser binding) between /start and /callback, and is
+    # consumed with GETDEL so a callback can never be replayed.
+    state: str

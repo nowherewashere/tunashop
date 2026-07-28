@@ -54,6 +54,10 @@ SUPPORT_CB_CLOSE: Final[str] = "support:close"
 # User-side inline button in the in-bot support chat: leave the chat (clears the FSM),
 # a visible alternative to typing /stop.
 SUPPORT_CB_LEAVE: Final[str] = "support:leave"
+# Website sign-in confirmation, asked inside the bot. The one-time token is appended to
+# the prefix, so both fit Telegram's 64-byte callback_data budget (prefix 9 + token 32).
+WEB_LOGIN_CB_APPROVE: Final[str] = "wlogin:y:"
+WEB_LOGIN_CB_DECLINE: Final[str] = "wlogin:n:"
 # The in-bot support FSM state string (== telegram.states.Support.CHAT.state). Duplicated
 # here as a plain string so the infrastructure support service can drop a client's chat on
 # operator /close without importing the telegram layer; states.py asserts they stay in sync.
@@ -118,11 +122,6 @@ PUBLIC_LANDING_PLANS_CACHE_TTL_SECONDS: Final[int] = 21600
 PUBLIC_LANDING_PLANS_CACHE_KEY: Final[str] = "cache:public_landing_plans"
 EMAIL_VERIFICATION_CODE_LENGTH: Final[int] = 6
 EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: Final[int] = 60
-EMAIL_VERIFICATION_SUBJECT: Final[str] = "Your verification code"
-EMAIL_VERIFICATION_BODY_TEMPLATE: Final[str] = (
-    "Your verification code is: {code}\n\n"
-    "It is valid for {minutes} minutes. If you did not request this, ignore this email."
-)
 WEB_PASSWORD_LEN: Final[int] = 8
 WEB_PASSWORD_ALPHABET: Final[str] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 

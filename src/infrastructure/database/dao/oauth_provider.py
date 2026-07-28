@@ -42,6 +42,7 @@ class UserOAuthProviderDaoImpl(UserOAuthProviderDao):
             user_id=dto.user_id,
             provider=dto.provider,
             provider_id=dto.provider_id,
+            provider_email=dto.provider_email,
         )
         self.session.add(db_record)
         await self.session.flush()

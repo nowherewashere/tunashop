@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.core.constants import EMAIL_VERIFICATION_CODE_LENGTH
-from src.core.enums import AuthType
+from src.core.enums import AuthType, OAuthProvider
 
 
 class RegisterRequest(BaseModel):
@@ -55,6 +55,13 @@ class AuthResponse(BaseModel):
     refresh_expires_at: datetime
 
 
+class OAuthProviderInfoResponse(BaseModel):
+    provider: OAuthProvider
+    # Address the provider reported at link time, so the cabinet can say WHICH account
+    # is attached. Display only — never matched on (see migration 0053).
+    provider_email: Optional[str] = None
+
+
 class MeResponse(BaseModel):
     telegram_id: Optional[int]
     auth_type: AuthType
@@ -64,6 +71,10 @@ class MeResponse(BaseModel):
     name: str
     username: Optional[str]
     language: str
+    # Linked social identities. Costs one indexed lookup on a tiny table per /auth/me —
+    # a deliberate, known price for the cabinet's "Способы входа" section, which needs
+    # the list on every load anyway.
+    oauth_providers: list[OAuthProviderInfoResponse] = Field(default_factory=list)
 
 
 class TelegramLinkResponse(MeResponse):
@@ -158,6 +169,12 @@ class VerifyEmailLoginCodeRequest(BaseModel):
         return value.lower()
 
 
+class VerifyEmailLoginLinkRequest(BaseModel):
+    # `secrets.token_urlsafe(32)` renders to 43 chars; the bounds leave room to change
+    # that without a schema change while still rejecting obvious junk.
+    token: str = Field(min_length=32, max_length=128)
+
+
 class ConfirmEmailVerificationRequest(BaseModel):
     code: str = Field(
         min_length=EMAIL_VERIFICATION_CODE_LENGTH,
@@ -187,6 +204,29 @@ class TelegramAuthRequest(BaseModel):
 
 class TelegramWebAppAuthRequest(BaseModel):
     init_data: str
+
+
+class BotLoginStartResponse(BaseModel):
+    # Handed back so the caller can poll and claim. Not a secret from this browser —
+    # it is embedded in `url` and the QR below, and on its own it is useless without
+    # the httpOnly binding cookie set alongside it.
+    token: str
+    # t.me deep link that opens the bot with a one-time confirmation token.
+    url: str
+    # QR of the same URL, rendered server-side so the SPA needs no QR library and a
+    # desktop visitor without Telegram Desktop can confirm from their phone.
+    qr_png_base64: str
+    expires_in: int
+
+
+class BotLoginStatusResponse(BaseModel):
+    # pending | approved | declined | expired — `expired` is synthesised when the
+    # request is simply gone, so the client can tell "still waiting" from "too late".
+    status: str
+
+
+class BotLoginClaimRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=128)
 
 
 class LogoutResponse(BaseModel):

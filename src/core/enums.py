@@ -21,6 +21,9 @@ class Deeplink(StrEnum):
     # Operator-only: opens the full admin user card in the operator's private chat
     # from a support forum topic (support "🗂 Карточка" button). Payload is the user id.
     USERCARD = "usercard"
+    # Confirms a sign-in started on the website. Payload is a short-lived one-time
+    # token; the bot asks for explicit confirmation before it is honoured.
+    WEBLOGIN = "weblogin"
 
     def build_url(self, base_url: str, data: Optional[str]) -> str:
         if not data:
