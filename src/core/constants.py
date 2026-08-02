@@ -58,6 +58,10 @@ SUPPORT_CB_LEAVE: Final[str] = "support:leave"
 # the prefix, so both fit Telegram's 64-byte callback_data budget (prefix 9 + token 32).
 WEB_LOGIN_CB_APPROVE: Final[str] = "wlogin:y:"
 WEB_LOGIN_CB_DECLINE: Final[str] = "wlogin:n:"
+# How long a deep link a gate (rules / channel) swallowed stays resumable. Long enough
+# to read the rules and join a channel, short enough that a confirmation pressed much
+# later is not answered with a flow the person has forgotten starting.
+PENDING_DEEPLINK_TTL_SECONDS: Final[int] = 600
 # The in-bot support FSM state string (== telegram.states.Support.CHAT.state). Duplicated
 # here as a plain string so the infrastructure support service can drop a client's chat on
 # operator /close without importing the telegram layer; states.py asserts they stay in sync.

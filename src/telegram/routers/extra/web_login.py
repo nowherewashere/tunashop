@@ -1,19 +1,24 @@
+from typing import Any, Union
+
 from aiogram import F, Router
 from aiogram.enums import ChatType
 from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
-from dishka import FromDishka
+from aiogram_dialog import DialogManager, ShowMode, StartMode
+from dishka import AsyncContainer, FromDishka
 from dishka.integrations.aiogram import inject
 from loguru import logger
 
-from src.application.common.dao import BotLoginDao
+from src.application.common.dao import BotLoginDao, PendingDeeplinkDao
 from src.application.dto import TelegramUserDto
 from src.application.use_cases.auth.commands.bot_login import (
     ResolveBotLogin,
     ResolveBotLoginDto,
 )
-from src.core.constants import WEB_LOGIN_CB_APPROVE, WEB_LOGIN_CB_DECLINE
+from src.core.constants import CONTAINER_KEY, USER_KEY, WEB_LOGIN_CB_APPROVE, WEB_LOGIN_CB_DECLINE
 from src.core.enums import Deeplink
+from src.telegram.keyboards import CALLBACK_CHANNEL_CONFIRM, CALLBACK_RULES_ACCEPT
+from src.telegram.states import MainMenu
 
 router = Router(name=__name__)
 
@@ -46,6 +51,64 @@ def _confirm_keyboard(token: str) -> InlineKeyboardMarkup:
     )
 
 
+async def _offer_confirmation(
+    chat: Message,
+    user: TelegramUserDto,
+    token: str,
+    bot_login_dao: BotLoginDao,
+) -> bool:
+    """Ask the person to confirm the sign-in. False when there is nothing left to ask.
+
+    The request is checked before the buttons are offered: a two-minute token is very
+    often already dead by the time someone gets here, and "ссылка устарела" beats a
+    button that fails.
+    """
+    request = await bot_login_dao.get(token)
+    if request is None or request.status != "pending":
+        logger.info(f"{user.log} Web-login confirmation opened for a spent/expired token")
+        await chat.answer(_EXPIRED_TEXT)
+        return False
+
+    logger.info(f"{user.log} Opened a website sign-in confirmation")
+    await chat.answer(
+        _CONFIRM_TEXT.format(origin=f" с адреса <code>{request.ip}</code>" if request.ip else ""),
+        reply_markup=_confirm_keyboard(token),
+    )
+    return True
+
+
+async def _open_main_menu(dialog_manager: DialogManager) -> None:
+    await dialog_manager.start(
+        state=MainMenu.MAIN,
+        mode=StartMode.RESET_STACK,
+        show_mode=ShowMode.DELETE_AND_SEND,
+    )
+
+
+async def pending_web_login(
+    callback: CallbackQuery, **data: Any
+) -> Union[bool, dict[str, Any]]:
+    """Claim a web-login deep link that a gate parked for this user.
+
+    Used as the filter on the rules / channel confirmations: a first-time visitor
+    arriving on the sign-in link meets those gates *before* the deep link is ever
+    routed, so without this the login they came for is silently dropped and they land
+    in the main menu instead. Returns the token to the handler when there is one, and
+    stays out of the way (falling through to the menu's own handlers) when there is not.
+    """
+    user = data.get(USER_KEY)
+    if not isinstance(user, TelegramUserDto) or user.telegram_id is None:
+        return False
+
+    container: AsyncContainer = data[CONTAINER_KEY]
+    pending = await container.get(PendingDeeplinkDao)
+    token = await pending.take(user.telegram_id, Deeplink.WEBLOGIN.with_underscore)
+    if not token:
+        return False
+
+    return {"web_login_token": token}
+
+
 @router.message(
     F.chat.type == ChatType.PRIVATE,
     CommandStart(deep_link=True, ignore_case=True),
@@ -73,19 +136,37 @@ async def on_web_login(
         await message.answer(_BAD_LINK_TEXT)
         return
 
-    # Check before offering the buttons: a two-minute token is very often already dead
-    # by the time someone gets here, and "ссылка устарела" beats a button that fails.
-    request = await bot_login_dao.get(token)
-    if request is None or request.status != "pending":
-        logger.info(f"{user.log} Web-login confirmation opened for a spent/expired token")
-        await message.answer(_EXPIRED_TEXT)
+    await _offer_confirmation(message, user, token, bot_login_dao)
+
+
+@router.callback_query(F.data == CALLBACK_RULES_ACCEPT, pending_web_login)
+@router.callback_query(F.data == CALLBACK_CHANNEL_CONFIRM, pending_web_login)
+@inject
+async def on_gate_passed(
+    callback: CallbackQuery,
+    user: TelegramUserDto,
+    dialog_manager: DialogManager,
+    web_login_token: str,
+    bot_login_dao: FromDishka[BotLoginDao],
+) -> None:
+    """Resume the sign-in the rules / channel gate interrupted.
+
+    Registered in this router, which is included before ``menu``, so a person who came
+    for the website login gets the confirmation once they have met the requirement —
+    the menu's own accept handler still runs for everyone else. The main menu follows
+    the decision, not the requirement, so nobody is asked to confirm from inside it.
+    """
+    if not isinstance(callback.message, Message):
+        await callback.answer()
         return
 
-    logger.info(f"{user.log} Opened a website sign-in confirmation")
-    await message.answer(
-        _CONFIRM_TEXT.format(origin=f" с адреса <code>{request.ip}</code>" if request.ip else ""),
-        reply_markup=_confirm_keyboard(token),
-    )
+    logger.info(f"{user.log} Passed a gate with a web-login deep link waiting")
+    if not await _offer_confirmation(callback.message, user, web_login_token, bot_login_dao):
+        # The token died while they were reading the rules: there is nothing left to
+        # confirm, so give them the product instead of an empty chat.
+        await _open_main_menu(dialog_manager)
+
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith(WEB_LOGIN_CB_APPROVE))
@@ -93,9 +174,10 @@ async def on_web_login(
 async def on_web_login_approve(
     callback: CallbackQuery,
     user: TelegramUserDto,
+    dialog_manager: DialogManager,
     resolve_bot_login: FromDishka[ResolveBotLogin],
 ) -> None:
-    await _resolve(callback, user, resolve_bot_login, approve=True)
+    await _resolve(callback, user, dialog_manager, resolve_bot_login, approve=True)
 
 
 @router.callback_query(F.data.startswith(WEB_LOGIN_CB_DECLINE))
@@ -103,14 +185,16 @@ async def on_web_login_approve(
 async def on_web_login_decline(
     callback: CallbackQuery,
     user: TelegramUserDto,
+    dialog_manager: DialogManager,
     resolve_bot_login: FromDishka[ResolveBotLogin],
 ) -> None:
-    await _resolve(callback, user, resolve_bot_login, approve=False)
+    await _resolve(callback, user, dialog_manager, resolve_bot_login, approve=False)
 
 
 async def _resolve(
     callback: CallbackQuery,
     user: TelegramUserDto,
+    dialog_manager: DialogManager,
     resolve_bot_login: ResolveBotLogin,
     approve: bool,
 ) -> None:
@@ -132,4 +216,12 @@ async def _resolve(
             await callback.message.edit_text(text)
         except Exception as e:  # noqa: BLE001 - message too old / already edited
             logger.debug(f"{user.log} Could not edit web-login confirmation: {e}")
+
+    # Only after they said "это я": someone who declined a sign-in they did not start
+    # wants the incident closed, not a product menu. A declined-in-error user still has
+    # /start. Never on the onboarding funnel — they came to sign in, and the site is
+    # already carrying them through the install steps.
+    if approve:
+        await _open_main_menu(dialog_manager)
+
     await callback.answer()

@@ -41,6 +41,10 @@ class RulesMiddleware(EventTypedMiddleware):
             return await handler(event, data)
 
         if not result.is_accepted:
+            # A first-time visitor most often arrives here on a deep link (the website
+            # sign-in confirmation above all). Park it before answering with the rules,
+            # so accepting them resumes what they actually came for.
+            await self._park_deeplink(event, data)
             await notifier.notify_user(
                 user=user,
                 payload=MessagePayloadDto(

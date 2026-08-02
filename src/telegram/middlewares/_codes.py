@@ -24,6 +24,22 @@ def _parse_deeplink_code(event: TelegramObject, deeplink: Deeplink) -> Optional[
     return None
 
 
+def parse_deeplink_payload(event: TelegramObject) -> Optional[str]:
+    """The raw ``/start`` argument, whatever deep link it belongs to.
+
+    Used by the gates to park a deep link they are about to swallow — they have no
+    business knowing which flow the payload opens, only that one was interrupted.
+    """
+    if not isinstance(event, Message) or not event.text:
+        return None
+
+    parts = event.text.split()
+    if len(parts) <= 1 or not parts[0].lower().startswith("/start"):
+        return None
+
+    return parts[1]
+
+
 def parse_referral_code(event: TelegramObject) -> Optional[str]:
     return _parse_deeplink_code(event, Deeplink.REFERRAL)
 

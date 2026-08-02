@@ -91,6 +91,13 @@ class BotLoginKey(StorageKey, prefix="bot_login"):
 
 
 @dataclass(frozen=True)
+class PendingDeeplinkKey(StorageKey, prefix="pending_deeplink"):
+    # A `/start <payload>` a gate (rules / channel) interrupted, parked until the
+    # gate is satisfied. One per user — the newest deep link wins.
+    telegram_id: int
+
+
+@dataclass(frozen=True)
 class OAuthStateKey(StorageKey, prefix="oauth_state"):
     # One in-flight social sign-in. Holds the CSRF state's payload (PKCE verifier,
     # mode, referral code, browser binding) between /start and /callback, and is

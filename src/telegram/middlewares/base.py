@@ -5,9 +5,15 @@ from typing import Any, Awaitable, Callable, ClassVar, Final, Optional
 from aiogram import BaseMiddleware, Router
 from aiogram.types import CallbackQuery, Message, TelegramObject
 from aiogram.types import User as AiogramUser
+from dishka import AsyncContainer
 from loguru import logger
 
+from src.application.common.dao import PendingDeeplinkDao
+from src.application.dto import TelegramUserDto
+from src.core.constants import CONTAINER_KEY, PENDING_DEEPLINK_TTL_SECONDS, USER_KEY
 from src.core.enums import MiddlewareEventType
+
+from ._codes import parse_deeplink_payload
 
 DEFAULT_UPDATE_TYPES: Final[list[MiddlewareEventType]] = [
     MiddlewareEventType.MESSAGE,
@@ -78,6 +84,32 @@ class EventTypedMiddleware(BaseMiddleware, ABC):
             return AiogramUser(**user)
 
         return user if isinstance(user, AiogramUser) else None
+
+    async def _park_deeplink(self, event: TelegramObject, data: dict[str, Any]) -> None:
+        """Save the ``/start`` payload of an update this gate is about to swallow.
+
+        A gate answers with its own prompt and drops the update, so a deep link opened
+        by someone who has not met the requirement yet is lost — the router never sees
+        it. Parked here, the flow can pick up where it left off once the requirement is
+        satisfied. Best-effort: a gate must still gate if Redis is unhappy.
+        """
+        payload = parse_deeplink_payload(event)
+        if payload is None:
+            return
+
+        user = data.get(USER_KEY)
+        if not isinstance(user, TelegramUserDto) or user.telegram_id is None:
+            return
+
+        container: AsyncContainer = data[CONTAINER_KEY]
+        try:
+            pending = await container.get(PendingDeeplinkDao)
+            await pending.remember(user.telegram_id, payload, PENDING_DEEPLINK_TTL_SECONDS)
+        except Exception as e:
+            logger.warning(f"{user.log} Failed to park deep link '{payload}': '{e}'")
+            return
+
+        logger.debug(f"{user.log} Parked deep link '{payload}' until the gate is passed")
 
     async def _delete_previous_message(self, event: TelegramObject) -> None:
         if not isinstance(event, CallbackQuery):

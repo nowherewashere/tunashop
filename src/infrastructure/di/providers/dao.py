@@ -12,6 +12,7 @@ from src.application.common.dao import (
     OAuthStateDao,
     OnboardingNudgeDao,
     PaymentGatewayDao,
+    PendingDeeplinkDao,
     PlanDao,
     PromocodeDao,
     RateLimiter,
@@ -55,6 +56,7 @@ from src.infrastructure.redis.auth import RedisAuthRepository
 from src.infrastructure.redis.bot_login import RedisBotLoginRepository
 from src.infrastructure.redis.email_login_link import RedisEmailLoginLinkRepository
 from src.infrastructure.redis.oauth_state import RedisOAuthStateRepository
+from src.infrastructure.redis.pending_deeplink import RedisPendingDeeplinkRepository
 from src.infrastructure.redis.rate_limit import RedisRateLimiter
 
 
@@ -89,6 +91,9 @@ class DaoProvider(Provider):
     auth_session = provide(source=RedisAuthRepository, provides=AuthSessionDao, scope=Scope.APP)
     oauth_state = provide(source=RedisOAuthStateRepository, provides=OAuthStateDao, scope=Scope.APP)
     bot_login = provide(source=RedisBotLoginRepository, provides=BotLoginDao, scope=Scope.APP)
+    pending_deeplink = provide(
+        source=RedisPendingDeeplinkRepository, provides=PendingDeeplinkDao, scope=Scope.APP
+    )
     email_login_link = provide(
         source=RedisEmailLoginLinkRepository, provides=EmailLoginLinkDao, scope=Scope.APP
     )

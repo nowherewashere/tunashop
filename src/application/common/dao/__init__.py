@@ -11,6 +11,7 @@ from .oauth_provider import UserOAuthProviderDao
 from .oauth_state import OAuthFlowMode, OAuthFlowState, OAuthStateDao
 from .onboarding_nudge import OnboardingNudgeDao
 from .payment_gateway import PaymentGatewayDao
+from .pending_deeplink import PendingDeeplinkDao
 from .plan import PlanDao
 from .promocode import PromocodeDao
 from .rate_limit import RateLimiter
@@ -43,6 +44,7 @@ __all__ = [
     "OAuthStateDao",
     "OnboardingNudgeDao",
     "PaymentGatewayDao",
+    "PendingDeeplinkDao",
     "PlanDao",
     "PromocodeDao",
     "RateLimiter",

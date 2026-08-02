@@ -54,6 +54,10 @@ class ChannelMiddleware(EventTypedMiddleware):
 
         logger.debug(f"{user.log} failed channel check with status '{result.status}'")
 
+        # Same reason as the rules gate: keep the deep link that got interrupted, so
+        # confirming the subscription resumes it instead of dropping it.
+        await self._park_deeplink(event, data)
+
         await notifier.notify_user(
             user=user,
             payload=MessagePayloadDto(
