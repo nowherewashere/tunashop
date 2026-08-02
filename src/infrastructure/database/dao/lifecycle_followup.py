@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from src.application.common.dao import LifecycleFollowupDao
@@ -38,6 +38,12 @@ class LifecycleFollowupDaoImpl(BaseDaoImpl, LifecycleFollowupDao):
                 status=FOLLOWUP_PENDING,
             )
         )
+
+    async def delete_all(self, telegram_id: int) -> int:
+        result = await self.session.execute(
+            delete(LifecycleFollowup).where(LifecycleFollowup.telegram_id == telegram_id)
+        )
+        return int(result.rowcount or 0)  # type: ignore[attr-defined]
 
     async def cancel_chain(self, telegram_id: int, chain: str) -> None:
         await self.session.execute(

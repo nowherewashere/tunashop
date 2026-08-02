@@ -91,3 +91,17 @@ class SupportService(Protocol):
     ) -> tuple[Optional[SupportConversationDto], list[SupportMessageDto]]:
         """The user's conversation + its messages (for the site history/poll)."""
         ...
+
+    async def discard_user(
+        self, telegram_id: Optional[int], topic_id: Optional[int]
+    ) -> None:
+        """Drop what a deleted account leaves outside the database.
+
+        The conversation and its messages go with the user row (FK cascade), but the
+        forum topic lives in Telegram and the in-bot chat state lives in Redis — both
+        would outlive the account: an orphaned topic in the operator group, and a next
+        message routed into a support chat that no longer exists. Best-effort, and
+        called *after* the row is gone: an aborted delete must not destroy a live
+        operator thread.
+        """
+        ...

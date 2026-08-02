@@ -85,6 +85,7 @@ from .handlers import (
     on_transaction_select,
     on_transactions,
     on_trial_toggle,
+    on_user_delete,
     on_user_select,
 )
 
@@ -174,6 +175,16 @@ user = Window(
             id="block",
             on_click=on_block_toggle,
             when=F["is_not_self"] & F["can_edit"],
+        ),
+    ),
+    Row(
+        # Last in the column, on its own row: it is the one control here that cannot be
+        # undone. Shown only to a role that may erase an account (see can_delete).
+        Button(
+            text=I18nFormat("btn-user.delete"),
+            id="delete_user",
+            on_click=on_user_delete,
+            when=F["can_delete"],
         ),
     ),
     Row(

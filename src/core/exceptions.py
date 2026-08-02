@@ -97,6 +97,35 @@ class SupportUnavailableError(Exception):
     """Support is disabled (SUPPORT_ENABLED=false) or its operator group is unset."""
 
 
+class UserDeletionError(Exception):
+    """A user delete was refused before anything was touched."""
+
+
+class UserDeletionSelfError(UserDeletionError):
+    """The operator aimed the delete at their own account."""
+
+
+class UserDeletionPrivilegedError(UserDeletionError):
+    """The target holds a staff role: demote first, so it is never a slip of the thumb."""
+
+
+class UserDeletionReferralLedgerError(UserDeletionError):
+    """The target's payments earned commission for whoever invited them.
+
+    Those rows cascade off ``referral_events.referred_id``, so deleting this account
+    would quietly shrink a *different*, living user's balance.
+    """
+
+
+class UserDeletionPanelError(UserDeletionError):
+    """The Remnawave user could not be removed, so nothing local was deleted.
+
+    Deliberately fatal: a panel user left behind keeps the username
+    (``remnashop_<telegram_id>``) taken, and the person's next trial would fail to
+    create — the exact opposite of a clean slate.
+    """
+
+
 class ReferralError(Exception): ...
 
 

@@ -331,6 +331,17 @@ class SupportServiceImpl(SupportService):
         messages = await self.support_dao.list_messages(conv.id, after_id=after_id)
         return conv, messages
 
+    async def discard_user(
+        self, telegram_id: Optional[int], topic_id: Optional[int]
+    ) -> None:
+        # Not gated on `support.is_active`: a thread opened while support was on must
+        # still be cleaned up after it has been switched off. Both steps are already
+        # best-effort, and both are no-ops when there is nothing to remove.
+        if topic_id is not None and self.config.support.group_id is not None:
+            await self._safe_topic_op(self.bot.delete_forum_topic, topic_id)
+        if telegram_id is not None:
+            await self._clear_bot_fsm(telegram_id)
+
     # --- internals ---------------------------------------------------------
 
     async def _publish(self, user_id: int, event: dict[str, Any]) -> None:

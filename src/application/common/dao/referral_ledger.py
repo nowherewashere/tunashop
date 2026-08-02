@@ -25,6 +25,16 @@ class ReferralLedgerDao(Protocol):
         """Distinct referred users with at least one commission row."""
         ...
 
+    async def get_generated_kop(self, referred_id: int) -> int:
+        """The other side of ``get_earned_kop``: commission this user's own payments
+        generated *for whoever invited them*.
+
+        Read before deleting an account: those rows hang off ``referred_id`` with
+        ``ON DELETE CASCADE``, so removing the invitee would silently take their
+        inviter's earnings with them.
+        """
+        ...
+
     # --- spend side (balance_spends) ---
     async def add_balance_spend(self, spend: BalanceSpendDto) -> BalanceSpendDto: ...
 

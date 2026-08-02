@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from src.application.common.dao import OnboardingNudgeDao
@@ -46,6 +46,12 @@ class OnboardingNudgeDaoImpl(BaseDaoImpl, OnboardingNudgeDao):
             )
             .values(status=NUDGE_CANCELLED)
         )
+
+    async def delete_all(self, telegram_id: int) -> int:
+        result = await self.session.execute(
+            delete(OnboardingNudge).where(OnboardingNudge.telegram_id == telegram_id)
+        )
+        return int(result.rowcount or 0)  # type: ignore[attr-defined]
 
     async def get_due(self, now: datetime, limit: int = 100) -> list[OnboardingNudgeDto]:
         result = await self.session.execute(

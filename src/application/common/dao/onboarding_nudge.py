@@ -13,6 +13,15 @@ class OnboardingNudgeDao(Protocol):
 
     async def cancel_pending(self, telegram_id: int) -> None: ...
 
+    async def delete_all(self, telegram_id: int) -> int:
+        """Erase the user's whole nudge history, so a fresh start really is one.
+
+        Keyed by ``telegram_id``, this table has no FK to ``users`` and therefore does
+        not cascade — without this a deleted account keeps its "already nudged" record
+        and the chain never fires again. Returns how many rows went.
+        """
+        ...
+
     async def get_due(self, now: datetime, limit: int = 100) -> list[OnboardingNudgeDto]: ...
 
     async def mark_sent(self, nudge_id: int, sent_at: datetime) -> None: ...

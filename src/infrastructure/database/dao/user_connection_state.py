@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from src.application.common.dao import UserConnectionStateDao
@@ -34,6 +34,12 @@ class UserConnectionStateDaoImpl(BaseDaoImpl, UserConnectionStateDao):
             )
         )
         await self.session.execute(stmt)
+
+    async def delete(self, telegram_id: int) -> bool:
+        result = await self.session.execute(
+            delete(UserConnectionState).where(UserConnectionState.telegram_id == telegram_id)
+        )
+        return bool(result.rowcount)  # type: ignore[attr-defined]
 
     async def try_mark_trial_restarted(self, telegram_id: int, at: datetime) -> bool:
         result = await self.session.execute(

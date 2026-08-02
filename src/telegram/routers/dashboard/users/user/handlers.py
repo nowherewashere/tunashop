@@ -47,6 +47,7 @@ from src.application.use_cases.subscription.commands.sync import (
     SyncSubscriptionFromRemnawave,
 )
 from src.application.use_cases.user.commands.blocking import ToggleUserBlockedStatus
+from src.application.use_cases.user.commands.deletion import DeleteUser
 from src.application.use_cases.user.commands.messaging import (
     SendMessageToUser,
     SendMessageToUserDto,
@@ -73,10 +74,26 @@ from src.core.constants import (
     USER_LIST_PAYLOAD,
 )
 from src.core.enums import Role
+from src.core.exceptions import (
+    UserDeletionError,
+    UserDeletionPanelError,
+    UserDeletionPrivilegedError,
+    UserDeletionReferralLedgerError,
+    UserDeletionSelfError,
+)
 from src.core.utils.validators import is_positive_int, parse_int
 from src.telegram.keyboards import get_contact_support_keyboard
 from src.telegram.states import DashboardUser, DashboardUsers
 from src.telegram.utils import is_double_click
+
+# Why a delete was refused, in the operator's words. Anything unmapped falls back to
+# the generic key — a refusal must always say something.
+_DELETE_ERROR_KEYS: dict[type[UserDeletionError], str] = {
+    UserDeletionSelfError: "ntf-user.delete-self",
+    UserDeletionPrivilegedError: "ntf-user.delete-privileged",
+    UserDeletionReferralLedgerError: "ntf-user.delete-referral-ledger",
+    UserDeletionPanelError: "ntf-user.delete-panel-failed",
+}
 
 _USER_LIST_STATES = {
     DashboardUsers.RECENT_REGISTERED.state: DashboardUsers.RECENT_REGISTERED,
@@ -190,6 +207,41 @@ async def on_block_toggle(
     await toggle_user_blocked_status(user, target_user_id)
     if target_telegram_id:
         await redirect.to_main_menu(target_telegram_id)
+
+
+@inject
+async def on_user_delete(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    notifier: FromDishka[Notifier],
+    delete_user: FromDishka[DeleteUser],
+) -> None:
+    """Erase the account entirely (double-click confirmed).
+
+    Same confirmation pattern as deleting a subscription, because the consequence is
+    the same kind: irreversible. Afterwards the card has no subject left, so we leave
+    for the users menu rather than the list we came from — a cached list payload could
+    still be holding the user that no longer exists.
+    """
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
+
+    if not is_double_click(dialog_manager, key="user_delete_confirm", cooldown=10):
+        await notifier.notify_user(user, i18n_key="ntf-common.double-click-confirm")
+        logger.debug(f"{user.log} Waiting for confirmation to delete user '{target_user_id}'")
+        return
+
+    try:
+        await delete_user(user, target_user_id)
+    except UserDeletionError as e:
+        await notifier.notify_user(
+            user, i18n_key=_DELETE_ERROR_KEYS.get(type(e), "ntf-user.delete-failed")
+        )
+        return
+
+    await notifier.notify_user(user, i18n_key="ntf-user.deleted")
+    await dialog_manager.start(state=DashboardUsers.MAIN, mode=StartMode.RESET_STACK)
 
 
 @inject

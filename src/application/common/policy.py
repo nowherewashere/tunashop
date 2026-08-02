@@ -64,6 +64,10 @@ class Permission(UpperStrEnum):
     USER_EDITOR = auto()
     USER_SUBSCRIPTION_EDITOR = auto()
     USER_SYNC = auto()
+    # Irreversible and total (account, subscriptions, payments, referral history, panel
+    # user). Deliberately NOT in the ADMIN set below: an admin can block, an owner can
+    # erase.
+    USER_DELETE = auto()
     #
     IMPORTER = auto()
     ASSIGN_ROLE = auto()

@@ -88,6 +88,7 @@ async def user_getter(
         "is_trial_available": profile.target_user.is_trial_available,
         "is_not_self": profile.target_user.id != user.id,
         "can_edit": profile.can_edit,
+        "can_delete": profile.can_delete,
         "status": None,
         "is_trial": False,
         "has_subscription": profile.subscription is not None,

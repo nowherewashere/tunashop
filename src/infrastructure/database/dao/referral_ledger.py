@@ -86,6 +86,12 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
         )
         return int(await self.session.scalar(stmt) or 0)
 
+    async def get_generated_kop(self, referred_id: int) -> int:
+        stmt = select(func.coalesce(func.sum(ReferralEvent.commission_kop), 0)).where(
+            ReferralEvent.referred_id == referred_id
+        )
+        return int(await self.session.scalar(stmt) or 0)
+
     async def get_paying_count(self, referrer_id: int) -> int:
         # Count distinct paying invitees, but ONLY those still linked by a live
         # ``referrals`` edge — so "paying" can never exceed "invited". An account merge

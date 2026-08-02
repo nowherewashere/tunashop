@@ -17,6 +17,14 @@ class LifecycleFollowupDao(Protocol):
 
     async def cancel_all_pending(self, telegram_id: int) -> None: ...
 
+    async def delete_all(self, telegram_id: int) -> int:
+        """Erase every followup ever armed for the user (all chains, any status).
+
+        Same reason as ``OnboardingNudgeDao.delete_all``: no FK to ``users``, so
+        nothing cascades and an armed chain would fire at a deleted account.
+        """
+        ...
+
     async def get_due(
         self, now: datetime, limit: int = 100
     ) -> list[LifecycleFollowupDto]: ...

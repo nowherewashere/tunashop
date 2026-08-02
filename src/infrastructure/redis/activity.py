@@ -20,6 +20,10 @@ class RedisActivityRepository:
         await self.redis.zremrangebyrank(self._key, 0, -(RECENT_ACTIVITY_STORE_CAP + 1))
         logger.debug(f"Recorded recent activity for user_id '{user_id}'")
 
+    async def forget(self, user_id: int) -> None:
+        await self.redis.zrem(self._key, str(user_id))
+        logger.debug(f"Dropped user_id '{user_id}' from recent activity")
+
     async def get_recent_ids(
         self,
         limit: int,

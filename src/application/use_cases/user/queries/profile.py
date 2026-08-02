@@ -8,7 +8,7 @@ from remnapy.models.hwid import HwidDeviceDto
 
 from src.application.common import Interactor, Remnawave
 from src.application.common.dao import SettingsDao, SubscriptionDao, UserDao
-from src.application.common.policy import Permission
+from src.application.common.policy import Permission, PermissionPolicy
 from src.application.dto import SubscriptionDto, UserDto
 from src.core.config import AppConfig
 from src.core.types import RemnaUserDto
@@ -21,6 +21,10 @@ class GetUserProfileResultDto:
     show_points: bool
     is_not_self: bool
     can_edit: bool
+    # Whether to even show the irreversible "delete account" control. The use case
+    # re-checks all of this; this only keeps a button the operator cannot use off the
+    # screen.
+    can_delete: bool
 
 
 class GetUserProfile(Interactor[int, GetUserProfileResultDto]):
@@ -55,6 +59,11 @@ class GetUserProfile(Interactor[int, GetUserProfileResultDto]):
             show_points=settings.referral.reward.is_points,
             is_not_self=target_user.id != actor.id,
             can_edit=actor.role > target_user.role,
+            can_delete=(
+                PermissionPolicy.has_permission(actor, Permission.USER_DELETE)
+                and target_user.id != actor.id
+                and not target_user.is_privileged
+            ),
         )
 
 
