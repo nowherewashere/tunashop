@@ -35,10 +35,11 @@ INVITE_LINK_PATTERN: Pattern[str] = re.compile(r"^https://t\.me/(\+|joinchat/)[A
 REMNAWAVE_MIN_VERSION: Final[Version] = Version("3.0.0")
 REMNAWAVE_MAX_VERSION: Final[Version] = Version("3.3.0")
 
-# Panel 2.8 collapsed expires_in_72/48/24_hours into one user.expiration event whose
-# `meta.expiration` carries the remaining hours, and the thresholds themselves are set
-# in the panel's EXPIRATION_NOTIFICATIONS env. The bot buckets those hours into whole
-# days and clamps to the number of days its copy is written for.
+# Panel 2.8 collapsed expires_in_72/48/24_hours and expired_24_hours_ago into one
+# user.expiration event. `meta.expiration` is the EXPIRATION_NOTIFICATIONS entry that
+# fired, in hours relative to expireAt and signed: negative = expires in N hours,
+# positive = expired N hours ago. Thresholds are the admin's to choose, so the bot
+# buckets them into whole days and clamps to what its copy is written for.
 MAX_EXPIRING_NOTICE_DAYS: Final[int] = 3
 
 # Page size for /users/stream, which since panel 3.0.0 replaces the removed

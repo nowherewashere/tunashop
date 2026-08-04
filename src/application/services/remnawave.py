@@ -30,6 +30,7 @@ from src.application.events import (
     UserNotConnectedEvent,
 )
 from src.application.events.system import SubscriptionRevokedEvent, TorrentBlockerReportEvent
+from src.application.events.user import SubscriptionExpiredAgoEvent
 from src.application.use_cases.remnawave.commands.synchronization import (
     SyncRemnaUser,
     SyncRemnaUserDto,
@@ -271,7 +272,7 @@ class RemnaWebhookService:
         current_subscription: SubscriptionDto,
         event: str,
         remna_user: RemnaUserDto,
-        hours_left: Optional[int],
+        interval_hours: Optional[int],
     ) -> None:
         if (
             remna_user.expire_at
@@ -285,17 +286,29 @@ class RemnaWebhookService:
             )
             return
 
-        if hours_left is None:
+        if not interval_hours:
             logger.warning(
                 f"Skipping '{event}' for '{remna_user.telegram_id}': "
-                f"no 'meta.expiration' in payload"
+                f"no usable 'meta.expiration' in payload ({interval_hours!r})"
             )
             return
 
-        # The panel sends whatever hour thresholds EXPIRATION_NOTIFICATIONS is set to,
-        # so the bucket is derived rather than looked up in a fixed table: round up to
-        # whole days, and clamp to the three the copy is written for.
-        day = min(MAX_EXPIRING_NOTICE_DAYS, max(1, ceil(hours_left / 24)))
+        # `meta.expiration` is the raw EXPIRATION_NOTIFICATIONS entry that fired, in
+        # hours relative to expireAt and *signed*: negative means "expires in N hours",
+        # positive means "expired N hours ago". The thresholds are the admin's to pick,
+        # so the bucket is derived rather than matched against a fixed table — rounded
+        # up to whole days and clamped to what the copy is written for.
+        day = min(MAX_EXPIRING_NOTICE_DAYS, ceil(abs(interval_hours) / 24))
+
+        if interval_hours > 0:
+            await self.event_bus.publish(
+                SubscriptionExpiredAgoEvent(
+                    user=user,
+                    is_trial=current_subscription.is_trial,
+                    day=day,
+                )
+            )
+            return
 
         await self.event_bus.publish(
             SubscriptionExpiresEvent(
