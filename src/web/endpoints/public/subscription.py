@@ -147,7 +147,7 @@ async def get_current_subscription(
     if not current_subscription:
         return None
 
-    remna_user = await remnawave.get_user_by_uuid(current_subscription.user_remna_id)
+    remna_user = await remnawave.get_user_by_id(current_subscription.user_remna_id)
 
     # Locations come from the live plan (single source of truth), resolved by the
     # snapshot's id, so admin edits reflect immediately. None when the plan was removed.

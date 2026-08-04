@@ -630,11 +630,12 @@ async def sync_getter(  # noqa: C901
 
     if target_user.telegram_id:
         try:
-            result = await remnawave_sdk.users.get_users_by_telegram_id(
-                telegram_id=str(target_user.telegram_id)
+            # Panel 3.0.0 removed /users/by-telegram-id; the filtered stream replaces it.
+            result = await remnawave_sdk.users.get_users_stream(
+                telegram_id=target_user.telegram_id, size=1
             )
-            if result:
-                remna_user: RemnaUserDto = result[0]
+            if result.users:
+                remna_user: RemnaUserDto = result.users[0]
                 remna_sub = RemnaSubscriptionDto.from_remna_user(remna_user)
                 remna_updated_at = remna_user.updated_at
         except NotFoundError:
@@ -647,7 +648,7 @@ async def sync_getter(  # noqa: C901
         if not sub:
             return ""
 
-        sub_id = str(getattr(sub, "user_remna_id", getattr(sub, "uuid", "")))
+        sub_id = str(getattr(sub, "user_remna_id", getattr(sub, "id", "")))
 
         squad_names = ", ".join(squads_map.get(s, str(s)) for s in sub.internal_squads)
 

@@ -7,6 +7,9 @@ from src.core.enums import PaymentGatewayType
 
 
 class SubscriptionInfoResponse(BaseModel):
+    # Panel user id. Kept as a string on purpose: panel 3.0.0 turned it from a UUID
+    # into a number, and the site treats it as an opaque reference (analytics userRef),
+    # so serialising it as text keeps that contract stable across the change.
     user_remna_id: str
     status: str
     is_trial: bool

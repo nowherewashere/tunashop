@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional, cast
-from uuid import UUID
 
 from adaptix import Retort
 from adaptix.conversion import ConversionRetort
@@ -63,19 +62,19 @@ class UserDaoImpl(UserDao):
         logger.debug(f"User '{telegram_id}' not found")
         return None
 
-    async def get_by_remna_uuid(self, remna_uuid: UUID) -> Optional[UserDto]:
+    async def get_by_remna_id(self, remna_id: int) -> Optional[UserDto]:
         stmt = (
             select(User)
             .join(Subscription, User.current_subscription_id == Subscription.id)
-            .where(Subscription.user_remna_id == remna_uuid)
+            .where(Subscription.user_remna_id == remna_id)
         )
         db_user = await self.session.scalar(stmt)
 
         if db_user:
-            logger.debug(f"User with remna_uuid '{remna_uuid}' found in database")
+            logger.debug(f"User with remna_id '{remna_id}' found in database")
             return self._convert_to_dto(db_user)
 
-        logger.debug(f"User with remna_uuid '{remna_uuid}' not found")
+        logger.debug(f"User with remna_id '{remna_id}' not found")
         return None
 
     async def get_by_email(self, email: str) -> Optional[UserDto]:
@@ -374,6 +373,16 @@ class UserDaoImpl(UserDao):
         logger.debug(f"Total users with trial subscription count is '{count}'")
         return count
 
+    async def count_with_paid_subscription(self) -> int:
+        stmt = (
+            select(func.count(User.id))
+            .join(Subscription, User.current_subscription_id == Subscription.id)
+            .where(*self._paid_subscription_filters())
+        )
+        count = await self.session.scalar(stmt) or 0
+        logger.debug(f"Total users with paid subscription count is '{count}'")
+        return count
+
     async def count_without_subscription(self) -> int:
         stmt = select(func.count(User.id)).where(
             User.is_blocked.is_(False),
@@ -438,6 +447,34 @@ class UserDaoImpl(UserDao):
         )
         result = await self.session.execute(stmt)
         return self._convert_to_dto_list(list(result.scalars()))
+
+    async def get_with_paid_subscription(self) -> list[UserDto]:
+        stmt = (
+            select(User)
+            .join(Subscription, User.current_subscription_id == Subscription.id)
+            .where(*self._paid_subscription_filters())
+        )
+        result = await self.session.execute(stmt)
+        db_users = list(result.scalars().all())
+
+        logger.debug(f"Retrieved '{len(db_users)}' users with a paid subscription")
+        return self._convert_to_dto_list(db_users)
+
+    @staticmethod
+    def _paid_subscription_filters() -> tuple:
+        """Paying customers with a live subscription — no trials, no lapsed rows.
+
+        `expire_at` is checked alongside the status because the stored status only flips
+        to EXPIRED on the next panel sync for that user; without it a broadcast aimed at
+        paying customers would still reach people whose plan ran out days ago.
+        """
+        return (
+            User.is_blocked.is_(False),
+            User.is_bot_blocked.is_(False),
+            Subscription.status == SubscriptionStatus.ACTIVE,
+            Subscription.is_trial.is_(False),
+            Subscription.expire_at > datetime.now(timezone.utc),
+        )
 
     async def get_active_by_plan(self, plan_id: int) -> list[UserDto]:
         stmt = (

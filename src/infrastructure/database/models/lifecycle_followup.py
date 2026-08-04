@@ -17,6 +17,9 @@ FOLLOWUP_CANCELLED: Final[str] = "cancelled"
 # are the post-connect / lifecycle chains driven by this unified dispatcher.
 CHAIN_TRIAL_ENDING: Final[str] = "C"  # −3h before trial end — convert
 CHAIN_WINBACK: Final[str] = "E"  # +3d / +2w after churn — win-back
+# +1d after churn. Used to arrive as the panel's `user.expired_24_hours_ago` webhook,
+# which 2.8 removed; the notice and its admin toggle live on, driven from here.
+CHAIN_EXPIRED_AGO: Final[str] = "D"
 
 
 class LifecycleFollowup(BaseSql, TimestampMixin):

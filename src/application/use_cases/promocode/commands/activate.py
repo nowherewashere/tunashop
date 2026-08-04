@@ -204,7 +204,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
             log_detail = f"+{promo.reward} days"
         await self.remnawave.update_user(
             user=user,
-            uuid=subscription.user_remna_id,
+            user_id=subscription.user_remna_id,
             subscription=subscription,
         )
         logger.info(f"{actor.log} DURATION reward: {log_detail} applied")
@@ -228,7 +228,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
             log_detail = f"+{promo.reward} GB"
         await self.remnawave.update_user(
             user=user,
-            uuid=subscription.user_remna_id,
+            user_id=subscription.user_remna_id,
             subscription=subscription,
         )
         logger.info(f"{actor.log} TRAFFIC reward: {log_detail} applied")
@@ -252,7 +252,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
             log_detail = f"+{promo.reward} devices"
         await self.remnawave.update_user(
             user=user,
-            uuid=subscription.user_remna_id,
+            user_id=subscription.user_remna_id,
             subscription=subscription,
         )
         logger.info(f"{actor.log} DEVICES reward: {log_detail} applied")
@@ -293,7 +293,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
             subscription.plan_snapshot = plan
             updated = await self.remnawave.update_user(
                 user=user,
-                uuid=subscription.user_remna_id,
+                user_id=subscription.user_remna_id,
                 subscription=subscription,
                 reset_traffic=True,
             )
@@ -306,7 +306,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
             return _PendingReward(subscription_update=subscription)
         created = await self.remnawave.create_user(user=user, plan=plan)
         new_sub = SubscriptionDto(
-            user_remna_id=created.uuid,
+            user_remna_id=created.id,
             status=SubscriptionStatus(created.status),
             traffic_limit=plan.traffic_limit,
             device_limit=plan.device_limit,

@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from typing import Optional
-from uuid import UUID
 
 from loguru import logger
 
@@ -113,7 +112,7 @@ class DeleteUser(Interactor[int, DeleteUserResult]):
         telegram_id = target.telegram_id
         # Every subscription the user ever had, not only the current one: each carries
         # its own panel user, and an old one left behind still holds a username.
-        panel_ids: set[UUID] = {
+        panel_ids: set[int] = {
             sub.user_remna_id for sub in await self.subscription_dao.get_all_by_user(target.id)
         }
         # Read while the row still exists — the conversation cascades away with it, and
@@ -148,7 +147,7 @@ class DeleteUser(Interactor[int, DeleteUserResult]):
             deleted_panel_users=deleted_panel_users,
         )
 
-    async def _delete_panel_users(self, target: UserDto, panel_ids: set[UUID]) -> int:
+    async def _delete_panel_users(self, target: UserDto, panel_ids: set[int]) -> int:
         deleted = 0
         for remna_id in panel_ids:
             try:

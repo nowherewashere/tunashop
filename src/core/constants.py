@@ -29,8 +29,21 @@ URL_PATTERN: Pattern[str] = re.compile(r"^https://\S+$")
 USERNAME_PATTERN: Pattern[str] = re.compile(r"^@[a-zA-Z0-9_]{5,32}$")
 INVITE_LINK_PATTERN: Pattern[str] = re.compile(r"^https://t\.me/(\+|joinchat/)[A-Za-z0-9_\-]+")
 
-REMNAWAVE_MIN_VERSION: Final[Version] = Version("2.7.0")
-REMNAWAVE_MAX_VERSION: Final[Version] = Version("2.8.0")
+# MIN is a hard gate (`try_connection` refuses to start below it); MAX only raises an
+# admin warning. 3.0.0 is the floor because the bot speaks the post-UUID API and cannot
+# talk to a 2.x panel at all.
+REMNAWAVE_MIN_VERSION: Final[Version] = Version("3.0.0")
+REMNAWAVE_MAX_VERSION: Final[Version] = Version("3.3.0")
+
+# Panel 2.8 collapsed expires_in_72/48/24_hours into one user.expiration event whose
+# `meta.expiration` carries the remaining hours, and the thresholds themselves are set
+# in the panel's EXPIRATION_NOTIFICATIONS env. The bot buckets those hours into whole
+# days and clamps to the number of days its copy is written for.
+MAX_EXPIRING_NOTICE_DAYS: Final[int] = 3
+
+# Page size for /users/stream, which since panel 3.0.0 replaces the removed
+# by-telegram-id / by-email / by-tag lookups. Panel caps it at 1000.
+USERS_STREAM_PAGE_SIZE: Final[int] = 500
 
 REPOSITORY: Final[str] = "https://github.com/snoups/remnashop"
 DOCS: Final[str] = "https://remnashop.mintlify.app"
@@ -66,6 +79,13 @@ PENDING_DEEPLINK_TTL_SECONDS: Final[int] = 600
 # here as a plain string so the infrastructure support service can drop a client's chat on
 # operator /close without importing the telegram layer; states.py asserts they stay in sync.
 SUPPORT_FSM_STATE: Final[str] = "Support:CHAT"
+
+# Broadcast "+1 free trial day" button. StartBroadcast appends the broadcast task_id to
+# the prefix so a press can be matched back to exactly one broadcast_messages row — that
+# row is the claim ledger, which is what makes the bonus one-per-person-per-broadcast.
+# Budget: prefix 4 + uuid 36 = 40 of Telegram's 64 callback_data bytes.
+TRIAL_BONUS_CB: Final[str] = "tbn:"
+TRIAL_BONUS_DAYS: Final[int] = 1
 
 # goto targets (see routers/extra/goto.py) that open the onboarding funnel from a
 # plain notification button; must match the Onboarding state strings in

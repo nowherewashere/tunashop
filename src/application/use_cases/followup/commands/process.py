@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import Any
 
 from aiogram.enums import ButtonStyle
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -17,6 +18,7 @@ from src.core.constants import GOTO_PREFIX
 from src.core.enums import UserNotificationType
 from src.core.utils.time import datetime_now
 from src.infrastructure.database.models.lifecycle_followup import (
+    CHAIN_EXPIRED_AGO,
     CHAIN_TRIAL_ENDING,
     CHAIN_WINBACK,
 )
@@ -32,12 +34,15 @@ _GT_PLANS = f"{GOTO_PREFIX}Subscription:PLANS"
 _COPY: dict[str, str] = {
     CHAIN_TRIAL_ENDING: "event-followup-trial-ending",
     CHAIN_WINBACK: "event-followup-winback",
+    # Reuses the copy the removed `user.expired_24_hours_ago` webhook used to render.
+    CHAIN_EXPIRED_AGO: "event-subscription.expired-ago",
 }
 
 # Per-chain notification type — lets the admin toggle each followup in the panel.
 _NTF_TYPE: dict[str, UserNotificationType] = {
     CHAIN_TRIAL_ENDING: UserNotificationType.FOLLOWUP_TRIAL_ENDING,
     CHAIN_WINBACK: UserNotificationType.FOLLOWUP_WINBACK,
+    CHAIN_EXPIRED_AGO: UserNotificationType.EXPIRED_1_DAY_AGO,
 }
 
 
@@ -55,7 +60,7 @@ def _keyboard(chain: str) -> InlineKeyboardMarkup:
                 ),
             ]
         ]
-    else:  # CHAIN_WINBACK
+    else:  # CHAIN_WINBACK / CHAIN_EXPIRED_AGO
         rows = [
             [
                 InlineKeyboardButton(
@@ -68,14 +73,23 @@ def _keyboard(chain: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def _copy_kwargs(chain: str, subscription: SubscriptionDto | None) -> dict[str, Any]:
+    """Placeholders the chain's copy needs; the followup-native chains have none."""
+    if chain == CHAIN_EXPIRED_AGO:
+        # `event-subscription.expired-ago` renders a trial/paid split and "{ unit-day }".
+        # Chain D fires a single step at +1d, so the day count is always 1.
+        return {"is_trial": bool(subscription and subscription.is_trial), "value": 1}
+    return {}
+
+
 def _should_send(chain: str, subscription: SubscriptionDto | None) -> bool:
     """Re-validate live state at send time so we never need per-chain cancel events."""
     active_trial = bool(subscription and subscription.is_trial and subscription.is_active)
     has_access = bool(subscription and subscription.is_active)
     if chain == CHAIN_TRIAL_ENDING:
         return active_trial  # only nudge users still inside an active trial
-    if chain == CHAIN_WINBACK:
-        return not has_access  # only win back users who are actually churned
+    if chain in (CHAIN_WINBACK, CHAIN_EXPIRED_AGO):
+        return not has_access  # only nudge users who are actually churned
     return False
 
 
@@ -155,6 +169,7 @@ class ProcessDueLifecycleFollowups(Interactor[None, None]):
 
                 payload = MessagePayloadDto(
                     i18n_key=_COPY[followup.chain],
+                    i18n_kwargs=_copy_kwargs(followup.chain, subscription),
                     reply_markup=_keyboard(followup.chain),
                     # No stock "❌ Закрыть" button — the single CTA is the only action.
                     disable_default_markup=True,

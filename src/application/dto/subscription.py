@@ -23,7 +23,8 @@ class SquadInfoDto:
 
 @dataclass(kw_only=True)
 class RemnaSubscriptionDto:
-    uuid: UUID
+    # Panel 3.0.0 dropped the user UUID; `id` is the identifier now.
+    id: int
     status: SubscriptionStatus
     expire_at: datetime
     url: str
@@ -39,7 +40,7 @@ class RemnaSubscriptionDto:
     @classmethod
     def from_remna_user(cls, remna_user: RemnaUserDto) -> "RemnaSubscriptionDto":
         return cls(
-            uuid=remna_user.uuid,
+            id=remna_user.id,
             status=SubscriptionStatus(remna_user.status),
             expire_at=remna_user.expire_at,
             url=remna_user.subscription_url,
@@ -55,7 +56,8 @@ class RemnaSubscriptionDto:
 @dataclass(kw_only=True)
 class SubscriptionDto(BaseDto, TrackableMixin, TimestampMixin):
     user_id: int = 0
-    user_remna_id: UUID
+    # Panel user id (3.0.0 replaced the UUID with a numeric id).
+    user_remna_id: int
 
     status: SubscriptionStatus = SubscriptionStatus.ACTIVE
     is_trial: bool = False

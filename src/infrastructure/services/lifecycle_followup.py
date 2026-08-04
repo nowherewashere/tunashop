@@ -6,7 +6,10 @@ from src.application.common.dao import LifecycleFollowupDao
 from src.application.common.uow import UnitOfWork
 from src.application.events.user import SubscriptionExpiredEvent
 from src.core.utils.time import datetime_now
-from src.infrastructure.database.models.lifecycle_followup import CHAIN_WINBACK
+from src.infrastructure.database.models.lifecycle_followup import (
+    CHAIN_EXPIRED_AGO,
+    CHAIN_WINBACK,
+)
 from src.infrastructure.services.event_bus import on_event
 
 # Win-back touches after churn (spec §6 chain E): soft returns at +3d and +2w.
@@ -14,6 +17,11 @@ _WINBACK_STEPS: tuple[tuple[str, timedelta], ...] = (
     ("e_3d", timedelta(days=3)),
     ("e_2w", timedelta(days=14)),
 )
+
+# The "expired a day ago" notice (chain D). Panel 2.8 dropped the
+# `user.expired_24_hours_ago` webhook that used to trigger it, so it is armed here
+# from the same expiry event and delivered by the same sweeper.
+_EXPIRED_AGO_STEPS: tuple[tuple[str, timedelta], ...] = (("d_1d", timedelta(days=1)),)
 
 
 class LifecycleFollowupHandler:
@@ -36,13 +44,17 @@ class LifecycleFollowupHandler:
 
         now = datetime_now()
         async with self.uow:
-            for step, offset in _WINBACK_STEPS:
-                await self.followup_dao.schedule(
-                    telegram_id=telegram_id,
-                    chain=CHAIN_WINBACK,
-                    step=step,
-                    fire_at=now + offset,
-                )
+            for chain, steps in (
+                (CHAIN_EXPIRED_AGO, _EXPIRED_AGO_STEPS),
+                (CHAIN_WINBACK, _WINBACK_STEPS),
+            ):
+                for step, offset in steps:
+                    await self.followup_dao.schedule(
+                        telegram_id=telegram_id,
+                        chain=chain,
+                        step=step,
+                        fire_at=now + offset,
+                    )
             await self.uow.commit()
 
-        logger.debug(f"Armed win-back followups for user '{telegram_id}'")
+        logger.debug(f"Armed expiry followups for user '{telegram_id}'")

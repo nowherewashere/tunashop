@@ -35,11 +35,13 @@ dependencies = [
     "greenlet>=3.3.0",
 ]
 
-# Pinned to the 2.8.0-aligned main tip (untagged as of 2026-07): panel 2.8.0
-# renamed hwid userUuid -> userId (BigInt) + added requestIp, which the 2.7.0
-# pin (95e15ed) rejected. This rev makes HwidDeviceDto tolerate both schemas.
+# Our fork, aligned to panel 3.2.x. No published Python SDK supports 3.x: the
+# official remnawave/python-sdk was archived on 2026-08-01 (a day after panel 3.0.0
+# shipped) at 2.8.0, and remnashop/remnapy — which this forks — stops at 2.8.0 too.
+# 3.0.0 dropped the user UUID for a numeric id, renamed ip-control to connections
+# and removed the legacy bandwidth-stats routes, so the client had to be rewritten.
 [tool.uv.sources]
-remnapy = { git = "https://github.com/snoups/remnapy", rev = "0680253" }
+remnapy = { git = "https://github.com/nowherewashere/remnapy", rev = "194de8d" }
 
 [project.urls]
 homepage = "https://t.me/@remna_shop"

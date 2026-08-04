@@ -76,7 +76,7 @@ class SetUserSubscription(Interactor[SetUserSubscriptionDto, None]):
                 )
                 remna_user = await self.remnawave.update_user(
                     user=target_user,
-                    uuid=subscription.user_remna_id,
+                    user_id=subscription.user_remna_id,
                     subscription=new_subscription,
                     reset_traffic=True,
                 )
@@ -89,7 +89,7 @@ class SetUserSubscription(Interactor[SetUserSubscriptionDto, None]):
             else:
                 remna_user = await self.remnawave.create_user(user=target_user, plan=plan_snapshot)
                 new_subscription = SubscriptionDto(
-                    user_remna_id=remna_user.uuid,
+                    user_remna_id=remna_user.id,
                     status=SubscriptionStatus(remna_user.status),
                     traffic_limit=plan.traffic_limit,
                     device_limit=plan.device_limit,

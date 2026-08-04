@@ -1,5 +1,5 @@
 import json
-from typing import Any, cast
+from typing import cast
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
@@ -28,32 +28,6 @@ router = APIRouter(prefix=API_V1, include_in_schema=False)
 _REJECTION_LOG = LogThrottle()
 
 
-def _adapt_hwid_device_payload(body: dict[str, Any]) -> None:
-    """Adapt Remnawave's `user_hwid_devices` payload to the pinned remnapy schema.
-
-    The panel emits the device object with `userId` (internal numeric id) and no
-    `userUuid`, while remnapy's `HwidUserDeviceDto` requires `userUuid: UUID`. We
-    backfill it from the sibling `user.uuid` so parsing does not fail. This is an
-    anti-corruption shim for a schema drift between the panel and the pinned SDK;
-    it can be removed once remnapy's model matches the panel.
-    """
-    event = body.get("event", "")
-    if not event.startswith("user_hwid_devices."):
-        return
-
-    data = body.get("data")
-    if not isinstance(data, dict):
-        return
-
-    device = data.get("hwidUserDevice")
-    user = data.get("user")
-    if not isinstance(device, dict) or not isinstance(user, dict):
-        return
-
-    if not device.get("userUuid") and user.get("uuid"):
-        device["userUuid"] = user["uuid"]
-
-
 async def _process_remnawave_webhook(
     request: Request,
     config: AppConfig,
@@ -65,8 +39,6 @@ async def _process_remnawave_webhook(
         raw_str = raw_body.decode("utf-8")
         logger.debug(f"Received Remnawave webhook raw body: '{raw_str[:500]}'")
 
-        # Validate the signature against the *original* body, then adapt the payload
-        # before parsing so a schema drift in one scope cannot 401 the whole webhook.
         if not WebhookUtility.validate_webhook_with_headers(
             body=raw_str,
             headers=dict(request.headers),
@@ -78,7 +50,6 @@ async def _process_remnawave_webhook(
             raise HTTPException(status_code=401)
 
         body = json.loads(raw_str)
-        _adapt_hwid_device_payload(body)
 
         payload = WebhookUtility.parse_webhook(
             body=body,
@@ -110,7 +81,10 @@ async def _process_remnawave_webhook(
     try:
         if WebhookUtility.is_user_event(payload.event):
             user = cast(UserDto, WebhookUtility.get_typed_data(payload))
-            await remna_webhook_service.handle_user_event(payload.event, user)
+            # `meta` carries the notification-style detail the event itself no longer
+            # encodes — `expiration` (hours left) since the panel collapsed the
+            # expires_in_* family into a single user.expiration event.
+            await remna_webhook_service.handle_user_event(payload.event, user, payload.meta)
 
         elif WebhookUtility.is_user_hwid_devices_event(payload.event):
             event = cast(UserHwidDeviceEventDto, WebhookUtility.get_typed_data(payload))

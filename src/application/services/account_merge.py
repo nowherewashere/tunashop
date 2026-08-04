@@ -1,5 +1,4 @@
 from typing import Callable
-from uuid import UUID
 
 from fastapi import HTTPException, status
 from loguru import logger
@@ -217,14 +216,14 @@ class AccountMergeService:
 
     async def _retire_losing_subscriptions(
         self, survivor_id: int, best_sub: "SubscriptionDto | None"
-    ) -> set[UUID]:
+    ) -> set[int]:
         """Mark every non-winning subscription DELETED; return the distinct Remnawave
         user ids to remove (all except the winner's, so the panel keeps exactly one)."""
         if best_sub is None:
             return set()
 
         keep = best_sub.user_remna_id
-        orphans: set[UUID] = set()
+        orphans: set[int] = set()
         for sub in await self.subscription_dao.get_all_by_user(survivor_id):
             if sub.user_remna_id == keep:
                 continue

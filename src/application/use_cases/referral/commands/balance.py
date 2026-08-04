@@ -129,7 +129,7 @@ class PayWithBalance(Interactor[PayWithBalanceDto, PayWithBalanceResult]):
             )
             await self.remnawave.update_user(
                 user=user,
-                uuid=subscription.user_remna_id,
+                user_id=subscription.user_remna_id,
                 subscription=subscription,
                 reset_traffic=True,
             )
