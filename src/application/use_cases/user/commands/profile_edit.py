@@ -116,49 +116,6 @@ class ToggleUserTrialAvailable(Interactor[int, None]):
         logger.info(f"{actor.log} Set trial available to '{new_value}' for user '{user_id}'")
 
 
-@dataclass(frozen=True)
-class ChangeUserPointsDto:
-    user_id: int
-    amount: int
-
-
-class ChangeUserPoints(Interactor[ChangeUserPointsDto, None]):
-    required_permission = Permission.USER_EDITOR
-
-    def __init__(self, uow: UnitOfWork, user_dao: UserDao) -> None:
-        self.uow = uow
-        self.user_dao = user_dao
-
-    async def _execute(self, actor: UserDto, data: ChangeUserPointsDto) -> None:
-        async with self.uow:
-            target_user = await self.user_dao.get_by_id(data.user_id)
-            if not target_user:
-                logger.error(f"{actor.log} User not found with id '{data.user_id}'")
-                raise ValueError(f"User '{data.user_id}' not found")
-
-            if actor.id != target_user.id and not actor.role > target_user.role:
-                logger.warning(
-                    f"{actor.log} denied editing user '{target_user.id}': "
-                    f"target role '{target_user.role}' >= actor role '{actor.role}'"
-                )
-                raise PermissionDeniedError()
-
-            new_points = target_user.points + data.amount
-            if new_points < 0:
-                raise ValueError(
-                    f"{actor.log} Points balance cannot be negative for '{target_user.remna_name}'"
-                )
-
-            target_user.points = new_points
-            await self.user_dao.update(target_user)
-            await self.uow.commit()
-
-        operation = "Added" if data.amount > 0 else "Subtracted"
-        logger.info(
-            f"{actor.log} {operation} '{abs(data.amount)}' points for '{target_user.remna_name}'"
-        )
-
-
 class ResetUserReferralCode(Interactor[int, None]):
     required_permission = Permission.USER_EDITOR
 

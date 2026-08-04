@@ -3,11 +3,6 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-class ReferralRewardLevelResponse(BaseModel):
-    level: int
-    value: int
-
-
 class ReferralProgramResponse(BaseModel):
     enabled: bool
     referral_code: str
@@ -38,13 +33,6 @@ class ReferralProgramResponse(BaseModel):
     # surfaces Stars as "получить в боте" — this flag/threshold only drive that hint.
     stars_payout_enabled: bool = False
     stars_min_kop: int = 10_000
-
-    # Legacy reward config (vestigial — the active accrual is the money commission).
-    reward_type: str
-    reward_strategy: str
-    accrual_strategy: str
-    max_level: int
-    reward_levels: list[ReferralRewardLevelResponse]
 
 
 class CryptoPayoutRequest(BaseModel):

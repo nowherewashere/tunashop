@@ -144,6 +144,41 @@ class ReferralLedgerDaoImpl(BaseDaoImpl, ReferralLedgerDao):
         )
         return int(await self.session.scalar(stmt) or 0)
 
+    # --- shop-wide totals (admin statistics) ---
+    async def get_total_commission_kop(self) -> int:
+        stmt = select(func.coalesce(func.sum(ReferralEvent.commission_kop), 0))
+        return int(await self.session.scalar(stmt) or 0)
+
+    async def get_total_spent_kop(self) -> int:
+        stmt = select(func.coalesce(func.sum(BalanceSpend.amount_kop), 0))
+        return int(await self.session.scalar(stmt) or 0)
+
+    async def get_total_withdrawn_kop(self) -> int:
+        stmt = select(func.coalesce(func.sum(Payout.amount_kop), 0)).where(
+            Payout.status == PAYOUT_PAID
+        )
+        return int(await self.session.scalar(stmt) or 0)
+
+    async def get_total_paying_count(self) -> int:
+        # Same live-edge join as get_paying_count, so the shop-wide "из них платят"
+        # can never exceed the shop-wide invited count either.
+        stmt = (
+            select(func.count(func.distinct(ReferralEvent.referred_id)))
+            .select_from(ReferralEvent)
+            .join(
+                Referral,
+                (Referral.referrer_id == ReferralEvent.referrer_id)
+                & (Referral.referred_id == ReferralEvent.referred_id),
+            )
+        )
+        return int(await self.session.scalar(stmt) or 0)
+
+    async def get_open_payouts_kop(self) -> int:
+        stmt = select(func.coalesce(func.sum(Payout.amount_kop), 0)).where(
+            Payout.status.in_(PAYOUT_OPEN_STATUSES)
+        )
+        return int(await self.session.scalar(stmt) or 0)
+
     async def get_open_payout(self, user_id: int) -> Optional[PayoutDto]:
         stmt = (
             select(Payout)

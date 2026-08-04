@@ -53,8 +53,6 @@ from src.application.use_cases.user.commands.messaging import (
     SendMessageToUserDto,
 )
 from src.application.use_cases.user.commands.profile_edit import (
-    ChangeUserPoints,
-    ChangeUserPointsDto,
     ResetUserReferralCode,
     SetUserPersonalDiscount,
     SetUserPersonalDiscountDto,
@@ -511,62 +509,6 @@ async def on_purchase_discount_input(
         await dialog_manager.switch_to(state=DashboardUser.DISCOUNT)
     except ValueError:
         await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
-
-
-@inject
-async def on_points_input(
-    message: Message,
-    widget: MessageInput,
-    dialog_manager: DialogManager,
-    notifier: FromDishka[Notifier],
-    change_user_points: FromDishka[ChangeUserPoints],
-) -> None:
-    dialog_manager.show_mode = ShowMode.EDIT
-    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
-    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
-    number = parse_int(message.text)
-
-    if number is None:
-        await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
-        return
-
-    try:
-        await change_user_points(user, ChangeUserPointsDto(user_id=target_user_id, amount=number))
-    except ValueError:
-        await notifier.notify_user(
-            user=user,
-            payload=MessagePayloadDto(
-                i18n_key="ntf-user.invalid-points",
-                i18n_kwargs={"operation": "ADD" if number > 0 else "SUB"},
-            ),
-        )
-
-
-@inject
-async def on_points_select(
-    callback: CallbackQuery,
-    widget: Select,
-    dialog_manager: DialogManager,
-    selected_points: int,
-    notifier: FromDishka[Notifier],
-    change_user_points: FromDishka[ChangeUserPoints],
-) -> None:
-    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
-    logger.info(f"{user.log} Selected points '{selected_points}'")
-    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
-
-    try:
-        await change_user_points(
-            user, ChangeUserPointsDto(user_id=target_user_id, amount=selected_points)
-        )
-    except ValueError:
-        await notifier.notify_user(
-            user=user,
-            payload=MessagePayloadDto(
-                i18n_key="ntf-user.invalid-points",
-                i18n_kwargs={"operation": "ADD" if selected_points > 0 else "SUB"},
-            ),
-        )
 
 
 @inject

@@ -205,11 +205,11 @@ class AccountMergeService:
     def _merge_scalars(survivor: UserDto, loser: UserDto) -> None:
         """Fold the absorbed account's non-identity state into the survivor.
 
-        Each rule keeps whatever the user already earned: points add up, a discount
-        never shrinks, and an accepted-rules flag never un-accepts. `is_trial_available`
-        is the one AND — a trial spent on either account is spent.
+        Each rule keeps whatever the user already earned: a discount never shrinks and
+        an accepted-rules flag never un-accepts. `is_trial_available` is the one AND —
+        a trial spent on either account is spent. Referral money is not folded here: it
+        lives in the ledger tables and is repointed by the merge DAO.
         """
-        survivor.points += loser.points
         survivor.is_rules_accepted = survivor.is_rules_accepted or loser.is_rules_accepted
         survivor.is_trial_available = survivor.is_trial_available and loser.is_trial_available
         survivor.personal_discount = max(survivor.personal_discount, loser.personal_discount)

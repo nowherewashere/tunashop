@@ -8,7 +8,7 @@ from .onboarding_nudge import OnboardingNudge
 from .payment_gateway import PaymentGateway
 from .plan import Plan, PlanDuration, PlanPrice
 from .promocode import Promocode, PromocodeActivation
-from .referral import Referral, ReferralReward
+from .referral import Referral
 from .referral_code_alias import ReferralCodeAlias
 from .referral_ledger import BalanceSpend, Payout, ReferralEvent
 from .settings import Settings
@@ -35,7 +35,6 @@ __all__ = [
     "PlanPrice",
     "Referral",
     "ReferralCodeAlias",
-    "ReferralReward",
     "BalanceSpend",
     "Payout",
     "ReferralEvent",

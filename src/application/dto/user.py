@@ -59,7 +59,6 @@ class UserDto(BaseDto, TrackableMixin, TimestampMixin):
 
     personal_discount: int = 0
     purchase_discount: int = 0
-    points: int = 0
 
     is_blocked: bool = False
     is_bot_blocked: bool = False

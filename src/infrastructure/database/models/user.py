@@ -37,7 +37,6 @@ class User(BaseSql, TimestampMixin):
 
     personal_discount: Mapped[int]
     purchase_discount: Mapped[int]
-    points: Mapped[int]
 
     is_blocked: Mapped[bool]
     is_bot_blocked: Mapped[bool]

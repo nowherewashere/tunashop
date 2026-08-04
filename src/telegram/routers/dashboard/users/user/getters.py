@@ -50,6 +50,7 @@ from src.core.utils.i18n_helpers import (
     i18n_format_traffic_limit,
 )
 from src.core.utils.i18n_keys import ByteUnitKey
+from src.core.utils.money import kop_to_rub
 from src.telegram.utils import translate_or_literal
 
 
@@ -79,8 +80,6 @@ async def user_getter(
         "name": profile.target_user.name,
         "role": profile.target_user.role,
         "language": profile.target_user.language,
-        "show_points": profile.show_points,
-        "points": profile.target_user.points,
         "personal_discount": profile.target_user.personal_discount,
         "purchase_discount": profile.target_user.purchase_discount,
         "is_blocked": profile.target_user.is_blocked,
@@ -197,32 +196,6 @@ async def devices_getter(
 
 async def discount_getter(dialog_manager: DialogManager, **kwargs: Any) -> dict[str, Any]:
     return {"percentages": [0, 5, 10, 25, 40, 50, 70, 80, 100]}
-
-
-@inject
-async def points_getter(
-    dialog_manager: DialogManager,
-    user_dao: FromDishka[UserDao],
-    **kwargs: Any,
-) -> dict[str, Any]:
-    target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
-    target_user = await user_dao.get_by_id(target_user_id)
-
-    if not target_user:
-        raise ValueError(f"User '{target_user_id}' not found")
-
-    formatted_points = [
-        {
-            "operation": "+" if value > 0 else "",
-            "points": value,
-        }
-        for value in [5, -5, 25, -25, 50, -50, 100, -100]
-    ]
-
-    return {
-        "current_points": target_user.points,
-        "points": formatted_points,
-    }
 
 
 async def traffic_limit_getter(dialog_manager: DialogManager, **kwargs: Any) -> dict[str, Any]:
@@ -413,17 +386,19 @@ async def statistics_getter(
     )
 
     return {
-        "has_referrals": data.referrals_level_1 > 0,
+        "has_referrals": data.referrals_invited > 0,
         "last_payment_at": data.last_payment_at or 0,
         "payment_amounts": payment_amounts,
         "registered_at": data.registered_at,
         "referrer_telegram_id": data.referrer_telegram_id or 0,
         "referrer_email": data.referrer_email or 0,
         "referrer_username": data.referrer_username or 0,
-        "referrals_level_1": data.referrals_level_1,
-        "referrals_level_2": data.referrals_level_2,
-        "reward_points": data.reward_points,
-        "reward_days": data.reward_days,
+        "referrals_invited": data.referrals_invited,
+        "referrals_paying": data.referrals_paying,
+        "referral_earned": kop_to_rub(data.referral_earned_kop),
+        "referral_balance": kop_to_rub(data.referral_balance_kop),
+        "referral_withdrawn": kop_to_rub(data.referral_withdrawn_kop),
+        "referral_spent": kop_to_rub(data.referral_spent_kop),
     }
 
 

@@ -46,7 +46,6 @@ from .referral import (
     PayWithBalanceRequest,
     PayWithBalanceResponse,
     ReferralProgramResponse,
-    ReferralRewardLevelResponse,
     StarsPayoutRequest,
 )
 from .subscription import (
@@ -122,7 +121,6 @@ __all__ = [
     "PublicPlanLandingResponse",
     # referral
     "ReferralProgramResponse",
-    "ReferralRewardLevelResponse",
     "CryptoPayoutRequest",
     "StarsPayoutRequest",
     "PayoutResponse",

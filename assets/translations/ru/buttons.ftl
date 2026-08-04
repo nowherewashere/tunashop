@@ -86,11 +86,9 @@ btn-menu =
 
 btn-invite =
     .about = ❓ Подробнее
-    .copy = 📋 Скопировать ссылку
     .send = 🤝 Пригласить
     .share-link = 📩 Отправить другу
     .qr = 🧾 QR-код
-    .withdraw-points = 💎 Обменять баллы
     .withdraw = 💰 Вывести (от { $withdraw_min } ₽)
     .edit-wallet = ✏️ Изменить адрес
     .withdraw-crypto = 🪙 Крипта ({ $crypto_asset })
@@ -165,7 +163,6 @@ btn-user =
     .discount = 💸 Скидка
     .discount-personal = 👤 Персональная скидка
     .discount-purchase = 🎟 На следующую покупку
-    .points = 💎 Баллы
     .statistics = 📊 Статистика
     .referrals = 👪 Рефералы
     .message = 📩 Сообщение
@@ -442,40 +439,9 @@ btn-gateway =
     .method-label-reset = ♻️ Сбросить название
 
 btn-referral =
-    .level = 🔢 Уровень
-    .reward-type = 🎀 Тип награды
-    .accrual-strategy = 📍 Условие начисления
-    .reward-strategy = ⚖️ Форма начисления
-    .reward = 🎁 Награда
-    
-    .active-toggle = { $is_enable -> 
+    .active-toggle = { $is_enable ->
     [1] 🟢 Включена
     *[0] 🔴 Выключена
-    }
-
-    .level-choice = { $type -> 
-    [1] 1️⃣
-    [2] 2️⃣
-    [3] 3️⃣
-    *[OTHER] { $type }
-    }
-
-    .reward-choice = { $type -> 
-    [POINTS] 💎 Баллы
-    [EXTRA_DAYS] ⏳ Дни
-    *[OTHER] { $type }
-    }
-
-    .accrual-strategy-choice = { $type -> 
-    [ON_FIRST_PAYMENT] 💳 Первый платеж
-    [ON_EACH_PAYMENT] 💸 Каждый платеж
-    *[OTHER] { $type }
-    }
-
-    .reward-strategy-choice = { $type -> 
-    [AMOUNT] 🔸 Фиксированная
-    [PERCENT] 🔹 Процентная
-    *[OTHER] { $type }
     }
 
 btn-notifications =

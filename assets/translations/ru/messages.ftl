@@ -114,9 +114,8 @@ msg-menu-devices-confirm-delete =
 msg-menu-devices-confirm-delete-all =
     🗑 <b>Подтверди удаление всех устройств</b>
 
-# Referral screen — copy per UX spec v2 §4.7. The money model (50% / payouts /
-# balance) is spec text only for now; the payout backend isn't built, so the ₽ stat
-# lines render as 0 placeholders and no withdraw/balance buttons are shown yet.
+# Referral screen — copy per UX spec v2 §4.7. The money model is live: the ₽ stat
+# lines are real ledger sums and the withdraw / pay-with-balance actions are wired.
 msg-menu-invite =
     <b>🤝 Приглашай и зарабатывай</b>
 
@@ -246,28 +245,6 @@ msg-menu-invite-about =
     } бесплатно</b> по твоей ссылке и расширенные лимиты устройств
     • Баланс можно <b>вывести реальными деньгами</b> (от { $min } ₽, выплаты по понедельникам) или <b>оплатить им свою подписку</b>
     </blockquote>
-
-msg-invite-reward = { $value }{ $reward_strategy_type ->
-    [AMOUNT] { $reward_type ->
-        [POINTS] { space }{ $value -> 
-            [one] балл
-            [few] балла
-            *[more] баллов 
-            }
-        [EXTRA_DAYS] { space }доп. { $value -> 
-            [one] день
-            [few] дня
-            *[more] дней
-            }
-        *[OTHER] { $reward_type }
-    }
-    [PERCENT] % { $reward_type ->
-        [POINTS] баллов
-        [EXTRA_DAYS] доп. дней
-        *[OTHER] { $reward_type }
-    }
-    *[OTHER] { $reward_strategy_type }
-    }
 
 
 # Dashboard
@@ -465,26 +442,28 @@ msg-statistics-referrals =
     <b>👪 Статистика по рефералам</b>
 
     <blockquote>
-    • <b>Всего рефералов</b>: { $total_referrals }
-    • <b>Уровень 1</b>: { $level_1_count }
-    • <b>Уровень 2</b>: { $level_2_count }
-    • <b>Уникальных реферреров</b>: { $unique_referrers }
+    • <b>Всего приглашено</b>: { $total_referrals }
+    • <b>Из них платят</b>: { $paying_referrals }
+    • <b>Уникальных рефереров</b>: { $unique_referrers }
     { $top_referrer_id ->
         [0] { empty }
-        *[HAS] • <b>Топ реферрер</b>: { $top_referrer_telegram_id ->
+        *[HAS] • <b>Топ реферер</b>: { $top_referrer_telegram_id ->
             [0] <code>{ $top_referrer_email }</code>
             *[HAS] { $top_referrer_username ->
                 [0] { NUMBER($top_referrer_telegram_id, useGrouping: 0) }
                 *[HAS] <a href="tg://user?id={ $top_referrer_telegram_id }">@{ $top_referrer_username }</a>
             }
-        } ({ $top_referrer_referrals_count } приглашенных)
+        } ({ $top_referrer_referrals_count } приглашённых)
     }
     </blockquote>
 
+    <b>💰 Деньги</b>
     <blockquote>
-    • <b>Выдано наград</b>: { $total_rewards_issued }
-    • <b>Выдано баллов</b>: { $total_points_issued }
-    • <b>Выдано дней</b>: { $total_days_issued }
+    • <b>Начислено комиссии</b>: { $total_earned } ₽
+    • <b>Выплачено</b>: { $total_withdrawn } ₽
+    • <b>Потрачено на подписки</b>: { $total_spent } ₽
+    • <b>На балансах</b>: { $total_balance } ₽
+    • <b>Заявок в очереди</b>: { $open_payouts_count } ({ $open_payouts_amount } ₽)
     </blockquote>
 
 
@@ -661,10 +640,15 @@ msg-user-statistics =
             *[HAS] <a href="tg://user?id={ $referrer_telegram_id }">@{ $referrer_username }</a>
         }
     }
-    • <b>Приглашенных (ур. 1)</b>: { $referrals_level_1 }
-    • <b>Приглашенных (ур. 2)</b>: { $referrals_level_2 }
-    • <b>Получено поинтов</b>: { $reward_points }
-    • <b>Получено дней</b>: { $reward_days }
+    • <b>Приглашённых</b>: { $referrals_invited }
+    • <b>Из них платят</b>: { $referrals_paying }
+    </blockquote>
+
+    <blockquote>
+    • <b>Заработано</b>: { $referral_earned } ₽
+    • <b>Баланс</b>: { $referral_balance } ₽
+    • <b>Выведено</b>: { $referral_withdrawn } ₽
+    • <b>Потрачено на подписку</b>: { $referral_spent } ₽
     </blockquote>
 
 msg-user-statistics-payment-amount = • <b>Оплачено ({ $currency })</b>: { $amount }
@@ -765,13 +749,6 @@ msg-user-discount-purchase =
 
     Выберите по кнопке или введите свой вариант.
     Скидка будет применена один раз и сброшена после любого платежа.
-
-msg-user-points =
-    <b>💎 Изменить баллы реферальной системы</b>
-
-    <b>Текущее кол-во баллов: { $current_points }</b>
-
-    Выберите по кнопке или введите свой вариант, чтобы добавить или отнять.
 
 msg-user-subscription-traffic-limit =
     <b>🌐 Изменить лимит трафика</b>
@@ -1280,78 +1257,23 @@ msg-referral-main =
         [1] 🟢 Включена
         *[0] 🔴 Выключена
         }
-    • <b>Тип награды</b>: { reward-type }
-    • <b>Количество уровней</b>: { $referral_level }
-    • <b>Условие начисления</b>: { accrual-strategy }
-    • <b>Форма начисления</b>: { reward-strategy }
+    • <b>Ставка</b>: { $rate }% с каждого платежа приглашённого
+    • <b>Пробный период другу</b>: { $trial_days } дн.
     </blockquote>
 
-    Выберите пункт для изменения.
-
-msg-referral-level =
-    <b>🔢 Изменить уровень</b>
-
-    Выберите максимальный уровень реферала.
-
-msg-referral-reward-type =
-    <b>🎀 Изменить тип награды</b>
-
-    Выберите новый тип награды.
-    
-msg-referral-accrual-strategy =
-    <b>📍 Изменить условие начисления</b>
-
-    Выберите, в каком случае будет начисляться награда.
-
-
-msg-referral-reward-strategy =
-    <b>⚖️ Изменить форму начисления</b>
-
-    Выберите способ расчета награды.
-
-
-msg-referral-reward-level = { $level } уровень: { $value }{ $reward_strategy_type ->
-    [AMOUNT] { $reward_type ->
-        [POINTS] { space }{ $value -> 
-            [one] балл
-            [few] балла
-            *[more] баллов
-            }
-        [EXTRA_DAYS] { space }доп. { $value -> 
-            [one] день
-            [few] дня
-            *[more] дней
-            }
-        *[OTHER] { $reward_type }
-    }
-    [PERCENT] % { $reward_type ->
-        [POINTS] баллов
-        [EXTRA_DAYS] доп. дней
-        *[OTHER] { $reward_type }
-    }
-    *[OTHER] { $reward_strategy_type }
-    }
-    
-msg-referral-reward =
-    <b>🎁 Изменить награду</b>
-
+    <b>💸 Выплаты</b>
     <blockquote>
-    { $reward }
+    • <b>Минимум для вывода</b>: { $payout_min } ₽
+    • <b>Крипта</b>: { $crypto_asset } · { $crypto_network }
+    • <b>Расписание</b>: <code>{ $batch_cron }</code>
+    • <b>Режим</b>: { $payout_mode }
+    • <b>Telegram Stars</b>: { $stars_enabled ->
+        [1] 🟢 вкл, { $stars_rate } ₽/⭐, от { $stars_min } ₽
+        *[0] 🔴 выкл
+        }
     </blockquote>
 
-    { $reward_strategy_type ->
-        [AMOUNT] Введите количество { $reward_type ->
-            [POINTS] баллов
-            [EXTRA_DAYS] дней
-            *[OTHER] { $reward_type }
-        }
-        [PERCENT] Введите процент от { $reward_type ->
-            [POINTS] <u>стоимости подписки</u>
-            [EXTRA_DAYS] <u>длительности подписки</u>
-            *[OTHER] { $reward_type }
-        }
-        *[OTHER] { $reward_strategy_type }
-    } (в формате: уровень=значение)
+    <i>Ставка, минимум вывода и Stars задаются переменными окружения (REFERRAL_*, PAYOUT_*, STARS_*) — здесь только просмотр. Длительность пробника берётся из тарифа с доступностью «Для приглашенных».</i>
 
 
 # Plans

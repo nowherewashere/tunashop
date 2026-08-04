@@ -17,8 +17,6 @@ from .commands.payout import (
     RequestCryptoPayout,
     RequestPayoutStars,
 )
-from .commands.rewards import AssignReferralRewards, GiveReferrerReward
-from .queries.calculations import CalculateReferralReward
 from .queries.code import GenerateReferralQr, ValidateReferralCode
 from .queries.summary import GetReferralSummary
 
@@ -26,9 +24,6 @@ REFERRAL_USE_CASES: Final[tuple[type[Interactor], ...]] = (
     AttachReferral,
     ValidateReferralCode,
     GenerateReferralQr,
-    CalculateReferralReward,
-    GiveReferrerReward,
-    AssignReferralRewards,
     RecordReferralCommission,
     GetReferralSummary,
     PayWithBalance,

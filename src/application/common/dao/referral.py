@@ -2,7 +2,6 @@ from typing import Optional, Protocol, runtime_checkable
 
 from src.application.dto import (
     ReferralDto,
-    ReferralRewardDto,
     ReferralStatisticsDto,
     UserReferralStatsDto,
 )
@@ -23,14 +22,6 @@ class ReferralDao(Protocol):
         offset: int = 0,
     ) -> list[ReferralDto]: ...
 
-    async def create_reward(
-        self,
-        reward: ReferralRewardDto,
-        referral_id: int,
-    ) -> ReferralRewardDto: ...
-
-    async def mark_reward_as_issued(self, reward_id: int) -> None: ...
-
     async def get_referral_chain(
         self,
         referred_id: int,
@@ -39,5 +30,3 @@ class ReferralDao(Protocol):
     async def get_stats(self) -> ReferralStatisticsDto: ...
 
     async def get_user_referral_stats(self, user_id: int) -> UserReferralStatsDto: ...
-
-    async def get_referrals_with_payment_count(self, user_id: int) -> int: ...

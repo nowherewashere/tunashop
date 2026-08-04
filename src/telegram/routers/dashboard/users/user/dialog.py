@@ -32,7 +32,6 @@ from .getters import (
     give_access_getter,
     give_subscription_getter,
     internal_squads_getter,
-    points_getter,
     referrals_getter,
     role_getter,
     squads_getter,
@@ -65,8 +64,6 @@ from .handlers import (
     on_personal_discount_input,
     on_personal_discount_select,
     on_plan_select,
-    on_points_input,
-    on_points_select,
     on_purchase_discount_input,
     on_purchase_discount_select,
     on_referral_reset,
@@ -154,12 +151,6 @@ user = Window(
             text=I18nFormat("btn-user.discount"),
             id="discount",
             state=DashboardUser.DISCOUNT,
-        ),
-        SwitchTo(
-            text=I18nFormat("btn-user.points"),
-            id="points",
-            state=DashboardUser.POINTS,
-            when=F["show_points"],
         ),
     ),
     Row(
@@ -809,33 +800,6 @@ purchase_discount = Window(
     getter=discount_getter,
 )
 
-points = Window(
-    Banner(BannerName.DASHBOARD),
-    I18nFormat("msg-user-points"),
-    Group(
-        Select(
-            text=Format("{item[operation]}{item[points]} 💎"),
-            id="points_select",
-            item_id_getter=lambda item: item["points"],
-            items="points",
-            type_factory=int,
-            on_click=on_points_select,
-        ),
-        width=2,
-    ),
-    Row(
-        SwitchTo(
-            text=I18nFormat("btn-back.general"),
-            id="back",
-            state=DashboardUser.MAIN,
-        ),
-    ),
-    MessageInput(func=on_points_input),
-    IgnoreUpdate(),
-    state=DashboardUser.POINTS,
-    getter=points_getter,
-)
-
 give_access = Window(
     Banner(BannerName.DASHBOARD),
     I18nFormat("msg-user-give-access"),
@@ -912,7 +876,6 @@ router = Dialog(
     discount,
     personal_discount,
     purchase_discount,
-    points,
     give_access,
     role,
 )

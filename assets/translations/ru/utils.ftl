@@ -36,7 +36,6 @@ inline-invite =
     .start = 🚀 Присоединиться
 
 message =
-    .withdraw-points = Здравствуйте! Я бы хотел запросить обмен баллов.
     .paysupport = Здравствуйте! Я бы хотел запросить возврат средств.
     .help = Здравствуйте! Мне нужна помощь.
 
@@ -108,10 +107,6 @@ frg-user-details =
     • <b>Бот заблокирован</b>: { $is_bot_blocked ->
         [1] Да
         *[0] Нет
-    }
-    { $show_points ->
-    [1] • <b>Баллы</b>: { $points }
-    *[0] { empty }
     }
     </blockquote>
 
@@ -424,24 +419,6 @@ traffic-strategy = { $strategy_type ->
     *[OTHER] { $strategy_type }
     }
 
-reward-type = { $reward_type -> 
-    [POINTS] Баллы
-    [EXTRA_DAYS] Дни
-    *[OTHER] { $reward_type }
-    }
-
-accrual-strategy = { $accrual_strategy_type -> 
-    [ON_FIRST_PAYMENT] Первый платеж
-    [ON_EACH_PAYMENT] Каждый платеж
-    *[OTHER] { $accrual_strategy_type }
-    }
-
-reward-strategy = { $reward_strategy_type -> 
-    [AMOUNT] Фиксированная
-    [PERCENT] Процентная
-    *[OTHER] { $reward_strategy_type }
-    }
-
 button-type = { $button_type ->
     [URL] Открыть ссылку
     [COPY] Скопировать текст
@@ -459,8 +436,9 @@ notification-type = { $notification_type ->
     [EXPIRED_1_DAY_AGO] Подписка истекла (1 день)
     [LIMITED] Трафик исчерпан
     [REFERRAL_ATTACHED] Реферал закреплен
-    [REFERRAL_REWARD_RECEIVED] Вознаграждение за реферала
-    [REFERRAL_REWARD_FAILED] Ошибка начисления вознаграждения
+    [PAYOUT_PROCESSING] Выплата в обработке
+    [PAYOUT_PAID] Выплата выполнена
+    [PAYOUT_REJECTED] Выплата отклонена
     [BOT_LIFECYCLE] Жизненный цикл бота
     [BOT_UPDATE] Обновления бота
     [USER_REGISTERED] Регистрация пользователя

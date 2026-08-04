@@ -14,7 +14,7 @@ from .payment_gateway import (
 )
 from .plan import PlanDto, PlanDurationDto, PlanPriceDto, PlanSnapshotDto
 from .promocode import PromocodeActivationDto, PromocodeDto
-from .referral import ReferralDto, ReferralRewardDto, UserReferralStatsDto
+from .referral import ReferralDto, UserReferralStatsDto
 from .referral_ledger import (
     BalanceSpendDto,
     PayoutDto,
@@ -30,7 +30,6 @@ from .settings import (
     MenuButtonDto,
     MenuSettingsDto,
     NotificationsSettingsDto,
-    ReferralRewardSettingsDto,
     ReferralSettingsDto,
     RequirementSettingsDto,
     ResetFeatureSettingsDto,
@@ -85,7 +84,6 @@ __all__ = [
     "PromocodeDetailStatisticsDto",
     "PromocodeStatisticsDto",
     "ReferralDto",
-    "ReferralRewardDto",
     "UserReferralStatsDto",
     "BalanceSpendDto",
     "PayoutDto",
@@ -99,7 +97,6 @@ __all__ = [
     "MenuButtonDto",
     "MenuSettingsDto",
     "NotificationsSettingsDto",
-    "ReferralRewardSettingsDto",
     "ReferralSettingsDto",
     "RequirementSettingsDto",
     "ResetFeatureSettingsDto",

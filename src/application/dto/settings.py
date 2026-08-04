@@ -10,10 +10,6 @@ from src.core.enums import (
     ButtonType,
     Currency,
     MediaType,
-    ReferralAccrualStrategy,
-    ReferralLevel,
-    ReferralRewardStrategy,
-    ReferralRewardType,
     Role,
     SystemNotificationType,
     UserNotificationType,
@@ -144,31 +140,10 @@ class NotificationsSettingsDto(TrackableMixin):
 
 
 @dataclass(kw_only=True)
-class ReferralRewardSettingsDto(TrackableMixin):
-    type: ReferralRewardType = ReferralRewardType.EXTRA_DAYS
-    strategy: ReferralRewardStrategy = ReferralRewardStrategy.AMOUNT
-    config: dict[ReferralLevel, int] = field(default_factory=lambda: {ReferralLevel.FIRST: 5})
-
-    @property
-    def is_identical(self) -> bool:
-        values = list(self.config.values())
-        return len(values) <= 1 or all(v == values[0] for v in values)
-
-    @property
-    def is_points(self) -> bool:
-        return self.type == ReferralRewardType.POINTS
-
-    @property
-    def is_extra_days(self) -> bool:
-        return self.type == ReferralRewardType.EXTRA_DAYS
-
-
-@dataclass(kw_only=True)
 class ReferralSettingsDto(TrackableMixin):
+    """Runtime on/off only. The economics live in env (``ReferralConfig`` et al.)."""
+
     enable: bool = True
-    level: ReferralLevel = ReferralLevel.FIRST
-    accrual_strategy: ReferralAccrualStrategy = ReferralAccrualStrategy.ON_FIRST_PAYMENT
-    reward: ReferralRewardSettingsDto = field(default_factory=ReferralRewardSettingsDto)
 
 
 @dataclass(kw_only=True)

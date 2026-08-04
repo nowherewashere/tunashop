@@ -7,7 +7,7 @@ from remnapy.models import GetExternalSquadByUuidResponseDto
 from remnapy.models.hwid import HwidDeviceDto
 
 from src.application.common import Interactor, Remnawave
-from src.application.common.dao import SettingsDao, SubscriptionDao, UserDao
+from src.application.common.dao import SubscriptionDao, UserDao
 from src.application.common.policy import Permission, PermissionPolicy
 from src.application.dto import SubscriptionDto, UserDto
 from src.core.config import AppConfig
@@ -18,7 +18,6 @@ from src.core.types import RemnaUserDto
 class GetUserProfileResultDto:
     target_user: UserDto
     subscription: Optional[SubscriptionDto]
-    show_points: bool
     is_not_self: bool
     can_edit: bool
     # Whether to even show the irreversible "delete account" control. The use case
@@ -33,12 +32,10 @@ class GetUserProfile(Interactor[int, GetUserProfileResultDto]):
     def __init__(
         self,
         user_dao: UserDao,
-        settings_dao: SettingsDao,
         subscription_dao: SubscriptionDao,
         config: AppConfig,
     ) -> None:
         self.user_dao = user_dao
-        self.settings_dao = settings_dao
         self.subscription_dao = subscription_dao
         self.config = config
 
@@ -48,7 +45,6 @@ class GetUserProfile(Interactor[int, GetUserProfileResultDto]):
         if not target_user:
             raise ValueError(f"User '{user_id}' not found")
 
-        settings = await self.settings_dao.get()
         subscription = await self.subscription_dao.get_current(target_user.id)
 
         logger.info(f"{actor.log} Viewed details for user '{user_id}'")
@@ -56,7 +52,6 @@ class GetUserProfile(Interactor[int, GetUserProfileResultDto]):
         return GetUserProfileResultDto(
             target_user=target_user,
             subscription=subscription,
-            show_points=settings.referral.reward.is_points,
             is_not_self=target_user.id != actor.id,
             can_edit=actor.role > target_user.role,
             can_delete=(

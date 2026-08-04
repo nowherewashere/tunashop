@@ -22,6 +22,7 @@ from src.application.use_cases.statistics.queries.users import GetUsersStatistic
 from src.core.constants import USER_KEY
 from src.core.enums import Currency, PromocodeRewardType
 from src.core.utils.i18n_helpers import i18n_format_days
+from src.core.utils.money import kop_to_rub
 from src.telegram.utils import translate_or_literal
 
 PROMO_STAT_PAGE_KEY = "promo_stat_page"
@@ -297,4 +298,10 @@ async def referrals_getter(
     result["top_referrer_telegram_id"] = data.top_referrer_telegram_id or 0
     result["top_referrer_email"] = data.top_referrer_email or 0
     result["top_referrer_username"] = data.top_referrer_username or 0
+    # Kopecks stay in the DTO; ₽ formatting belongs here.
+    result["total_earned"] = kop_to_rub(data.total_earned_kop)
+    result["total_withdrawn"] = kop_to_rub(data.total_withdrawn_kop)
+    result["total_spent"] = kop_to_rub(data.total_spent_kop)
+    result["total_balance"] = kop_to_rub(data.total_balance_kop)
+    result["open_payouts_amount"] = kop_to_rub(data.open_payouts_kop)
     return result

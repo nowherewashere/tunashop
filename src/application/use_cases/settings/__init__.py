@@ -23,14 +23,7 @@ from .commands.notifications import (
     UpdateDefaultNotificationRoute,
     UpdateSystemNotificationRoute,
 )
-from .commands.referral import (
-    ToggleReferralSystem,
-    UpdateReferralAccrualStrategy,
-    UpdateReferralLevel,
-    UpdateReferralRewardConfig,
-    UpdateReferralRewardStrategy,
-    UpdateReferralRewardType,
-)
+from .commands.referral import ToggleReferralSystem
 from .commands.requirements import (
     ToggleConditionRequirement,
     UpdateChannelRequirement,
@@ -46,11 +39,6 @@ SETTINGS_USE_CASES: Final[tuple[type[Interactor], ...]] = (
     ToggleReferralSystem,
     ToggleRegistration,
     UpdateChannelRequirement,
-    UpdateReferralAccrualStrategy,
-    UpdateReferralLevel,
-    UpdateReferralRewardConfig,
-    UpdateReferralRewardStrategy,
-    UpdateReferralRewardType,
     UpdateRulesRequirement,
     UpdateDefaultCurrency,
     UpdateSystemNotificationRoute,

@@ -157,11 +157,6 @@ class SubscriptionStatus(UpperStrEnum):
     DELETED = auto()
 
 
-class ReferralRewardType(UpperStrEnum):
-    POINTS = auto()
-    EXTRA_DAYS = auto()
-
-
 class PromocodeRewardType(UpperStrEnum):
     DURATION = auto()
     TRAFFIC = auto()
@@ -179,18 +174,10 @@ class PromocodeAvailability(UpperStrEnum):
 
 
 class ReferralLevel(IntEnum):
+    # Attribution depth. Commission is single-tier (FIRST only); SECOND edges are
+    # still written by AttachReferral but never earn.
     FIRST = auto()
     SECOND = auto()
-
-
-class ReferralAccrualStrategy(UpperStrEnum):
-    ON_FIRST_PAYMENT = auto()
-    ON_EACH_PAYMENT = auto()
-
-
-class ReferralRewardStrategy(UpperStrEnum):
-    AMOUNT = auto()
-    PERCENT = auto()
 
 
 class BannerName(StrEnum):
@@ -328,8 +315,6 @@ class UserNotificationType(UpperStrEnum):
     TORRENT_BLOCKED = auto()
     #
     REFERRAL_ATTACHED = auto()
-    REFERRAL_REWARD_RECEIVED = auto()
-    REFERRAL_REWARD_FAILED = auto()
     #
     # Referral money payouts (spec §8.4). Transactional — enabled by default.
     PAYOUT_PROCESSING = auto()

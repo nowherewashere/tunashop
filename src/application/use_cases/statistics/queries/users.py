@@ -4,6 +4,10 @@ from src.application.common import Interactor
 from src.application.common.dao import ReferralDao, SubscriptionDao, TransactionDao, UserDao
 from src.application.common.policy import Permission
 from src.application.dto import UserDto, UserStatisticsDto
+from src.application.use_cases.referral.queries.summary import (
+    GetReferralSummary,
+    GetReferralSummaryDto,
+)
 from src.core.utils.converters import percent
 
 
@@ -72,10 +76,12 @@ class GetUserStatistics(Interactor[int, UserStatisticsDto]):
         user_dao: UserDao,
         transaction_dao: TransactionDao,
         referral_dao: ReferralDao,
+        get_referral_summary: GetReferralSummary,
     ) -> None:
         self.user_dao = user_dao
         self.transaction_dao = transaction_dao
         self.referral_dao = referral_dao
+        self.get_referral_summary = get_referral_summary
 
     async def _execute(self, actor: UserDto, user_id: int) -> UserStatisticsDto:
         user = await self.user_dao.get_by_id(user_id)
@@ -87,6 +93,8 @@ class GetUserStatistics(Interactor[int, UserStatisticsDto]):
             user.id
         )
         referral_stats = await self.referral_dao.get_user_referral_stats(user.id)
+        # Same derivation the user sees on their own referral screen — one source.
+        summary = await self.get_referral_summary.system(GetReferralSummaryDto(user.id))
 
         return UserStatisticsDto(
             last_payment_at=last_payment_at,
@@ -95,8 +103,9 @@ class GetUserStatistics(Interactor[int, UserStatisticsDto]):
             referrer_telegram_id=referral_stats.referrer_telegram_id,
             referrer_email=referral_stats.referrer_email,
             referrer_username=referral_stats.referrer_username,
-            referrals_level_1=referral_stats.referrals_level_1,
-            referrals_level_2=referral_stats.referrals_level_2,
-            reward_points=referral_stats.reward_points,
-            reward_days=referral_stats.reward_days,
+            referrals_invited=summary.invited,
+            referrals_paying=summary.paying,
+            referral_earned_kop=summary.earned_kop,
+            referral_spent_kop=summary.spent_kop,
+            referral_withdrawn_kop=summary.withdrawn_kop,
         )

@@ -139,7 +139,6 @@ class DashboardUser(StatesGroup):
     DISCOUNT = State()
     PERSONAL_DISCOUNT = State()
     PURCHASE_DISCOUNT = State()
-    POINTS = State()
     STATISTICS = State()
     REFERRALS = State()
     ROLE = State()
@@ -179,11 +178,6 @@ class RemnashopExtra(StatesGroup):
 
 class RemnashopReferral(StatesGroup):
     MAIN = State()
-    LEVEL = State()
-    REWARD = State()
-    REWARD_TYPE = State()
-    ACCRUAL_STRATEGY = State()
-    REWARD_STRATEGY = State()
 
 
 class RemnashopAdvertising(StatesGroup):

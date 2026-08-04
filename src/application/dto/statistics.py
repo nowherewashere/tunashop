@@ -20,26 +20,42 @@ class UserStatisticsDto:
     referrer_telegram_id: Optional[int]
     referrer_email: Optional[str]
     referrer_username: Optional[str]
-    referrals_level_1: int
-    referrals_level_2: int
-    reward_points: int
-    reward_days: int
+    referrals_invited: int
+    referrals_paying: int
+    referral_earned_kop: int
+    referral_spent_kop: int
+    referral_withdrawn_kop: int
+
+    @property
+    def referral_balance_kop(self) -> int:
+        return self.referral_earned_kop - self.referral_spent_kop - self.referral_withdrawn_kop
 
 
 @dataclass(frozen=True)
 class ReferralStatisticsDto:
+    """Shop-wide referral picture: attribution counts plus the money ledger.
+
+    Amounts are kopecks — formatting to ₽ belongs to the presentation layer.
+    """
+
     total_referrals: int
-    level_1_count: int
-    level_2_count: int
     unique_referrers: int
-    total_rewards_issued: int
-    total_points_issued: int
-    total_days_issued: int
     top_referrer_referrals_count: int
+    paying_referrals: int = 0
+    total_earned_kop: int = 0
+    total_spent_kop: int = 0
+    total_withdrawn_kop: int = 0
+    open_payouts_count: int = 0
+    open_payouts_kop: int = 0
     top_referrer_id: Optional[int] = None
     top_referrer_telegram_id: Optional[int] = None
     top_referrer_username: Optional[str] = None
     top_referrer_email: Optional[str] = None
+
+    @property
+    def total_balance_kop(self) -> int:
+        """Money sitting on user balances: EARNED − SPENT − WITHDRAWN."""
+        return self.total_earned_kop - self.total_spent_kop - self.total_withdrawn_kop
 
 
 @dataclass(frozen=True)

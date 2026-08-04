@@ -29,8 +29,6 @@ from .user import (
     PayoutRejectedEvent,
     PayoutStarsPaidEvent,
     ReferralAttachedEvent,
-    ReferralRewardFailedEvent,
-    ReferralRewardReceivedEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiresEvent,
     SubscriptionLimitedEvent,
@@ -68,8 +66,6 @@ __all__ = [
     "BlacklistRegistrationAttemptEvent",
     #
     "ReferralAttachedEvent",
-    "ReferralRewardFailedEvent",
-    "ReferralRewardReceivedEvent",
     "PayoutProcessingEvent",
     "PayoutPaidEvent",
     "PayoutStarsPaidEvent",

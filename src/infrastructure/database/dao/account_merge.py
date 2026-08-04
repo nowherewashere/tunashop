@@ -14,7 +14,6 @@ from src.infrastructure.database.models import (
     Referral,
     ReferralCodeAlias,
     ReferralEvent,
-    ReferralReward,
     Subscription,
     SupportConversation,
     SupportMessage,
@@ -45,11 +44,6 @@ class AccountMergeDaoImpl(AccountMergeDao):
         )
         await self.session.execute(
             update(Transaction).where(Transaction.user_id == loser_id).values(user_id=survivor_id)
-        )
-        await self.session.execute(
-            update(ReferralReward)
-            .where(ReferralReward.user_id == loser_id)
-            .values(user_id=survivor_id)
         )
         await self.session.execute(
             update(BroadcastMessage)

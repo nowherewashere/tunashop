@@ -36,7 +36,6 @@ from src.web.schemas import (
     PayWithBalanceRequest,
     PayWithBalanceResponse,
     ReferralProgramResponse,
-    ReferralRewardLevelResponse,
     StarsPayoutRequest,
 )
 
@@ -80,15 +79,6 @@ async def get_referral_program(
     summary = await get_referral_summary.system(GetReferralSummaryDto(user.id))
     last_wallet_payout = await referral_ledger_dao.get_last_crypto_wallet(user.id)
 
-    reward_levels = [
-        ReferralRewardLevelResponse(level=level.value, value=value)
-        for level, value in sorted(
-            settings.referral.reward.config.items(),
-            key=lambda item: item[0].value,
-        )
-        if level.value <= settings.referral.level.value
-    ]
-
     bot_referral_url = await bot_service.get_referral_url(user.referral_code)
     site_base = config.referral_site_url.rstrip("/")
     site_referral_url = f"{site_base}/r/{user.referral_code}" if site_base else None
@@ -120,12 +110,6 @@ async def get_referral_program(
         # Stars payout is gifted via the bot (Telegram/MTProto); the site only hints at it.
         stars_payout_enabled=(config.stars.payout_enabled and config.stars.rub_rate > 0),
         stars_min_kop=config.stars.min_kop,
-        #
-        reward_type=settings.referral.reward.type.value,
-        reward_strategy=settings.referral.reward.strategy.value,
-        accrual_strategy=settings.referral.accrual_strategy.value,
-        max_level=settings.referral.level.value,
-        reward_levels=reward_levels,
     )
 
 
