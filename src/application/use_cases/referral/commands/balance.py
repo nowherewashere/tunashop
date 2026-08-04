@@ -9,6 +9,7 @@ from src.application.common.dao import PlanDao, ReferralLedgerDao, SubscriptionD
 from src.application.common.uow import UnitOfWork
 from src.application.dto import BalanceSpendDto, PlanSnapshotDto, UserDto
 from src.application.events import BalanceRenewalEvent
+from src.application.services import TrafficPoolAccessService
 from src.application.use_cases.referral.queries.summary import (
     GetReferralSummary,
     GetReferralSummaryDto,
@@ -62,6 +63,7 @@ class PayWithBalance(Interactor[PayWithBalanceDto, PayWithBalanceResult]):
         remnawave: Remnawave,
         get_referral_summary: GetReferralSummary,
         event_publisher: EventPublisher,
+        pool_access: TrafficPoolAccessService,
     ) -> None:
         self.uow = uow
         self.plan_dao = plan_dao
@@ -70,6 +72,7 @@ class PayWithBalance(Interactor[PayWithBalanceDto, PayWithBalanceResult]):
         self.remnawave = remnawave
         self.get_referral_summary = get_referral_summary
         self.event_publisher = event_publisher
+        self.pool_access = pool_access
 
     async def _execute(self, actor: UserDto, data: PayWithBalanceDto) -> PayWithBalanceResult:
         user = data.user
@@ -114,8 +117,13 @@ class PayWithBalance(Interactor[PayWithBalanceDto, PayWithBalanceResult]):
             subscription.traffic_limit = plan_snapshot.traffic_limit
             subscription.traffic_limit_strategy = plan_snapshot.traffic_limit_strategy
             subscription.tag = plan_snapshot.tag
-            subscription.internal_squads = plan_snapshot.internal_squads
+            # Paying from the referral balance is still a plan assignment: premium
+            # pools already spent this period stay withheld until the period rolls.
+            subscription.internal_squads = await self.pool_access.effective_squads(
+                plan_snapshot.internal_squads, subscription.id
+            )
             subscription.external_squad = plan_snapshot.external_squad
+            await self.pool_access.reconcile_windows(subscription.id, plan_snapshot)
 
             # Debit first, then extend — the Remnawave call happens before commit, so a
             # failure rolls back the spend (atomic-ish, mirroring AddSubscriptionDuration).

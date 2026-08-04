@@ -1,4 +1,5 @@
 import time
+from calendar import monthrange
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -72,3 +73,107 @@ def get_traffic_reset_delta(  # noqa: C901
         return reset_at - now
 
     raise ValueError("Unsupported strategy")
+
+
+def get_traffic_period_start(  # noqa: C901
+    strategy: TrafficLimitStrategy,
+    created_at: datetime,
+    now: Optional[datetime] = None,
+) -> datetime:
+    """Start of the accounting window currently in force for ``strategy``.
+
+    Counterpart of :func:`get_traffic_reset_delta`, which answers "how long until the
+    counter resets"; this answers "since when has it been counting". Traffic pools need
+    the boundary itself, not the distance to it, because the panel's bandwidth stats are
+    queried over an explicit ``start``/``end`` range.
+
+    Boundaries match the panel's own: midnight for DAY, Monday 00:05 for WEEK, the 1st
+    at 00:10 for MONTH, the subscription's anniversary day at 00:10 for MONTH_ROLLING.
+    Pair it with :func:`get_traffic_period_end` — that pair is exact by construction, so
+    consecutive windows tile without gaps or overlap. (``get_traffic_reset_delta`` is
+    *not* its exact inverse for MONTH_ROLLING in short months: it rolls a missing 31st
+    to the 1st of the next month, while pools clamp it to the month's last day.)
+
+    ``NO_RESET`` has no boundary: the window opened when the subscription did and never
+    closes, so ``created_at`` is returned verbatim.
+    """
+    now = now or datetime_now()
+
+    if strategy == TrafficLimitStrategy.NO_RESET:
+        return created_at
+
+    if strategy == TrafficLimitStrategy.DAY:
+        return datetime.combine(now.date(), datetime.min.time(), tzinfo=TIMEZONE)
+
+    if strategy == TrafficLimitStrategy.WEEK:
+        monday = now.date() - timedelta(days=now.weekday())
+        start = datetime(monday.year, monday.month, monday.day, 0, 5, 0, tzinfo=TIMEZONE)
+        if start > now:  # Monday, before 00:05 — still inside the previous week
+            start -= timedelta(days=7)
+        return start
+
+    if strategy == TrafficLimitStrategy.MONTH:
+        start = datetime(now.year, now.month, 1, 0, 10, 0, tzinfo=TIMEZONE)
+        if start > now:  # the 1st, before 00:10
+            start = _shift_month(start, -1)
+        return start
+
+    if strategy == TrafficLimitStrategy.MONTH_ROLLING:
+        reset_day = created_at.day
+        start = _rolling_anniversary(now.year, now.month, reset_day)
+        if start > now:
+            previous = _shift_month(datetime(now.year, now.month, 1, tzinfo=TIMEZONE), -1)
+            start = _rolling_anniversary(previous.year, previous.month, reset_day)
+        return start
+
+    raise ValueError("Unsupported strategy")
+
+
+def get_traffic_period_end(
+    strategy: TrafficLimitStrategy,
+    created_at: datetime,
+    now: Optional[datetime] = None,
+) -> Optional[datetime]:
+    """When the current window closes and the quota is handed back.
+
+    ``None`` for ``NO_RESET`` — that quota is spent once and never returns. Exactly the
+    next boundary after :func:`get_traffic_period_start`, so the value shown to the user
+    as «обновится» is the same instant the metering pass rolls the window on.
+    """
+    now = now or datetime_now()
+    start = get_traffic_period_start(strategy, created_at, now)
+
+    if strategy == TrafficLimitStrategy.NO_RESET:
+        return None
+    if strategy == TrafficLimitStrategy.DAY:
+        return start + timedelta(days=1)
+    if strategy == TrafficLimitStrategy.WEEK:
+        return start + timedelta(days=7)
+    if strategy == TrafficLimitStrategy.MONTH:
+        return _shift_month(start, 1)
+    if strategy == TrafficLimitStrategy.MONTH_ROLLING:
+        # Re-derive from the anniversary day rather than shifting `start`, whose day may
+        # have been clamped by a short month (28 Feb must go back to the 31st, not stay).
+        nxt = _shift_month(datetime(start.year, start.month, 1, tzinfo=TIMEZONE), 1)
+        return _rolling_anniversary(nxt.year, nxt.month, created_at.day)
+
+    raise ValueError("Unsupported strategy")
+
+
+def _shift_month(value: datetime, months: int) -> datetime:
+    """Move ``value`` by whole months, clamping the day to the target month's length."""
+    total = value.year * 12 + (value.month - 1) + months
+    year, month = divmod(total, 12)
+    month += 1
+    day = min(value.day, monthrange(year, month)[1])
+    return value.replace(year=year, month=month, day=day)
+
+
+def _rolling_anniversary(year: int, month: int, reset_day: int) -> datetime:
+    """The rolling reset instant in a given month, clamped to short months.
+
+    A subscription created on the 31st resets on the 30th/28th in months that have no
+    31st — the same clamp ``get_traffic_reset_delta`` applies when it overflows.
+    """
+    day = min(reset_day, monthrange(year, month)[1])
+    return datetime(year, month, day, 0, 10, 0, tzinfo=TIMEZONE)

@@ -10,6 +10,7 @@ from src.core.enums import Currency, PlanAvailability, PlanType
 
 from .base import BaseSql
 from .timestamp import TimestampMixin
+from .traffic_pool import PlanTrafficPool
 
 
 class Plan(BaseSql, TimestampMixin):
@@ -46,6 +47,13 @@ class Plan(BaseSql, TimestampMixin):
         cascade="all, delete-orphan",
         lazy="selectin",
         order_by="PlanDuration.order_index",
+    )
+    # Per-pool premium-traffic quotas (traffic-pools feature). Owned by the plan, like
+    # durations: rewritten wholesale on save and deleted with it.
+    pool_quotas: Mapped[list["PlanTrafficPool"]] = relationship(
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="PlanTrafficPool.pool_id",
     )
 
 

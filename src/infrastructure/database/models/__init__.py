@@ -14,6 +14,7 @@ from .referral_ledger import BalanceSpend, Payout, ReferralEvent
 from .settings import Settings
 from .subscription import Subscription
 from .support import SupportConversation, SupportMessage
+from .traffic_pool import PlanTrafficPool, SubscriptionPoolUsage, TrafficPool
 from .transaction import Transaction
 from .user import User
 from .user_connection_state import UserConnectionState
@@ -42,6 +43,9 @@ __all__ = [
     "Subscription",
     "SupportConversation",
     "SupportMessage",
+    "PlanTrafficPool",
+    "SubscriptionPoolUsage",
+    "TrafficPool",
     "Transaction",
     "User",
     "UserConnectionState",

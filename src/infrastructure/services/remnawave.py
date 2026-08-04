@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import fields, is_dataclass
 from datetime import datetime, timedelta
 from typing import Any, Optional, Union
+from uuid import UUID
 
 from loguru import logger
 from packaging.version import Version
@@ -24,12 +25,19 @@ from src.application.common import Remnawave
 from src.application.common.remnawave import T
 from src.application.dto import (
     PlanSnapshotDto,
+    PoolNodeDto,
+    PoolUsageRowDto,
     RemnaSubscriptionDto,
     SquadInfoDto,
     SubscriptionDto,
     UserDto,
 )
-from src.core.constants import REMNAWAVE_MIN_VERSION, USERS_STREAM_PAGE_SIZE
+from src.core.constants import (
+    PANEL_DATE_FORMAT,
+    REMNAWAVE_MIN_VERSION,
+    SQUAD_USAGE_MAX_PAGES,
+    USERS_STREAM_PAGE_SIZE,
+)
 from src.core.enums import SubscriptionStatus
 from src.core.utils.converters import days_to_datetime, gb_to_bytes
 from src.core.utils.time import datetime_now
@@ -279,6 +287,89 @@ class RemnawaveImpl(Remnawave):
     async def get_external_squads(self) -> list[SquadInfoDto]:
         result = await self.sdk.external_squads.get_external_squads()
         return [SquadInfoDto(uuid=s.uuid, name=s.name) for s in result.external_squads]
+
+    async def get_squad_nodes(self, squad_uuid: UUID) -> list[PoolNodeDto]:
+        """Nodes reachable through a squad's inbounds.
+
+        Shown when an admin picks the squad behind a traffic pool: metering is per
+        node, so this is the only way to see what the pool will actually measure —
+        and to notice that a squad spans a free location by mistake.
+        """
+        result = await self.sdk.internal_squads.get_accessible_nodes(str(squad_uuid))
+        return [
+            PoolNodeDto(uuid=node.uuid, name=node.name, country_code=node.country_code or "")
+            for node in result.accessible_nodes
+        ]
+
+    async def get_squad_usage(
+        self,
+        squad_uuid: UUID,
+        start: datetime,
+        end: datetime,
+        min_total_bytes: int,
+        page_size: int = 500,
+    ) -> list[PoolUsageRowDto]:
+        """Users whose usage on the squad's nodes reached ``min_total_bytes``.
+
+        The threshold is applied server-side, so one request answers "who is over
+        quota (and who is close)" for a whole pool instead of a per-user sweep. Walks
+        the cursor to completion — the caller gets the full set or an exception, never
+        a silently truncated one, because acting on a partial set would restore access
+        for everyone the missing pages would have flagged.
+        """
+        rows: list[PoolUsageRowDto] = []
+        cursor: Optional[Union[str, int]] = None
+        page = 0
+
+        while True:
+            response = await self.sdk.bandwidthstats.get_internal_squad_usage(
+                uuid=str(squad_uuid),
+                start=start.strftime(PANEL_DATE_FORMAT),
+                end=end.strftime(PANEL_DATE_FORMAT),
+                min_total_bytes=min_total_bytes,
+                limit=page_size,
+                cursor=cursor,
+            )
+            rows.extend(
+                PoolUsageRowDto(user_remna_id=item.id, total_bytes=item.total_bytes)
+                for item in response.users
+            )
+            page += 1
+
+            if not response.has_more or response.next_cursor is None:
+                break
+            if page >= SQUAD_USAGE_MAX_PAGES:
+                raise RuntimeError(
+                    f"Squad '{squad_uuid}' usage exceeded {SQUAD_USAGE_MAX_PAGES} pages; "
+                    f"refusing to act on a partial result"
+                )
+            cursor = response.next_cursor
+
+        logger.debug(
+            f"Squad '{squad_uuid}' usage: '{len(rows)}' users over "
+            f"'{min_total_bytes}' bytes in {page} page(s)"
+        )
+        return rows
+
+    async def get_squad_user_usage(
+        self,
+        squad_uuid: UUID,
+        user_id: int,
+        start: datetime,
+        end: datetime,
+    ) -> int:
+        """One user's exact total on a squad's nodes over the period.
+
+        The threshold sweep above cannot answer this below its cut-off, so the surfaces
+        that show a real number (the cabinet meter, the admin card) ask per user.
+        """
+        response = await self.sdk.bandwidthstats.get_internal_squad_user_usage(
+            squad_uuid=str(squad_uuid),
+            user_id=user_id,
+            start=start.strftime(PANEL_DATE_FORMAT),
+            end=end.strftime(PANEL_DATE_FORMAT),
+        )
+        return sum(node.total_bytes for day in response.days for node in day.nodes)
 
     def apply_sync(self, target: T, source: Union[SubscriptionDto, RemnaSubscriptionDto]) -> T:
         if not is_dataclass(target) or not is_dataclass(source):

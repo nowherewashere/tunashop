@@ -436,6 +436,8 @@ notification-type = { $notification_type ->
     [EXPIRED] Подписка истекла
     [EXPIRED_1_DAY_AGO] Подписка истекла (1 день)
     [LIMITED] Трафик исчерпан
+    [POOL_TRAFFIC_WARNING] Премиум-трафик на исходе
+    [POOL_TRAFFIC_EXHAUSTED] Премиум-трафик исчерпан
     [REFERRAL_ATTACHED] Реферал закреплен
     [PAYOUT_PROCESSING] Выплата в обработке
     [PAYOUT_PAID] Выплата выполнена

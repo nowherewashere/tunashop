@@ -22,6 +22,7 @@ from src.application.common.dao import (
     SettingsDao,
     SubscriptionDao,
     SupportDao,
+    TrafficPoolDao,
     TransactionDao,
     UserConnectionStateDao,
     UserDao,
@@ -44,6 +45,7 @@ from src.infrastructure.database.dao import (
     SettingsDaoImpl,
     SubscriptionDaoImpl,
     SupportDaoImpl,
+    TrafficPoolDaoImpl,
     TransactionDaoImpl,
     UserConnectionStateDaoImpl,
     UserDaoImpl,
@@ -82,6 +84,7 @@ class DaoProvider(Provider):
     settings = provide(source=SettingsDaoImpl, provides=SettingsDao)
     subscription = provide(source=SubscriptionDaoImpl, provides=SubscriptionDao)
     support = provide(source=SupportDaoImpl, provides=SupportDao)
+    traffic_pool = provide(source=TrafficPoolDaoImpl, provides=TrafficPoolDao)
     transaction = provide(source=TransactionDaoImpl, provides=TransactionDao)
     user = provide(source=UserDaoImpl, provides=UserDao)
     oauth_provider = provide(source=UserOAuthProviderDaoImpl, provides=UserOAuthProviderDao)

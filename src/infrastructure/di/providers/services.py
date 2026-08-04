@@ -24,6 +24,8 @@ from src.application.services import (
     PricingService,
     RemnaWebhookService,
     SubscriptionProrationService,
+    TrafficPoolAccessService,
+    TrafficPoolMeteringService,
 )
 from src.core.config import AppConfig
 from src.infrastructure.services import (
@@ -95,6 +97,11 @@ class ServicesProvider(Provider):
     # Shared core of both merge directions. REQUEST scope: it composes onto the
     # request-scoped uow + DAOs so the whole merge lands in one transaction.
     account_merge_service = provide(source=AccountMergeService, scope=Scope.REQUEST)
+    # Traffic pools. Both REQUEST-scoped: they compose onto the request-scoped uow +
+    # DAOs, exactly like the merge service. The access service is pulled in by the
+    # squad-assignment use cases; the metering service only by the cron task.
+    traffic_pool_access = provide(source=TrafficPoolAccessService, scope=Scope.REQUEST)
+    traffic_pool_metering = provide(source=TrafficPoolMeteringService, scope=Scope.REQUEST)
     # Unified support bridge (site + bot -> operator forum topics). REQUEST scope: it
     # composes onto the request-scoped uow + DAOs, like the other stateful services.
     support_service = provide(

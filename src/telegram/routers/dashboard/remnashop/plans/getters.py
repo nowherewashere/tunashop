@@ -9,7 +9,9 @@ from remnapy.enums.users import TrafficLimitStrategy
 
 from src.application.common import BotService, Remnawave, TranslatorRunner
 from src.application.common.dao import PlanDao
-from src.application.dto import PlanDto, PlanDurationDto, PlanPriceDto
+from src.application.dto import PlanDto, PlanDurationDto, PlanPriceDto, TelegramUserDto
+from src.application.use_cases.traffic_pool import GetTrafficPools
+from src.core.constants import USER_KEY
 from src.core.enums import Currency, PlanAvailability, PlanType
 
 
@@ -315,6 +317,78 @@ async def internal_squads_getter(
 
     return {
         "squads": squads,
+    }
+
+
+@inject
+async def pool_quotas_getter(
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    get_pools: FromDishka[GetTrafficPools],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
+
+    quotas = {quota.pool_id: quota for quota in plan.pool_quotas}
+    pools = [pool for pool in await get_pools(user) if pool.is_active]
+
+    return {
+        "has_pools": bool(pools),
+        "pools": [
+            {
+                "id": pool.id,
+                "name": pool.name,
+                "quota_gb": quotas[pool.id].quota_gb if pool.id in quotas else 0,
+                # A quota can only be enforced by withdrawing the pool's squad, so on a
+                # plan that never grants it there is nothing to meter. Flagged here so
+                # the admin sees why the row is inert instead of losing it on save.
+                "is_granted": pool.internal_squad_uuid in plan.internal_squads,
+            }
+            for pool in pools
+        ],
+    }
+
+
+@inject
+async def pool_quota_getter(
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    get_pools: FromDishka[GetTrafficPools],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
+    pool_id = dialog_manager.dialog_data.get("selected_pool")
+
+    pool = next((p for p in await get_pools(user) if p.id == pool_id), None)
+    quota = next((q for q in plan.pool_quotas if q.pool_id == pool_id), None)
+
+    return {
+        "pool_name": pool.name if pool else str(pool_id),
+        "quota_gb": quota.quota_gb if quota else 0,
+        # Named to match the `traffic-strategy` term's argument, which this screen
+        # reuses so the wording is identical to the plan's own traffic strategy.
+        "strategy_type": (quota.reset_strategy if quota else TrafficLimitStrategy.MONTH),
+    }
+
+
+@inject
+async def pool_strategy_getter(
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
+    pool_id = dialog_manager.dialog_data.get("selected_pool")
+    quota = next((q for q in plan.pool_quotas if q.pool_id == pool_id), None)
+    current = quota.reset_strategy if quota else TrafficLimitStrategy.MONTH
+
+    return {
+        "strategys": [
+            {"strategy": strategy, "selected": strategy == current}
+            for strategy in TrafficLimitStrategy
+        ],
     }
 
 

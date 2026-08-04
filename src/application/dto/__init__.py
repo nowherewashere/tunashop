@@ -49,6 +49,16 @@ from .statistics import (
 )
 from .subscription import RemnaSubscriptionDto, SquadInfoDto, SubscriptionDto
 from .support import SupportConversationDto, SupportMessageDto
+from .traffic_pool import (
+    MeteringTargetDto,
+    PlanPoolQuotaDto,
+    PoolNodeDto,
+    PoolQuotaSnapshotDto,
+    PoolUsageRowDto,
+    PoolUsageViewDto,
+    SubscriptionPoolUsageDto,
+    TrafficPoolDto,
+)
 from .transaction import PriceDetailsDto, TransactionDto
 from .user import TelegramUserDto, TempUserDto, UserDto, UserOAuthProviderDto
 
@@ -109,6 +119,14 @@ __all__ = [
     "SubscriptionDto",
     "SupportConversationDto",
     "SupportMessageDto",
+    "MeteringTargetDto",
+    "PlanPoolQuotaDto",
+    "PoolNodeDto",
+    "PoolQuotaSnapshotDto",
+    "PoolUsageRowDto",
+    "PoolUsageViewDto",
+    "SubscriptionPoolUsageDto",
+    "TrafficPoolDto",
     "PriceDetailsDto",
     "TransactionDto",
     "TelegramUserDto",

@@ -28,6 +28,8 @@ from .user import (
     PayoutProcessingEvent,
     PayoutRejectedEvent,
     PayoutStarsPaidEvent,
+    PoolTrafficExhaustedEvent,
+    PoolTrafficWarningEvent,
     ReferralAttachedEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiresEvent,
@@ -75,6 +77,8 @@ __all__ = [
     "UserNotConnectedEvent",
     "SubscriptionExpiredEvent",
     "SubscriptionExpiresEvent",
+    "PoolTrafficExhaustedEvent",
+    "PoolTrafficWarningEvent",
     "SubscriptionLimitedEvent",
     "TorrentBlockedEvent",
 ]

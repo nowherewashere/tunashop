@@ -13,6 +13,7 @@ from .referral_ledger import ReferralLedgerDaoImpl
 from .settings import SettingsDaoImpl
 from .subscription import SubscriptionDaoImpl
 from .support import SupportDaoImpl
+from .traffic_pool import TrafficPoolDaoImpl
 from .transaction import TransactionDaoImpl
 from .user import UserDaoImpl
 from .user_connection_state import UserConnectionStateDaoImpl
@@ -35,6 +36,7 @@ __all__ = [
     "SettingsDaoImpl",
     "SubscriptionDaoImpl",
     "SupportDaoImpl",
+    "TrafficPoolDaoImpl",
     "TransactionDaoImpl",
     "UserDaoImpl",
     "UserConnectionStateDaoImpl",

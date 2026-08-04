@@ -13,7 +13,7 @@ from src.application.common.uow import UnitOfWork
 from src.application.dto import PlanSnapshotDto, PromocodeDto, SubscriptionDto, UserDto
 from src.application.dto.promocode import PromocodeActivationDto
 from src.application.events.system import PromocodeActivatedEvent
-from src.application.services import SubscriptionProrationService
+from src.application.services import SubscriptionProrationService, TrafficPoolAccessService
 from src.application.use_cases.promocode.queries.validate import (
     ValidatePromocode,
     ValidatePromocodeDto,
@@ -55,6 +55,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
         event_publisher: EventPublisher,
         retort: Retort,
         proration: SubscriptionProrationService,
+        pool_access: TrafficPoolAccessService,
     ) -> None:
         self.uow = uow
         self.promocode_dao = promocode_dao
@@ -66,6 +67,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
         self.event_publisher = event_publisher
         self.retort = retort
         self.proration = proration
+        self.pool_access = pool_access
 
     async def _execute(self, actor: UserDto, data: ActivatePromocodeDto) -> PromocodeDto:
         user = data.user
@@ -268,6 +270,12 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
         if not promo.plan_snapshot:
             return _PendingReward()
         plan = self.retort.load(promo.plan_snapshot, PlanSnapshotDto)
+        # A promo plan is still a plan assignment: keep premium pools the user has
+        # already spent this period withheld, or a promocode becomes a quota reset.
+        pool_squads = await self.pool_access.effective_squads(
+            plan.internal_squads,
+            subscription.id if subscription else None,
+        )
         if subscription:
             # A promo reward carries no payment, so there is no monetary basis for
             # value-proration: preserve the user's remaining days on top of the new
@@ -287,10 +295,11 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
             subscription.device_limit = plan.device_limit
             subscription.traffic_limit_strategy = plan.traffic_limit_strategy
             subscription.tag = plan.tag
-            subscription.internal_squads = plan.internal_squads
+            subscription.internal_squads = pool_squads
             subscription.external_squad = plan.external_squad
             subscription.expire_at = change.new_expire
             subscription.plan_snapshot = plan
+            await self.pool_access.reconcile_windows(subscription.id, plan)
             updated = await self.remnawave.update_user(
                 user=user,
                 user_id=subscription.user_remna_id,
@@ -312,7 +321,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
             device_limit=plan.device_limit,
             traffic_limit_strategy=plan.traffic_limit_strategy,
             tag=plan.tag,
-            internal_squads=plan.internal_squads,
+            internal_squads=pool_squads,
             external_squad=plan.external_squad,
             expire_at=created.expire_at,
             url=created.subscription_url,

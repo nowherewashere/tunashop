@@ -46,6 +46,15 @@ MAX_EXPIRING_NOTICE_DAYS: Final[int] = 3
 # by-telegram-id / by-email / by-tag lookups. Panel caps it at 1000.
 USERS_STREAM_PAGE_SIZE: Final[int] = 500
 
+# The bandwidth-stats endpoints take plain calendar dates, not timestamps.
+PANEL_DATE_FORMAT: Final[str] = "%Y-%m-%d"
+# Reset date as shown to the user in pool notifications.
+POOL_RESET_DATE_FORMAT: Final[str] = "%d.%m.%Y"
+# Cursor-walk backstop for squad usage. At 500 users a page this covers 100k users
+# over a single pool's quota; hitting it means something is wrong, and continuing
+# would mean acting on a partial set.
+SQUAD_USAGE_MAX_PAGES: Final[int] = 200
+
 REPOSITORY: Final[str] = "https://github.com/snoups/remnashop"
 DOCS: Final[str] = "https://remnashop.mintlify.app"
 T_ME: Final[str] = "https://t.me/"

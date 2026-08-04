@@ -9,6 +9,7 @@ from src.core.enums import Currency, PlanAvailability, PlanType
 from src.core.exceptions import PriceNotFoundError
 
 from .base import BaseDto, TimestampMixin, TrackableMixin
+from .traffic_pool import PlanPoolQuotaDto, PoolQuotaSnapshotDto
 
 
 @dataclass(kw_only=True)
@@ -27,6 +28,11 @@ class PlanSnapshotDto:
 
     internal_squads: list[UUID] = field(default_factory=list)
     external_squad: Optional[UUID] = None
+
+    # Premium-location quotas frozen at purchase time, like every other priced field.
+    # Optional with an empty default so snapshots written before the feature (and any
+    # cached copy of one) still load.
+    traffic_pools: list[PoolQuotaSnapshotDto] = field(default_factory=list)
 
     is_trial: bool = False
 
@@ -55,6 +61,14 @@ class PlanSnapshotDto:
             duration=duration,
             internal_squads=plan.internal_squads,
             external_squad=plan.external_squad,
+            traffic_pools=[
+                PoolQuotaSnapshotDto(
+                    pool_id=quota.pool_id,
+                    quota_gb=quota.quota_gb,
+                    reset_strategy=quota.reset_strategy,
+                )
+                for quota in plan.pool_quotas
+            ],
             is_trial=plan.is_trial,
             price=price,
             price_currency=price_currency,
@@ -97,6 +111,9 @@ class PlanDto(BaseDto, TrackableMixin, TimestampMixin):
     allowed_emails: list[str] = field(default_factory=list)
     internal_squads: list[UUID] = field(default_factory=list)
     external_squad: Optional[UUID] = None
+    # Metered premium-location quotas. A quota is only meaningful when the pool's
+    # squad is also in `internal_squads` — CommitPlan enforces that.
+    pool_quotas: list["PlanPoolQuotaDto"] = field(default_factory=list)
 
     order_index: int = 0
     is_active: bool = False

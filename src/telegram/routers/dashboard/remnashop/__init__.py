@@ -8,6 +8,7 @@ from . import (
     notifications,
     plans,
     referral,
+    traffic_pools,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "notifications",
     "plans",
     "referral",
+    "traffic_pools",
 ]

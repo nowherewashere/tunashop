@@ -261,6 +261,7 @@ btn-goto =
     .promocode = ❓ Секретный код
     .invite = 👥 Пригласить
     .subscription-renew = 🔄 Продлить подписку
+    .plan-upgrade = ⚡ Выбрать тариф побольше
     .trial-bonus = 🎁 Забрать +1 день пробного
     .user-profile = 👤 Перейти к пользователю
     .referrer-profile = 🤝 Перейти к пригласителю
@@ -327,11 +328,30 @@ btn-remnashop =
     .referral = 👥 Реф. система
     .advertising = 🎯 Реклама
     .plans = 📦 Планы
+    .traffic-pools = ⚡ Пулы трафика
     .notifications = 🔔 Уведомления
     .logs = 📄 Логи
     .menu-editor = 🎛 Редактор главного меню
     .backup = 💾 Бэкап
     .extra = ⚙️ Доп. настройки
+
+btn-pools =
+    .create = 🆕 Создать пул
+    .save = ✅ Сохранить
+    .delete = ❌ Удалить
+    .name = 🏷️ Название
+    .squad = ⏺️ Сквад пула
+    .nodes = 🖥 Ноды пула
+
+    .title = { $is_active ->
+    [1] 🟢
+    *[0] 🔴
+    } { $name } · { $squad }
+
+    .active-toggle = { $is_active ->
+    [1] 🟢 Включен
+    *[0] 🔴 Выключен
+    }
 
 btn-remnashop-transaction = { $status ->
     [PENDING] 🕓
@@ -494,6 +514,16 @@ btn-plans =
     .squads = 🔗 Сквады
     .internal-squads = ⏺️ Внутренние сквады
     .external-squads = ⏹️ Внешний сквад
+    .pool-quotas = ⚡ Квоты по пулам
+    .pool-strategy = 🔄 Период сброса
+
+    .pool-quota-choice = { $is_granted ->
+    [1] { $quota_gb ->
+        [0] ⚪ { $name } — без квоты
+        *[SET] 🔘 { $name } — { $quota_gb } ГБ
+        }
+    *[0] ⚠️ { $name } — сквад не выдан планом
+    }
     .duration-add = 🆕 Добавить длительность
     .price-choice = 💸 { $price } { $currency }
     .export = 📤 Экспорт

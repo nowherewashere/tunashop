@@ -7,7 +7,7 @@ from src.application.common.dao import PlanDao, SubscriptionDao, UserDao
 from src.application.common.policy import Permission
 from src.application.common.uow import UnitOfWork
 from src.application.dto import PlanSnapshotDto, SubscriptionDto, UserDto
-from src.application.services import SubscriptionProrationService
+from src.application.services import SubscriptionProrationService, TrafficPoolAccessService
 from src.core.enums import SubscriptionStatus
 
 
@@ -29,6 +29,7 @@ class SetUserSubscription(Interactor[SetUserSubscriptionDto, None]):
         subscription_dao: SubscriptionDao,
         remnawave: Remnawave,
         proration: SubscriptionProrationService,
+        pool_access: TrafficPoolAccessService,
     ) -> None:
         self.uow = uow
         self.user_dao = user_dao
@@ -36,6 +37,7 @@ class SetUserSubscription(Interactor[SetUserSubscriptionDto, None]):
         self.subscription_dao = subscription_dao
         self.remnawave = remnawave
         self.proration = proration
+        self.pool_access = pool_access
 
     async def _execute(self, actor: UserDto, data: SetUserSubscriptionDto) -> None:
         async with self.uow:
@@ -49,6 +51,13 @@ class SetUserSubscription(Interactor[SetUserSubscriptionDto, None]):
 
             plan_snapshot = PlanSnapshotDto.from_plan(plan, data.duration)
             subscription = await self.subscription_dao.get_current(target_user.id)
+            # An admin grant is still a plan assignment: premium pools already spent
+            # this period stay withheld until the period rolls, exactly as on a
+            # renewal or a paid plan change.
+            pool_squads = await self.pool_access.effective_squads(
+                plan.internal_squads,
+                subscription.id if subscription else None,
+            )
 
             if subscription:
                 # Admin grant carries no payment, so there is no monetary basis for
@@ -68,7 +77,7 @@ class SetUserSubscription(Interactor[SetUserSubscriptionDto, None]):
                     device_limit=plan.device_limit,
                     traffic_limit_strategy=plan.traffic_limit_strategy,
                     tag=plan.tag,
-                    internal_squads=plan.internal_squads,
+                    internal_squads=pool_squads,
                     external_squad=plan.external_squad,
                     expire_at=change.new_expire,
                     url="",
@@ -95,7 +104,7 @@ class SetUserSubscription(Interactor[SetUserSubscriptionDto, None]):
                     device_limit=plan.device_limit,
                     traffic_limit_strategy=plan.traffic_limit_strategy,
                     tag=plan.tag,
-                    internal_squads=plan.internal_squads,
+                    internal_squads=pool_squads,
                     external_squad=plan.external_squad,
                     expire_at=remna_user.expire_at,
                     url=remna_user.subscription_url,
@@ -106,6 +115,11 @@ class SetUserSubscription(Interactor[SetUserSubscriptionDto, None]):
                 new_subscription,
                 target_user.id,
             )
+            # This branch also retires the previous row and writes a new one, so the
+            # pool windows have to follow it (see PurchaseSubscription's CHANGE path).
+            if subscription:
+                await self.pool_access.carry_over(subscription.id, new_subscription.id)
+            await self.pool_access.reconcile_windows(new_subscription.id, plan_snapshot)
 
             await self.user_dao.set_trial_available(target_user.id, False)
             await self.uow.commit()

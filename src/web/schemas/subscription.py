@@ -6,6 +6,24 @@ from pydantic import BaseModel, ConfigDict, Field
 from src.core.enums import PaymentGatewayType
 
 
+class PoolUsageResponse(BaseModel):
+    """One metered premium-location pool on the current subscription.
+
+    Bytes, not GB: the cabinet already renders byte counters for the global traffic
+    figure and formats them itself.
+    """
+
+    pool_id: int
+    name: str
+    quota_bytes: int
+    # None when the panel could not be reached — render "unknown", never 0, or the bar
+    # would claim the user has spent nothing.
+    used_bytes: Optional[int] = None
+    is_exhausted: bool = False
+    # None when the quota never resets (NO_RESET): it lasts the whole subscription.
+    reset_at: Optional[datetime] = None
+
+
 class SubscriptionInfoResponse(BaseModel):
     # Panel user id. Kept as a string on purpose: panel 3.0.0 turned it from a UUID
     # into a number, and the site treats it as an opaque reference (analytics userRef),
@@ -26,6 +44,10 @@ class SubscriptionInfoResponse(BaseModel):
     used_traffic_bytes: Optional[int] = None
     lifetime_used_traffic_bytes: Optional[int] = None
     online_at: Optional[datetime] = None
+    # Metered premium-location pools. Optional with a None default (not []), the same
+    # shape as `plan_locations`: a response cached before this field existed still
+    # validates, and an older client simply ignores it.
+    pools: Optional[list[PoolUsageResponse]] = None
 
 
 class DeviceResponse(BaseModel):
@@ -132,6 +154,17 @@ class TrialActivateResponse(BaseModel):
     gateways: list[DurationGatewayPriceResponse] = []
 
 
+class PlanPoolQuotaResponse(BaseModel):
+    """A plan's advertised quota on one premium-location pool."""
+
+    pool_id: int
+    name: str
+    quota_bytes: int
+    # Panel vocabulary (DAY / WEEK / MONTH / MONTH_ROLLING / NO_RESET) so the site can
+    # word the period itself instead of parsing a pre-rendered phrase.
+    reset_strategy: str
+
+
 class PlanOfferResponse(BaseModel):
     id: int
     public_code: str
@@ -144,6 +177,8 @@ class PlanOfferResponse(BaseModel):
     type: str
     recommended_purchase_type: str
     durations: list[DurationOfferResponse]
+    # Optional for the same cache-compat reason as SubscriptionInfoResponse.pools.
+    pools: Optional[list[PlanPoolQuotaResponse]] = None
 
 
 class SubscriptionOffersResponse(BaseModel):

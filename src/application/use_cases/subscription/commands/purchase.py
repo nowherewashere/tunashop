@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
+from uuid import UUID
 
 from loguru import logger
 
@@ -9,7 +10,7 @@ from src.application.common.dao import SubscriptionDao, UserDao
 from src.application.common.uow import UnitOfWork
 from src.application.dto import PlanSnapshotDto, SubscriptionDto, TransactionDto, UserDto
 from src.application.events import TrialActivatedEvent
-from src.application.services import SubscriptionProrationService
+from src.application.services import SubscriptionProrationService, TrafficPoolAccessService
 from src.core.enums import PurchaseType, SubscriptionStatus
 from src.core.exceptions import TrialNotAvailableError
 from src.core.types import RemnaUserDto
@@ -115,12 +116,14 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
         subscription_dao: SubscriptionDao,
         remnawave: Remnawave,
         proration: SubscriptionProrationService,
+        pool_access: TrafficPoolAccessService,
     ) -> None:
         self.uow = uow
         self.user_dao = user_dao
         self.subscription_dao = subscription_dao
         self.remnawave = remnawave
         self.proration = proration
+        self.pool_access = pool_access
 
     async def _execute(self, actor: UserDto, data: PurchaseSubscriptionDto) -> None:  # noqa: C901
         user = data.user
@@ -138,16 +141,26 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
             f"for user '{user.remna_name}'"
         )
 
+        # Premium pools the user has already spent this period stay withheld across
+        # every branch below: each of them rewrites `internal_squads` from the plan,
+        # so without this a renewal (or a plan change) would silently hand back a
+        # quota that has not reset yet.
+        pool_squads = await self.pool_access.effective_squads(
+            plan.internal_squads,
+            subscription.id if subscription else None,
+        )
+
         async with self.uow:
             # 1. NEW PURCHASE (NOT TRIAL)
             if purchase_type == PurchaseType.NEW and not has_trial:
                 created_user = await self.remnawave.create_user(user, plan=plan)
-                new_sub = self._build_subscription_dto(created_user, plan)
+                new_sub = self._build_subscription_dto(created_user, plan, pool_squads)
 
-                await self.subscription_dao.create(
+                created_sub = await self.subscription_dao.create(
                     subscription=new_sub,
                     user_id=user.id,
                 )
+                await self.pool_access.reconcile_windows(created_sub.id, plan)
                 await self.user_dao.set_trial_available(user.id, False)
                 if user.purchase_discount:
                     user.purchase_discount = 0
@@ -176,8 +189,9 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
                 subscription.traffic_limit = plan.traffic_limit
                 subscription.traffic_limit_strategy = plan.traffic_limit_strategy
                 subscription.tag = plan.tag
-                subscription.internal_squads = plan.internal_squads
+                subscription.internal_squads = pool_squads
                 subscription.external_squad = plan.external_squad
+                await self.pool_access.reconcile_windows(subscription.id, plan)
 
                 await self.remnawave.update_user(
                     user=user,
@@ -213,7 +227,7 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
                     new_currency=transaction.currency,
                 )
                 new_sub = self._build_change_subscription_dto(
-                    subscription.user_remna_id, plan, change.new_expire
+                    subscription.user_remna_id, plan, change.new_expire, pool_squads
                 )
 
                 await self.subscription_dao.update_status(
@@ -230,10 +244,15 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
                 new_sub.status = SubscriptionStatus(updated_user.status)
                 new_sub.url = updated_user.subscription_url
 
-                await self.subscription_dao.create(
+                created_sub = await self.subscription_dao.create(
                     subscription=new_sub,
                     user_id=user.id,
                 )
+                # A change retires the old row and writes a new one. The panel's usage
+                # history belongs to the panel *user*, not the row, so the windows have
+                # to follow — otherwise switching plans would be a free quota reset.
+                await self.pool_access.carry_over(subscription.id, created_sub.id)
+                await self.pool_access.reconcile_windows(created_sub.id, plan)
 
                 if user.purchase_discount:
                     user.purchase_discount = 0
@@ -255,6 +274,7 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
         self,
         remna_user: RemnaUserDto,
         plan: PlanSnapshotDto,
+        internal_squads: list[UUID],
     ) -> SubscriptionDto:
         return SubscriptionDto(
             user_remna_id=remna_user.id,
@@ -264,7 +284,7 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
             device_limit=plan.device_limit,
             traffic_limit_strategy=plan.traffic_limit_strategy,
             tag=plan.tag,
-            internal_squads=plan.internal_squads,
+            internal_squads=internal_squads,
             external_squad=plan.external_squad,
             expire_at=remna_user.expire_at,
             url=remna_user.subscription_url,
@@ -276,6 +296,7 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
         user_remna_id: int,
         plan: PlanSnapshotDto,
         expire_at: datetime,
+        internal_squads: list[UUID],
     ) -> SubscriptionDto:
         # Built before the panel call so the proration-computed expire_at is what gets
         # pushed (via subscription=...). status/url are placeholders filled in from the
@@ -288,7 +309,7 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
             device_limit=plan.device_limit,
             traffic_limit_strategy=plan.traffic_limit_strategy,
             tag=plan.tag,
-            internal_squads=plan.internal_squads,
+            internal_squads=internal_squads,
             external_squad=plan.external_squad,
             expire_at=expire_at,
             url="",

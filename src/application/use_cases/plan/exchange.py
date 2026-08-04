@@ -36,6 +36,11 @@ class ParsePlansImport(Interactor[str, list[PlanDto]]):
             plan.id = 0
             plan.created_at = None
             plan.updated_at = None
+            # Pool quotas key off local `traffic_pools.id`, which means nothing in the
+            # file's source deployment. Importing them would either dangle or, worse,
+            # silently attach a quota to whichever unrelated pool happens to share the
+            # id. Quotas are re-entered in the plan editor after import.
+            plan.pool_quotas = []
 
             for duration in plan.durations:
                 duration.id = 0
@@ -65,6 +70,8 @@ class ExportPlans(Interactor[list[int], str]):
                 plan.id = 0
                 plan.created_at = None
                 plan.updated_at = None
+                # Not portable across deployments — see ParsePlansImport.
+                plan.pool_quotas = []
 
                 for duration in plan.durations:
                     duration.id = 0

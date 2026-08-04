@@ -232,6 +232,17 @@ class RemnashopPlans(StatesGroup):
     SQUADS = State()
     INTERNAL_SQUADS = State()
     EXTERNAL_SQUADS = State()
+    POOL_QUOTAS = State()
+    POOL_QUOTA = State()
+    POOL_STRATEGY = State()
+
+
+class RemnashopTrafficPools(StatesGroup):
+    MAIN = State()
+    CONFIGURATOR = State()
+    NAME = State()
+    SQUAD = State()
+    NODES = State()
 
 
 class RemnashopMenuEditor(StatesGroup):

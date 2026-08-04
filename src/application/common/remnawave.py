@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import List, Optional, Protocol, TypeVar, Union
+from uuid import UUID
 
 from packaging.version import Version
 from remnapy.models import UserResponseDto
@@ -7,6 +8,8 @@ from remnapy.models.hwid import HwidDeviceDto
 
 from src.application.dto import (
     PlanSnapshotDto,
+    PoolNodeDto,
+    PoolUsageRowDto,
     RemnaSubscriptionDto,
     SquadInfoDto,
     SubscriptionDto,
@@ -68,6 +71,25 @@ class Remnawave(Protocol):
     async def get_internal_squads(self) -> List[SquadInfoDto]: ...
 
     async def get_external_squads(self) -> List[SquadInfoDto]: ...
+
+    async def get_squad_nodes(self, squad_uuid: UUID) -> List[PoolNodeDto]: ...
+
+    async def get_squad_usage(
+        self,
+        squad_uuid: UUID,
+        start: datetime,
+        end: datetime,
+        min_total_bytes: int,
+        page_size: int = 500,
+    ) -> List[PoolUsageRowDto]: ...
+
+    async def get_squad_user_usage(
+        self,
+        squad_uuid: UUID,
+        user_id: int,
+        start: datetime,
+        end: datetime,
+    ) -> int: ...
 
     def apply_sync(
         self,

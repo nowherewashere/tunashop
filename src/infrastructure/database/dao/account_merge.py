@@ -37,6 +37,11 @@ class AccountMergeDaoImpl(AccountMergeDao):
 
     async def reassign_children(self, survivor_id: int, loser_id: int) -> list[PayoutDto]:
         # Plain repoints — these user_id columns carry no per-user unique constraint.
+        #
+        # `subscription_pool_usage` deliberately does NOT appear in this method: it
+        # hangs off `subscriptions.id`, not `users.id`, so repointing the subscription
+        # carries its premium-pool accounting windows along untouched. That is the
+        # behaviour we want — a merge must not reset a spent quota.
         await self.session.execute(
             update(Subscription)
             .where(Subscription.user_id == loser_id)

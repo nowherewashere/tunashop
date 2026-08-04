@@ -234,6 +234,24 @@ def get_buy_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def get_upgrade_plan_keyboard() -> InlineKeyboardMarkup:
+    """CTA on a spent premium quota: move to a plan with a bigger one.
+
+    Lands on the subscription screen, where picking another plan runs the normal
+    CHANGE purchase — so the remaining value of the current term is prorated into
+    bonus days by SubscriptionProrationService instead of being lost.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="btn-goto.plan-upgrade",
+            callback_data=f"{GOTO_PREFIX}{PAYMENT_PREFIX}{PurchaseType.CHANGE}",
+            style=ButtonStyle.PRIMARY,
+        ),
+    )
+    return builder.as_markup()
+
+
 def get_channel_keyboard(channel_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(

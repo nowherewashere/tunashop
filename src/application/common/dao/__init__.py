@@ -20,6 +20,7 @@ from .referral_ledger import ReferralLedgerDao
 from .settings import SettingsDao
 from .subscription import SubscriptionDao
 from .support import SupportDao
+from .traffic_pool import TrafficPoolDao
 from .transaction import TransactionDao
 from .user import UserDao
 from .user_connection_state import UserConnectionStateDao
@@ -53,6 +54,7 @@ __all__ = [
     "SettingsDao",
     "SubscriptionDao",
     "SupportDao",
+    "TrafficPoolDao",
     "TransactionDao",
     "UserDao",
     "UserConnectionStateDao",

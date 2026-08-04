@@ -35,6 +35,9 @@ from .getters import (
     locations_getter,
     name_getter,
     plans_getter,
+    pool_quota_getter,
+    pool_quotas_getter,
+    pool_strategy_getter,
     price_getter,
     prices_getter,
     squads_getter,
@@ -67,6 +70,9 @@ from .handlers import (
     on_plan_delete,
     on_plan_move,
     on_plan_select,
+    on_pool_quota_input,
+    on_pool_quota_select,
+    on_pool_strategy_select,
     on_price_input,
     on_squads,
     on_strategy_select,
@@ -665,6 +671,13 @@ squads = Window(
     ),
     Row(
         SwitchTo(
+            text=I18nFormat("btn-plans.pool-quotas"),
+            id="pool_quotas",
+            state=RemnashopPlans.POOL_QUOTAS,
+        ),
+    ),
+    Row(
+        SwitchTo(
             text=I18nFormat("btn-back.general"),
             id="back",
             state=RemnashopPlans.CONFIGURATOR,
@@ -673,6 +686,90 @@ squads = Window(
     IgnoreUpdate(),
     state=RemnashopPlans.SQUADS,
     getter=squads_getter,
+)
+
+pool_quotas = Window(
+    Banner(BannerName.DASHBOARD),
+    I18nFormat("msg-plan-pool-quotas"),
+    ListGroup(
+        Row(
+            Button(
+                text=I18nFormat(
+                    "btn-plans.pool-quota-choice",
+                    name=F["item"]["name"],
+                    quota_gb=F["item"]["quota_gb"],
+                    is_granted=F["item"]["is_granted"],
+                ),
+                id="pool_quota_select",
+                on_click=on_pool_quota_select,
+            ),
+        ),
+        id="pool_quotas_list",
+        item_id_getter=lambda item: item["id"],
+        items="pools",
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=RemnashopPlans.SQUADS,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=RemnashopPlans.POOL_QUOTAS,
+    getter=pool_quotas_getter,
+)
+
+pool_quota = Window(
+    Banner(BannerName.DASHBOARD),
+    I18nFormat("msg-plan-pool-quota"),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-plans.pool-strategy"),
+            id="pool_strategy",
+            state=RemnashopPlans.POOL_STRATEGY,
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=RemnashopPlans.POOL_QUOTAS,
+        ),
+    ),
+    MessageInput(func=on_pool_quota_input),
+    IgnoreUpdate(),
+    state=RemnashopPlans.POOL_QUOTA,
+    getter=pool_quota_getter,
+)
+
+pool_strategy = Window(
+    Banner(BannerName.DASHBOARD),
+    I18nFormat("msg-plan-pool-strategy"),
+    Column(
+        Select(
+            text=I18nFormat(
+                "btn-plans.traffic-strategy-choice",
+                strategy_type=F["item"]["strategy"],
+                selected=F["item"]["selected"],
+            ),
+            id="pool_strategy_select",
+            item_id_getter=lambda item: item["strategy"].value,
+            items="strategys",
+            type_factory=TrafficLimitStrategy,
+            on_click=on_pool_strategy_select,
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=RemnashopPlans.POOL_QUOTA,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=RemnashopPlans.POOL_STRATEGY,
+    getter=pool_strategy_getter,
 )
 
 internal_squads = Window(
@@ -754,4 +851,7 @@ router = Dialog(
     squads,
     internal_squads,
     external_squads,
+    pool_quotas,
+    pool_quota,
+    pool_strategy,
 )

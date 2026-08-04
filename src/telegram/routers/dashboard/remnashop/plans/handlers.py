@@ -16,7 +16,13 @@ from remnapy.enums.users import TrafficLimitStrategy
 
 from src.application.common import Notifier
 from src.application.common.dao import PlanDao
-from src.application.dto import MediaDescriptorDto, MessagePayloadDto, PlanDto, TelegramUserDto
+from src.application.dto import (
+    MediaDescriptorDto,
+    MessagePayloadDto,
+    PlanDto,
+    PlanPoolQuotaDto,
+    TelegramUserDto,
+)
 from src.application.use_cases.plan.commands.access import (
     AddAllowedUserToPlan,
     AddAllowedUserToPlanDto,
@@ -819,6 +825,86 @@ async def on_external_squad_select(
         logger.info(f"{user.log} Added squad '{selected_squad}' to plan")
 
     dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(plan)
+
+
+async def on_pool_quota_select(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+) -> None:
+    dialog_manager.dialog_data["selected_pool"] = int(dialog_manager.item_id)  # type: ignore[attr-defined]
+    await dialog_manager.switch_to(state=RemnashopPlans.POOL_QUOTA)
+
+
+@inject
+async def on_pool_quota_input(
+    message: Message,
+    widget: MessageInput,
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    notifier: FromDishka[Notifier],
+) -> None:
+    dialog_manager.show_mode = ShowMode.EDIT
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    pool_id = dialog_manager.dialog_data.get("selected_pool")
+
+    if pool_id is None:
+        raise ValueError("Missing selected pool in dialog data")
+
+    try:
+        quota_gb = int((message.text or "").strip())
+    except ValueError:
+        await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
+        return
+
+    if quota_gb < 0:
+        await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
+        return
+
+    plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
+    existing = next((q for q in plan.pool_quotas if q.pool_id == pool_id), None)
+
+    if quota_gb == 0:
+        # 0 means "no quota on this pool" — the plan still grants the squad if it is in
+        # its squad list, just unmetered. Dropping the row keeps that the single way to
+        # express it (CommitPlan prunes zeroes anyway).
+        plan.pool_quotas = [q for q in plan.pool_quotas if q.pool_id != pool_id]
+    elif existing:
+        existing.quota_gb = quota_gb
+    else:
+        plan.pool_quotas.append(PlanPoolQuotaDto(pool_id=pool_id, quota_gb=quota_gb))
+
+    dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(plan)
+    logger.info(f"{user.log} Set pool '{pool_id}' quota to '{quota_gb}' GB on plan draft")
+    await dialog_manager.switch_to(state=RemnashopPlans.POOL_QUOTAS)
+
+
+@inject
+async def on_pool_strategy_select(
+    callback: CallbackQuery,
+    widget: Select,
+    dialog_manager: DialogManager,
+    selected_strategy: TrafficLimitStrategy,
+    retort: FromDishka[Retort],
+    notifier: FromDishka[Notifier],
+) -> None:
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    pool_id = dialog_manager.dialog_data.get("selected_pool")
+
+    plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
+    quota = next((q for q in plan.pool_quotas if q.pool_id == pool_id), None)
+
+    if quota is None:
+        # The period only exists together with a quota; ask for the number first.
+        await notifier.notify_user(user, i18n_key="ntf-plan.pool-quota-required")
+        await dialog_manager.switch_to(state=RemnashopPlans.POOL_QUOTA)
+        return
+
+    quota.reset_strategy = selected_strategy
+    dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(plan)
+
+    logger.info(f"{user.log} Set pool '{pool_id}' reset strategy to '{selected_strategy.name}'")
+    await dialog_manager.switch_to(state=RemnashopPlans.POOL_QUOTA)
 
 
 @inject

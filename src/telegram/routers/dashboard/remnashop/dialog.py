@@ -18,6 +18,7 @@ from src.telegram.states import (
     RemnashopNotifications,
     RemnashopPlans,
     RemnashopReferral,
+    RemnashopTrafficPools,
 )
 from src.telegram.utils import require_permission
 from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
@@ -72,6 +73,15 @@ remnashop = Window(
             id="notifications",
             state=RemnashopNotifications.MAIN,
             when=require_permission(Permission.VIEW_NOTIFICATIONS),
+        ),
+    ),
+    Row(
+        Start(
+            text=I18nFormat("btn-remnashop.traffic-pools"),
+            id="traffic_pools",
+            state=RemnashopTrafficPools.MAIN,
+            mode=StartMode.RESET_STACK,
+            when=require_permission(Permission.VIEW_PLANS),
         ),
     ),
     Row(

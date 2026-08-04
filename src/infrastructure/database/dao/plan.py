@@ -12,7 +12,7 @@ from src.application.common.dao import PlanDao
 from src.application.dto import PlanDto
 from src.core.constants import PUBLIC_LANDING_PLANS_CACHE_KEY
 from src.core.enums import PlanAvailability
-from src.infrastructure.database.models import Plan, PlanDuration, PlanPrice
+from src.infrastructure.database.models import Plan, PlanDuration, PlanPrice, PlanTrafficPool
 
 
 class PlanDaoImpl(PlanDao):
@@ -35,8 +35,18 @@ class PlanDaoImpl(PlanDao):
         plan_data = self.retort.dump(plan)
         plan_data.pop("id", None)
         durations_data = plan_data.pop("durations", [])
+        # Owned collections are rebuilt from the DTO, never passed to Plan(**data).
+        plan_data.pop("pool_quotas", None)
 
         db_plan = Plan(**plan_data)
+        for quota in plan.pool_quotas:
+            db_plan.pool_quotas.append(
+                PlanTrafficPool(
+                    pool_id=quota.pool_id,
+                    quota_gb=quota.quota_gb,
+                    reset_strategy=quota.reset_strategy,
+                )
+            )
 
         for duration_data in durations_data:
             duration_data.pop("id", None)
@@ -60,7 +70,10 @@ class PlanDaoImpl(PlanDao):
         stmt = (
             select(Plan)
             .where(Plan.id == plan_id)
-            .options(selectinload(Plan.durations).selectinload(PlanDuration.prices))
+            .options(
+                selectinload(Plan.durations).selectinload(PlanDuration.prices),
+                selectinload(Plan.pool_quotas),
+            )
         )
         db_plan = await self.session.scalar(stmt)
 
@@ -75,7 +88,10 @@ class PlanDaoImpl(PlanDao):
         stmt = (
             select(Plan)
             .where(Plan.name == name)
-            .options(selectinload(Plan.durations).selectinload(PlanDuration.prices))
+            .options(
+                selectinload(Plan.durations).selectinload(PlanDuration.prices),
+                selectinload(Plan.pool_quotas),
+            )
         )
         db_plan = await self.session.scalar(stmt)
 
@@ -90,7 +106,10 @@ class PlanDaoImpl(PlanDao):
         stmt = (
             select(Plan)
             .where(Plan.is_active.is_(True), Plan.is_trial.is_(False))
-            .options(selectinload(Plan.durations).selectinload(PlanDuration.prices))
+            .options(
+                selectinload(Plan.durations).selectinload(PlanDuration.prices),
+                selectinload(Plan.pool_quotas),
+            )
             .order_by(Plan.order_index.asc())
         )
         result = await self.session.execute(stmt)
@@ -103,7 +122,10 @@ class PlanDaoImpl(PlanDao):
         stmt = (
             select(Plan)
             .where(Plan.is_active.is_(True), Plan.is_trial.is_(True))
-            .options(selectinload(Plan.durations).selectinload(PlanDuration.prices))
+            .options(
+                selectinload(Plan.durations).selectinload(PlanDuration.prices),
+                selectinload(Plan.pool_quotas),
+            )
             .order_by(Plan.order_index.asc())
         )
         result = await self.session.execute(stmt)
@@ -125,7 +147,10 @@ class PlanDaoImpl(PlanDao):
     async def get_all(self) -> list[PlanDto]:
         stmt = (
             select(Plan)
-            .options(selectinload(Plan.durations).selectinload(PlanDuration.prices))
+            .options(
+                selectinload(Plan.durations).selectinload(PlanDuration.prices),
+                selectinload(Plan.pool_quotas),
+            )
             .order_by(Plan.order_index.asc())
         )
         result = await self.session.scalars(stmt)
@@ -138,7 +163,10 @@ class PlanDaoImpl(PlanDao):
         stmt = (
             select(Plan)
             .where(Plan.public_code == public_code)
-            .options(selectinload(Plan.durations).selectinload(PlanDuration.prices))
+            .options(
+                selectinload(Plan.durations).selectinload(PlanDuration.prices),
+                selectinload(Plan.pool_quotas),
+            )
         )
         db_plan = await self.session.scalar(stmt)
 
@@ -160,7 +188,10 @@ class PlanDaoImpl(PlanDao):
         stmt = (
             select(Plan)
             .where(Plan.id == plan.id)
-            .options(selectinload(Plan.durations).selectinload(PlanDuration.prices))
+            .options(
+                selectinload(Plan.durations).selectinload(PlanDuration.prices),
+                selectinload(Plan.pool_quotas),
+            )
         )
 
         db_plan = await self.session.scalar(stmt)
@@ -168,10 +199,21 @@ class PlanDaoImpl(PlanDao):
         if not db_plan:
             raise ValueError(f"Plan with id {plan.id} not found")
 
-        exclude_fields = {"id", "durations", "created_at", "updated_at"}
+        exclude_fields = {"id", "durations", "pool_quotas", "created_at", "updated_at"}
         for key, value in plan.__dict__.items():
             if key not in exclude_fields and hasattr(db_plan, key):
                 setattr(db_plan, key, value)
+
+        # Rewritten wholesale, like durations: delete-orphan drops the rows that are
+        # gone, which is exactly what "the admin unticked this pool" should do.
+        db_plan.pool_quotas = [
+            PlanTrafficPool(
+                pool_id=quota.pool_id,
+                quota_gb=quota.quota_gb,
+                reset_strategy=quota.reset_strategy,
+            )
+            for quota in plan.pool_quotas
+        ]
 
         new_durations = []
         for d_dto in plan.durations:
@@ -191,7 +233,10 @@ class PlanDaoImpl(PlanDao):
         refresh_stmt = (
             select(Plan)
             .where(Plan.id == db_plan.id)
-            .options(selectinload(Plan.durations).selectinload(PlanDuration.prices))
+            .options(
+                selectinload(Plan.durations).selectinload(PlanDuration.prices),
+                selectinload(Plan.pool_quotas),
+            )
             .execution_options(populate_existing=True)
         )
         refreshed_plan = await self.session.scalar(refresh_stmt)
@@ -231,7 +276,10 @@ class PlanDaoImpl(PlanDao):
         stmt = (
             select(Plan)
             .where(Plan.availability == availability)
-            .options(selectinload(Plan.durations).selectinload(PlanDuration.prices))
+            .options(
+                selectinload(Plan.durations).selectinload(PlanDuration.prices),
+                selectinload(Plan.pool_quotas),
+            )
             .order_by(Plan.order_index.asc())
         )
 
@@ -245,7 +293,10 @@ class PlanDaoImpl(PlanDao):
         stmt = (
             select(Plan)
             .where(Plan.availability == PlanAvailability.ALLOWED, Plan.is_active.is_(True))
-            .options(selectinload(Plan.durations).selectinload(PlanDuration.prices))
+            .options(
+                selectinload(Plan.durations).selectinload(PlanDuration.prices),
+                selectinload(Plan.pool_quotas),
+            )
             .order_by(Plan.order_index.asc())
         )
 

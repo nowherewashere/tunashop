@@ -53,6 +53,7 @@ from src.application.events.system import (
     UserRegisteredEvent,
 )
 from src.application.events.user import (
+    PoolTrafficExhaustedEvent,
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiresEvent,
@@ -72,6 +73,7 @@ from src.telegram.keyboards import (
     get_remnashop_keyboard,
     get_remnashop_update_keyboard,
     get_renew_keyboard,
+    get_upgrade_plan_keyboard,
     get_user_keyboard,
 )
 from src.telegram.widgets import extract_tg_emoji
@@ -130,9 +132,11 @@ class NotificationService(Notifier):
             ),
         ):
             return get_buy_keyboard() if event.is_trial else get_renew_keyboard()
-        if isinstance(event, UserNotConnectedEvent):
-            return get_contact_support_keyboard(event.support_url)
-        if isinstance(event, TorrentBlockedEvent):
+        if isinstance(event, PoolTrafficExhaustedEvent):
+            # A spent pool quota is not fixed by renewing the same plan — the way out
+            # is a plan with a bigger quota (or waiting for the period to roll).
+            return get_upgrade_plan_keyboard()
+        if isinstance(event, (UserNotConnectedEvent, TorrentBlockedEvent)):
             return get_contact_support_keyboard(event.support_url)
         if isinstance(event, TorrentBlockerReportEvent):
             return get_user_keyboard(event.user_id)
@@ -189,12 +193,15 @@ class NotificationService(Notifier):
                 SubscriptionExpiredEvent,
                 SubscriptionExpiredAgoEvent,
                 SubscriptionLimitedEvent,
+                PoolTrafficExhaustedEvent,
             ),
         ):
-            # Subscription reminders (expiry / traffic-limit) carry a single «продлить»
-            # CTA and no stock «Закрыть»: tapping renew opens the subscription screen and
-            # closes the reminder (see routers/extra/goto.py::on_goto payment branch).
+            # Subscription reminders (expiry / traffic-limit / spent pool quota) carry a
+            # single CTA and no stock «Закрыть»: tapping it opens the subscription screen
+            # and closes the reminder (see routers/extra/goto.py::on_goto payment branch).
             payload.disable_default_markup = True
+        # PoolTrafficWarningEvent deliberately falls through: it is informational, so
+        # it keeps the stock «Закрыть» and gets no CTA.
         await self.notify_user(event.user, payload)
 
     @on_event(SystemEvent)

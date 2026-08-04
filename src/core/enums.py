@@ -324,6 +324,12 @@ class UserNotificationType(UpperStrEnum):
     NOT_CONNECTED = auto()
     TORRENT_BLOCKED = auto()
     #
+    # Metered premium-location quotas (traffic pools). Separate from LIMITED, which
+    # is the panel's global "no traffic anywhere" state: these two only ever concern
+    # one pool, and the rest of the plan keeps working.
+    POOL_TRAFFIC_WARNING = auto()
+    POOL_TRAFFIC_EXHAUSTED = auto()
+    #
     REFERRAL_ATTACHED = auto()
     #
     # Referral money payouts (spec §8.4). Transactional — enabled by default.

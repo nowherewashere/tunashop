@@ -11,10 +11,17 @@ from src.application.common.dao import (
     PlanDao,
     SettingsDao,
     SubscriptionDao,
+    TrafficPoolDao,
 )
-from src.application.dto import PaymentGatewayDto, PlanDto, PlanSnapshotDto, UserDto
+from src.application.dto import (
+    PaymentGatewayDto,
+    PlanDto,
+    PlanSnapshotDto,
+    TrafficPoolDto,
+    UserDto,
+)
 from src.application.dto.payment_gateway import PlategaGatewaySettingsDto
-from src.application.services import PricingService
+from src.application.services import PricingService, TrafficPoolAccessService
 from src.application.use_cases.gateways.commands.payment import (
     CreatePayment,
     CreatePaymentDto,
@@ -37,6 +44,7 @@ from src.application.use_cases.subscription.commands.purchase import (
     ActivateTrialSubscriptionDto,
 )
 from src.application.use_cases.user.queries.plans import GetAvailablePlans, GetAvailableTrial
+from src.core.config import AppConfig
 from src.core.enums import (
     PaymentGatewayType,
     PlategaPaymentMethod,
@@ -62,7 +70,9 @@ from src.web.schemas import (
     GatewayOfferResponse,
     PaymentInitResponse,
     PlanOfferResponse,
+    PlanPoolQuotaResponse,
     PlategaMethodOfferResponse,
+    PoolUsageResponse,
     PromocodeActivateRequest,
     PromocodeActivateResponse,
     PurchaseRequest,
@@ -86,6 +96,28 @@ def _to_device_response(device: HwidDeviceDto) -> DeviceResponse:
         os_version=device.os_version,
         user_agent=device.user_agent,
     )
+
+
+def _plan_pool_offers(
+    plan: PlanDto,
+    pools_by_id: dict[int, TrafficPoolDto],
+) -> Optional[list[PlanPoolQuotaResponse]]:
+    """Advertised pool quotas of a plan, or None when it meters nothing.
+
+    A quota whose pool has been deleted is skipped rather than rendered as an unnamed
+    row — CommitPlan prunes those on the next save anyway.
+    """
+    offers = [
+        PlanPoolQuotaResponse(
+            pool_id=quota.pool_id,
+            name=pools_by_id[quota.pool_id].name,
+            quota_bytes=quota.quota_bytes,
+            reset_strategy=quota.reset_strategy.value,
+        )
+        for quota in plan.pool_quotas
+        if quota.pool_id in pools_by_id and quota.quota_gb > 0
+    ]
+    return offers or None
 
 
 def _assert_web_gateway(gateway_type: PaymentGatewayType) -> None:
@@ -141,6 +173,7 @@ async def get_current_subscription(
     subscription_dao: FromDishka[SubscriptionDao],
     plan_dao: FromDishka[PlanDao],
     remnawave: FromDishka[Remnawave],
+    pool_access: FromDishka[TrafficPoolAccessService],
 ) -> Optional[SubscriptionInfoResponse]:
     current_subscription = await subscription_dao.get_current(user.id)
 
@@ -152,6 +185,24 @@ async def get_current_subscription(
     # Locations come from the live plan (single source of truth), resolved by the
     # snapshot's id, so admin edits reflect immediately. None when the plan was removed.
     plan = await plan_dao.get_by_id(current_subscription.plan_snapshot.id)
+
+    # None (not []) while the feature is off or the plan meters nothing, so the cabinet
+    # can tell "no pools on this plan" from "pools exist but I could not read them".
+    pool_views = await pool_access.build_views(current_subscription)
+    pools = (
+        [
+            PoolUsageResponse(
+                pool_id=view.pool_id,
+                name=view.name,
+                quota_bytes=view.quota_bytes,
+                used_bytes=view.used_bytes,
+                is_exhausted=view.is_exhausted,
+                reset_at=view.reset_at,
+            )
+            for view in pool_views
+        ]
+        or None
+    )
 
     return SubscriptionInfoResponse(
         user_remna_id=str(current_subscription.user_remna_id),
@@ -168,6 +219,7 @@ async def get_current_subscription(
         used_traffic_bytes=remna_user.used_traffic_bytes if remna_user else None,
         lifetime_used_traffic_bytes=remna_user.lifetime_used_traffic_bytes if remna_user else None,
         online_at=remna_user.online_at if remna_user else None,
+        pools=pools,
     )
 
 
@@ -587,6 +639,8 @@ async def get_subscription_offers(
     pricing_service: FromDishka[PricingService],
     get_available_plans: FromDishka[GetAvailablePlans],
     match_plan: FromDishka[MatchPlan],
+    traffic_pool_dao: FromDishka[TrafficPoolDao],
+    config: FromDishka[AppConfig],
 ) -> SubscriptionOffersResponse:
     active_gateways = await payment_gateway_dao.get_active()
     web_gateways = [
@@ -608,6 +662,14 @@ async def get_subscription_offers(
                 plans=available_plans,
             )
         )
+
+    # Pool names come from the live pool row, not the plan, so a rename shows up on
+    # every card at once. Empty while the feature is off — the field then stays None.
+    pools_by_id = (
+        {pool.id: pool for pool in await traffic_pool_dao.get_all()}
+        if config.traffic_pools.enabled
+        else {}
+    )
 
     plan_offers: list[PlanOfferResponse] = []
     for plan in available_plans:
@@ -661,6 +723,7 @@ async def get_subscription_offers(
                 type=plan.type.value,
                 recommended_purchase_type=recommended_purchase_type,
                 durations=duration_offers,
+                pools=_plan_pool_offers(plan, pools_by_id),
             )
         )
 

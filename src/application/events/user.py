@@ -103,6 +103,55 @@ class SubscriptionExpiresEvent(UserEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
+class PoolTrafficEvent(UserEvent):
+    """Shared shape of the two premium-pool notices.
+
+    ``reset_at`` is a pre-formatted date (or ``False`` when the quota never resets),
+    so the FTL only has to branch on ``has_reset`` instead of doing date arithmetic.
+    """
+
+    pool_name: str
+    quota: Any
+    reset_at: Any
+    has_reset: bool
+
+    def as_payload(self) -> "MessagePayloadDto":
+        return MessagePayloadDto(
+            i18n_key=self.event_key,
+            i18n_kwargs={**asdict(self)},
+            disable_default_markup=False,
+            delete_after=None,
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
+class PoolTrafficWarningEvent(PoolTrafficEvent):
+    notification_type: NotificationType = field(
+        default=UserNotificationType.POOL_TRAFFIC_WARNING,
+        init=False,
+    )
+
+    used: Any
+    percent: int
+
+    @property
+    def event_key(self) -> str:
+        return "event-pool-traffic.warning"
+
+
+@dataclass(frozen=True, kw_only=True)
+class PoolTrafficExhaustedEvent(PoolTrafficEvent):
+    notification_type: NotificationType = field(
+        default=UserNotificationType.POOL_TRAFFIC_EXHAUSTED,
+        init=False,
+    )
+
+    @property
+    def event_key(self) -> str:
+        return "event-pool-traffic.exhausted"
+
+
+@dataclass(frozen=True, kw_only=True)
 class TorrentBlockedEvent(UserEvent):
     notification_type: NotificationType = field(
         default=UserNotificationType.TORRENT_BLOCKED,

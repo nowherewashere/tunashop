@@ -24,6 +24,7 @@ from .referral import ReferralConfig
 from .remnawave import RemnawaveConfig
 from .stars import StarsConfig
 from .support import SupportConfig
+from .traffic_pools import TrafficPoolsConfig
 from .validators import validate_not_change_me
 
 
@@ -78,6 +79,7 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
     payout: PayoutConfig = Field(default_factory=PayoutConfig)
     stars: StarsConfig = Field(default_factory=StarsConfig)
     support: SupportConfig = Field(default_factory=SupportConfig)
+    traffic_pools: TrafficPoolsConfig = Field(default_factory=TrafficPoolsConfig)
     oauth: OAuthConfig = Field(default_factory=OAuthConfig)
 
     @property
