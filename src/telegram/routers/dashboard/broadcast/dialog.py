@@ -81,6 +81,13 @@ broadcast = Window(
         ),
     ),
     Row(
+        Button(
+            I18nFormat("btn-broadcast.paid"),
+            id=BroadcastAudience.PAID,
+            on_click=on_audience_select,
+        ),
+    ),
+    Row(
         Start(
             I18nFormat("btn-back.general"),
             id="back",

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Optional
 from uuid import UUID, uuid4
 
+from aiogram.types import InlineKeyboardMarkup
 from loguru import logger
 
 from src.application.common import BroadcastDispatcher, Interactor
@@ -13,7 +14,25 @@ from src.application.use_cases.broadcast.queries.audience import (
     GetBroadcastAudienceCount,
     GetBroadcastAudienceCountDto,
 )
+from src.core.constants import TRIAL_BONUS_CB
 from src.core.enums import BroadcastAudience, BroadcastStatus
+
+
+def _bind_bonus_button(payload: MessagePayloadDto, task_id: UUID) -> None:
+    """Point the "+1 trial day" button at the broadcast that is about to carry it.
+
+    The keyboard is picked in the dialog, before a task_id exists, so the button leaves
+    the editor with a bare prefix. Stamping the id here is what lets a press find its own
+    broadcast_messages row — the per-person claim ledger — instead of any other campaign's.
+    """
+    markup = payload.reply_markup
+    if not isinstance(markup, InlineKeyboardMarkup):
+        return
+
+    for row in markup.inline_keyboard:
+        for button in row:
+            if button.callback_data == TRIAL_BONUS_CB:
+                button.callback_data = f"{TRIAL_BONUS_CB}{task_id}"
 
 
 @dataclass(frozen=True)
@@ -45,6 +64,7 @@ class StartBroadcast(Interactor[StartBroadcastDto, UUID]):
 
         async with self.uow:
             task_id = uuid4()
+            _bind_bonus_button(data.payload, task_id)
             broadcast = BroadcastDto(
                 task_id=task_id,
                 status=BroadcastStatus.PROCESSING,

@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
@@ -29,5 +30,7 @@ class BroadcastMessageDto(BaseDto, TrackableMixin):
     user_id: int
     user_telegram_id: Optional[int] = None  # Telegram chat ID; None for web-only users
     message_id: Optional[int] = None
+    # Set when this recipient redeemed the broadcast's "+1 trial day" button.
+    bonus_claimed_at: Optional[datetime] = None
 
     status: BroadcastMessageStatus

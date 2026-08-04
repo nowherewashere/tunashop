@@ -1,7 +1,8 @@
+from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from sqlalchemy import BigInteger, ForeignKey, Integer
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.enums import BroadcastAudience, BroadcastMessageStatus, BroadcastStatus
@@ -51,5 +52,11 @@ class BroadcastMessage(BaseSql):
     message_id: Mapped[Optional[int]] = mapped_column(BigInteger)
 
     status: Mapped[BroadcastMessageStatus] = mapped_column(index=True)
+    # Claim ledger for the "+1 trial day" broadcast button: set once, by the atomic
+    # UPDATE ... WHERE bonus_claimed_at IS NULL in BroadcastDao.claim_message_bonus.
+    # One row per (broadcast, user), so the bonus is one per person per broadcast.
+    bonus_claimed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     broadcast: Mapped["Broadcast"] = relationship(back_populates="messages")

@@ -36,6 +36,9 @@ class BroadcastDaoImpl(BroadcastDao):
         self._convert_to_dto_messages_list = self.conversion_retort.get_converter(
             list[BroadcastMessage], list[BroadcastMessageDto]
         )
+        self._convert_to_dto_message = self.conversion_retort.get_converter(
+            BroadcastMessage, BroadcastMessageDto
+        )
 
     async def create(self, broadcast: BroadcastDto) -> BroadcastDto:
         broadcast_data = self.retort.dump(broadcast)
@@ -146,3 +149,49 @@ class BroadcastDaoImpl(BroadcastDao):
 
         await self.session.execute(stmt, data, execution_options={"synchronize_session": None})
         logger.debug(f"Bulk updated '{len(data)}' broadcast messages")
+
+    async def get_message_for_user(
+        self,
+        task_id: UUID,
+        user_id: int,
+    ) -> Optional[BroadcastMessageDto]:
+        stmt = (
+            select(BroadcastMessage)
+            .join(Broadcast, BroadcastMessage.broadcast_id == Broadcast.id)
+            .where(Broadcast.task_id == task_id, BroadcastMessage.user_id == user_id)
+        )
+        db_message = await self.session.scalar(stmt)
+
+        if not db_message:
+            logger.debug(f"No message of broadcast '{task_id}' for user_id '{user_id}'")
+            return None
+
+        return self._convert_to_dto_message(db_message)
+
+    async def claim_message_bonus(self, task_id: UUID, user_id: int) -> bool:
+        """Take the broadcast's bonus for this user, once.
+
+        The `bonus_claimed_at IS NULL` predicate is the whole guarantee: a second press
+        (or two presses racing) matches no row and comes back False. Runs inside the
+        caller's transaction, so a reward that fails to apply rolls the claim back with it.
+        """
+        broadcast_id_stmt = select(Broadcast.id).where(Broadcast.task_id == task_id)
+
+        stmt = (
+            update(BroadcastMessage)
+            .where(
+                BroadcastMessage.broadcast_id == broadcast_id_stmt.scalar_subquery(),
+                BroadcastMessage.user_id == user_id,
+                BroadcastMessage.bonus_claimed_at.is_(None),
+            )
+            .values(bonus_claimed_at=datetime_now())
+            .returning(BroadcastMessage.id)
+        )
+        result = await self.session.execute(stmt)
+        claimed = result.scalar() is not None
+
+        logger.debug(
+            f"Bonus claim of broadcast '{task_id}' for user_id '{user_id}': "
+            f"{'taken' if claimed else 'refused'}"
+        )
+        return claimed

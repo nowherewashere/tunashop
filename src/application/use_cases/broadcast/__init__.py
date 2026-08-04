@@ -2,6 +2,7 @@ from typing import Final
 
 from src.application.common import Interactor
 
+from .commands.bonus import ClaimTrialBonus
 from .commands.lifecycle import CancelBroadcast, DeleteBroadcast, FinishBroadcast, StartBroadcast
 from .commands.messages import (
     BulkUpdateBroadcastMessages,
@@ -25,4 +26,5 @@ BROADCAST_USE_CASES: Final[tuple[type[Interactor], ...]] = (
     UpdateBroadcastMessageStatus,
     FinishBroadcast,
     BulkUpdateBroadcastMessages,
+    ClaimTrialBonus,
 )

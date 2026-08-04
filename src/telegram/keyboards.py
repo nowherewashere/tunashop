@@ -8,7 +8,14 @@ from aiogram_dialog.widgets.style import Style
 from aiogram_dialog.widgets.text import Format
 from magic_filter import F
 
-from src.core.constants import DOCS, GOTO_PREFIX, PAYMENT_PREFIX, REPOSITORY, T_ME
+from src.core.constants import (
+    DOCS,
+    GOTO_PREFIX,
+    PAYMENT_PREFIX,
+    REPOSITORY,
+    T_ME,
+    TRIAL_BONUS_CB,
+)
 from src.core.enums import ButtonType, PurchaseType
 from src.telegram.states import DashboardUser, MainMenu, Notification, Onboarding, Subscription
 from src.telegram.widgets import I18nFormat
@@ -189,6 +196,16 @@ def get_broadcast_buttons(support_url: str, is_referral_enable: bool) -> list[In
                 callback_data=f"{GOTO_PREFIX}{MainMenu.INVITE.state}",
             )
         )
+
+    # Redeems +1 trial day for whoever presses it. StartBroadcast rewrites the bare
+    # prefix into `tbn:<task_id>` when the broadcast is launched — a press on a keyboard
+    # that never went through it (e.g. the admin preview) simply finds no claim row.
+    buttons.append(
+        InlineKeyboardButton(
+            text="btn-goto.trial-bonus",
+            callback_data=TRIAL_BONUS_CB,
+        )
+    )
 
     buttons.append(get_close_notification_button())
 

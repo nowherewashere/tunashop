@@ -7,6 +7,7 @@ from . import (
     notification,
     payment,
     test,
+    trial_bonus,
     web_login,
 )
 
@@ -19,5 +20,6 @@ __all__ = [
     "notification",
     "payment",
     "test",
+    "trial_bonus",
     "web_login",
 ]

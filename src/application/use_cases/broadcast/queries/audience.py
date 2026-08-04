@@ -61,6 +61,9 @@ class GetBroadcastAudienceCount(Interactor[GetBroadcastAudienceCountDto, int]):
         elif audience == BroadcastAudience.TRIAL:
             count = await self.user_dao.count_with_trial_subscription()
 
+        elif audience == BroadcastAudience.PAID:
+            count = await self.user_dao.count_with_paid_subscription()
+
         else:
             logger.error(f"{actor.log} Received unknown broadcast audience '{audience}'")
             raise ValueError(f"Unknown broadcast audience '{audience}'")
@@ -99,6 +102,8 @@ class GetBroadcastAudienceUsers(Interactor[GetBroadcastAudienceUsersDto, list[Us
             users = await self.user_dao.get_with_expired_subscription()
         elif audience == BroadcastAudience.TRIAL:
             users = await self.user_dao.get_with_trial_subscription()
+        elif audience == BroadcastAudience.PAID:
+            users = await self.user_dao.get_with_paid_subscription()
         else:
             logger.error(f"{actor.log} Received unknown broadcast audience '{audience}'")
             raise ValueError(f"Unknown broadcast audience '{audience}'")

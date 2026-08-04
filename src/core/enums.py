@@ -69,6 +69,16 @@ class BroadcastAudience(UpperStrEnum):
     UNSUBSCRIBED = auto()
     EXPIRED = auto()
     TRIAL = auto()
+    # SUBSCRIBED minus trials: paying customers only. Unlike SUBSCRIBED it also checks
+    # expire_at, because the stored status only turns EXPIRED on the next panel sync.
+    PAID = auto()
+
+
+class TrialBonusResult(UpperStrEnum):
+    GRANTED = auto()
+    ALREADY_CLAIMED = auto()
+    NOT_ELIGIBLE = auto()
+    UNAVAILABLE = auto()
 
 
 class PlanType(UpperStrEnum):
