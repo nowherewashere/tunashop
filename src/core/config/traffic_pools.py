@@ -3,8 +3,8 @@ from typing import Final
 from .base import BaseConfig
 
 # Share of the quota that triggers the "почти всё" warning. Also the server-side
-# `minTotalBytes` floor of the metering query, so one panel request per (pool, quota)
-# covers both the warning and the exhaustion verdict.
+# `minTotalBytes` floor of the metering query, so one panel request per accounting
+# window covers both the warning and the exhaustion verdict.
 TRAFFIC_POOL_WARN_RATIO: Final[float] = 0.8
 
 # How long a per-user pool reading is reused across renders. The panel flushes its
@@ -12,6 +12,14 @@ TRAFFIC_POOL_WARN_RATIO: Final[float] = 0.8
 # would only buy extra round trips — and the query is day-granular anyway, which makes
 # consecutive reads within a minute identical by construction.
 POOL_USAGE_CACHE_TTL: Final[int] = 60
+
+# Distinct accounting windows in one pool past which the metering pass logs a warning.
+# Every window costs one panel request on every tick, so this is the pass's request
+# budget. The calendar strategies contribute one window each and MONTH_ROLLING at most
+# one per anniversary day (31), so a healthy pool stays well under this; going past it
+# means NO_RESET quotas dominate, whose window opens at each subscription's own creation
+# date and so grows with signups rather than staying inside the calendar.
+TRAFFIC_POOL_MAX_EXPECTED_WINDOWS: Final[int] = 40
 
 
 class TrafficPoolsConfig(BaseConfig, env_prefix="TRAFFIC_POOLS_"):

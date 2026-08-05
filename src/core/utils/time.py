@@ -89,10 +89,23 @@ def get_traffic_period_start(  # noqa: C901
 
     Boundaries match the panel's own: midnight for DAY, Monday 00:05 for WEEK, the 1st
     at 00:10 for MONTH, the subscription's anniversary day at 00:10 for MONTH_ROLLING.
-    Pair it with :func:`get_traffic_period_end` — that pair is exact by construction, so
-    consecutive windows tile without gaps or overlap. (``get_traffic_reset_delta`` is
-    *not* its exact inverse for MONTH_ROLLING in short months: it rolls a missing 31st
-    to the 1st of the next month, while pools clamp it to the month's last day.)
+    Pair it with :func:`get_traffic_period_end` — as instants, that pair is exact by
+    construction, so consecutive windows tile without gaps or overlap.
+    (``get_traffic_reset_delta`` is *not* its exact inverse for MONTH_ROLLING in short
+    months: it rolls a missing 31st to the 1st of the next month, while pools clamp it
+    to the month's last day.)
+
+    As *queried*, they do not tile — and cannot. The panel's bandwidth-stats endpoints
+    take bare calendar dates (:data:`~src.core.constants.PANEL_DATE_FORMAT`) and widen
+    them to ``startOf('day')``/``endOf('day')``, inclusive at both ends, so the times of
+    day above are unrepresentable and the date on which a window opens falls inside that
+    window *and* the one before it. The double-counted slice is the boundary's own
+    offset: ten minutes at most for the calendar strategies, and for ``NO_RESET`` —
+    whose window opens whenever the subscription was created — the rest of that calendar
+    day. It errs against the user, never in their favour. None of this is a timezone
+    problem: both sides work in UTC (:data:`~src.core.constants.TIMEZONE`), it is
+    granularity alone. Callers that group or compare windows must do it at the same
+    granularity to match — see :func:`to_panel_day_start`.
 
     ``NO_RESET`` has no boundary: the window opened when the subscription did and never
     closes, so ``created_at`` is returned verbatim.
@@ -158,6 +171,21 @@ def get_traffic_period_end(
         return _rolling_anniversary(nxt.year, nxt.month, created_at.day)
 
     raise ValueError("Unsupported strategy")
+
+
+def to_panel_day_start(value: datetime) -> datetime:
+    """``value`` truncated to the UTC day, the way a bandwidth-stats query will read it.
+
+    The panel is sent bare dates and expands them itself, so any time of day carried by
+    a window boundary is silently dropped in transit (see
+    :func:`get_traffic_period_start`). Doing it here instead makes the value equal to
+    the range the panel will actually count over — which matters wherever windows are
+    compared or used as a dict key, because two boundaries the panel cannot tell apart
+    must not be treated as two different queries.
+    """
+    return datetime.combine(
+        value.astimezone(TIMEZONE).date(), datetime.min.time(), tzinfo=TIMEZONE
+    )
 
 
 def _shift_month(value: datetime, months: int) -> datetime:

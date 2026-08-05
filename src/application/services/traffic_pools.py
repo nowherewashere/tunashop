@@ -20,13 +20,18 @@ from src.application.dto import (
 )
 from src.application.events import PoolTrafficExhaustedEvent, PoolTrafficWarningEvent
 from src.core.config import AppConfig
-from src.core.config.traffic_pools import POOL_USAGE_CACHE_TTL, TRAFFIC_POOL_WARN_RATIO
+from src.core.config.traffic_pools import (
+    POOL_USAGE_CACHE_TTL,
+    TRAFFIC_POOL_MAX_EXPECTED_WINDOWS,
+    TRAFFIC_POOL_WARN_RATIO,
+)
 from src.core.constants import POOL_RESET_DATE_FORMAT
 from src.core.utils.i18n_helpers import i18n_format_bytes_to_unit
 from src.core.utils.time import (
     datetime_now,
     get_traffic_period_end,
     get_traffic_period_start,
+    to_panel_day_start,
 )
 
 
@@ -305,10 +310,15 @@ class MeteringReportDto:
 class TrafficPoolMeteringService:
     """Reads premium usage from the panel and applies the verdict.
 
-    One pass per pool, and inside it one panel request per distinct
-    (window start, quota) pair — ``minTotalBytes`` filters server-side, so a single
-    request answers both "who is over quota" and "who is close" for the whole pool
-    (the floor is the *warning* threshold, not the quota).
+    One pass per pool, and inside it one panel request per distinct accounting window —
+    ``minTotalBytes`` filters server-side, so a single request answers both "who is over
+    quota" and "who is close" for every quota tier sharing that window. Its floor is the
+    lowest *warning* threshold in the window (never the quota, and never a higher tier's
+    threshold, which would hide a smaller tier's users); each user's own threshold is
+    then re-applied to the rows, so sharing a request with a smaller quota cannot warn
+    anybody early. Windows are keyed the way the panel will read them — by date — so
+    tiers and boundaries that differ only below day granularity cost one request between
+    them and not several.
 
     Failure policy: every panel read for a pool happens *before* the first write, so
     an unreachable panel abandons that pool with nothing applied. Access is never cut
@@ -392,28 +402,61 @@ class TrafficPoolMeteringService:
         targets: list[MeteringTargetDto],
         now: datetime,
     ) -> dict[int, int]:
-        groups: dict[tuple[datetime, int], set[int]] = {}
+        # Keyed on the window alone, not on (window, quota): the quota only sets the
+        # server-side floor, and one floor can serve several tiers, so folding the tiers
+        # in divides the request count by their number instead of multiplying by it.
+        groups: dict[datetime, list[MeteringTargetDto]] = {}
         for target in targets:
-            period_start = get_traffic_period_start(
-                target.reset_strategy,
-                period_anchor(target.usage, target.subscription_created_at),
+            start = self._query_start(
+                get_traffic_period_start(
+                    target.reset_strategy,
+                    # The open window is the anchor, not the row: a plan change writes a
+                    # new row dated today, which would move a rolling anniversary onto it.
+                    period_anchor(target.usage, target.subscription_created_at),
+                    now,
+                ),
                 now,
             )
-            groups.setdefault((period_start, target.quota_bytes), set()).add(target.user_remna_id)
+            groups.setdefault(start, []).append(target)
+
+        if len(groups) > TRAFFIC_POOL_MAX_EXPECTED_WINDOWS:
+            logger.warning(
+                f"Pool '{pool.name}': '{len(targets)}' metering target(s) spread over "
+                f"'{len(groups)}' distinct windows, i.e. that many panel requests on "
+                f"every tick (expected at most '{TRAFFIC_POOL_MAX_EXPECTED_WINDOWS}'). "
+                f"A NO_RESET quota is the usual cause — its window opens at each "
+                f"subscription's own creation date, so the count follows signups "
+                f"instead of the calendar."
+            )
 
         usage_by_user: dict[int, int] = {}
-        for (period_start, quota_bytes), wanted in groups.items():
+        for start, group in groups.items():
+            # Everyone the request has to answer for, and the usage at which each of
+            # them becomes interesting. A user holding two subscriptions on this pool
+            # takes the lower of the two floors, exactly as they would have when the
+            # tiers were queried separately.
+            floor_by_user: dict[int, int] = {}
+            for target in group:
+                floor = self._warn_floor(target.quota_bytes)
+                floor_by_user[target.user_remna_id] = min(
+                    floor_by_user.get(target.user_remna_id, floor), floor
+                )
+
             rows = await self.remnawave.get_squad_usage(
                 squad_uuid=pool.internal_squad_uuid,
-                start=bounded_period_start(
-                    period_start, now, self.config.traffic_pools.max_period_days
-                ),
+                start=start,
                 end=now,
-                min_total_bytes=max(1, int(quota_bytes * TRAFFIC_POOL_WARN_RATIO)),
+                # One floor for the whole group, applied server-side, so it has to be
+                # the lowest in it — a higher one would drop a smaller tier's users
+                # before this pass ever saw them. That makes the request a pre-filter
+                # and not the verdict, hence the per-user floor below: without it a
+                # 1 TB quota sharing a window with a 50 GB one would be warned at 40 GB.
+                min_total_bytes=min(floor_by_user.values()),
                 page_size=self.config.traffic_pools.page_size,
             )
             for row in rows:
-                if row.user_remna_id in wanted:
+                own_floor = floor_by_user.get(row.user_remna_id)
+                if own_floor is not None and row.total_bytes >= own_floor:
                     # The same panel user can land in two groups only by holding two
                     # subscriptions; keep the larger reading rather than the last one.
                     usage_by_user[row.user_remna_id] = max(
@@ -663,6 +706,30 @@ class TrafficPoolMeteringService:
             return None, None
 
         return subscription, user
+
+    @staticmethod
+    def _warn_floor(quota_bytes: int) -> int:
+        """Usage at which a quota becomes interesting — the warning threshold."""
+        return max(1, int(quota_bytes * TRAFFIC_POOL_WARN_RATIO))
+
+    def _query_start(self, period_start: datetime, now: datetime) -> datetime:
+        """Where the panel will really start counting, for a window opening at ``period_start``.
+
+        Two corrections, in this order:
+
+        * clamp an open-ended window (NO_RESET, or a very old rolling one) so the query
+          stays a bounded date range — the same clamp the cabinet applies, so the figure
+          shown to the user is measured over the window the verdict is judged on;
+        * drop the time of day, which the panel drops anyway — see
+          :func:`~src.core.utils.time.to_panel_day_start`. Doing it here rather than
+          leaving it to ``strftime`` is what lets this double as the grouping key: it
+          makes the key equal to the request that will be sent, so windows the panel
+          cannot tell apart collapse into one request instead of several identical ones.
+        """
+        clamped = bounded_period_start(
+            period_start, now, self.config.traffic_pools.max_period_days
+        )
+        return to_panel_day_start(clamped)
 
     async def _save(self, usage: SubscriptionPoolUsageDto) -> SubscriptionPoolUsageDto:
         async with self.uow:
