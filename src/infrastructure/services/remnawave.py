@@ -7,7 +7,13 @@ from uuid import UUID
 from loguru import logger
 from packaging.version import Version
 from remnapy import RemnawaveSDK
-from remnapy.exceptions import AuthenticationError, ConflictError, NotFoundError
+from remnapy.exceptions import (
+    AuthenticationError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    UnauthorizedError,
+)
 from remnapy.models import (
     CreateUserRequestDto,
     DeleteUserAllHwidDeviceRequestDto,
@@ -36,6 +42,7 @@ from src.core.constants import (
     PANEL_DATE_FORMAT,
     REMNAWAVE_MIN_VERSION,
     SQUAD_USAGE_MAX_PAGES,
+    USERS_STREAM_MAX_PAGES,
     USERS_STREAM_PAGE_SIZE,
 )
 from src.core.enums import SubscriptionStatus
@@ -201,20 +208,40 @@ class RemnawaveImpl(Remnawave):
         Panel 3.0.0 removed the `by-telegram-id` / `by-email` / `by-tag` lookups;
         `/users/stream` with the same filters replaces them, so the cursor has to
         be walked to get the full result set.
+
+        Walks to completion or raises, like :meth:`get_squad_usage` — a silently
+        truncated list reads as "no such user" to every caller, which is worse than
+        failing: it would recreate a user who already exists, or hand back an empty
+        account lookup. A keyset cursor that stops moving is a panel bug rather than
+        an end-of-stream signal, so it is caught outright instead of spun on.
         """
         users: list[UserResponseDto] = []
         cursor: Optional[int] = None
+        page_number = 0
 
         while True:
             page = await self.sdk.users.get_users_stream(
                 size=USERS_STREAM_PAGE_SIZE, cursor=cursor, **filters
             )
             users.extend(page.users)
+            page_number += 1
 
             if not page.has_more or page.next_cursor is None:
                 return users
 
-            cursor = int(page.next_cursor)
+            next_cursor = int(page.next_cursor)
+            if next_cursor == cursor:
+                raise RuntimeError(
+                    f"Panel returned a non-advancing /users/stream cursor "
+                    f"('{next_cursor}') for filters {filters}; refusing to loop"
+                )
+            if page_number >= USERS_STREAM_MAX_PAGES:
+                raise RuntimeError(
+                    f"/users/stream for filters {filters} exceeded "
+                    f"{USERS_STREAM_MAX_PAGES} pages; refusing to act on a partial result"
+                )
+
+            cursor = next_cursor
 
     async def get_devices(self, user_id: int) -> list[HwidDeviceDto]:
         response = await self.sdk.hwid.get_hwid_user(user_id)
@@ -247,6 +274,20 @@ class RemnawaveImpl(Remnawave):
         logger.info(f"Deleted all HWID devices ({result.total}) for RemnaUser '{user_id}'")
 
     async def drop_connections(self, user_id: int) -> None:
+        """Kill the user's live sessions on every node. Best effort, except for auth.
+
+        A rejected token is not a transient hiccup: panel 3.0.0 renamed the scope
+        behind this endpoint (``ip-control:*`` -> ``connections:drop``), and a token
+        reissued without it fails *every* call. Absorbing that would let callers
+        record a disconnect that never happened, so the auth family is re-raised —
+        the device-reset use cases surface it through the bot's error middleware,
+        and the pool cut refuses to mark itself done.
+
+        Everything else (network blips, node errors) stays non-fatal: all three call
+        sites have already committed the part that matters — the device is deleted,
+        the squad is withdrawn — and a dropped session only outlives that until the
+        client reconnects, which it can no longer do.
+        """
         try:
             await self.sdk.connections.drop_connections(
                 body=DropConnectionsRequestDto(
@@ -255,8 +296,18 @@ class RemnawaveImpl(Remnawave):
                 )
             )
             logger.info(f"Dropped connections for RemnaUser '{user_id}'")
+        except (AuthenticationError, UnauthorizedError, ForbiddenError) as e:
+            # 403 is the runbook miss (token lacks `connections:drop`); 401 and the
+            # AUTH* codes are an expired or revoked token. remnapy maps each to its
+            # own sibling class, so all three have to be named.
+            logger.error(
+                f"Not authorised to drop connections for RemnaUser '{user_id}': {e}. "
+                f"The panel API token must be valid and hold the 'connections:drop' "
+                f"scope, which panel 3.0.0 renamed from 'ip-control:*'."
+            )
+            raise
         except Exception as e:
-            logger.warning(f"Failed to drop connections for RemnaUser '{user_id}': {e}")
+            logger.error(f"Failed to drop connections for RemnaUser '{user_id}': {e}")
 
     async def reset_traffic(self, user_id: int) -> Optional[UserResponseDto]:
         try:

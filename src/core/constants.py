@@ -60,6 +60,10 @@ EXPIRED_AGO_NOTICE_TYPES: Final[dict[int, UserNotificationType]] = {
 # Page size for /users/stream, which since panel 3.0.0 replaces the removed
 # by-telegram-id / by-email / by-tag lookups. Panel caps it at 1000.
 USERS_STREAM_PAGE_SIZE: Final[int] = 500
+# Cursor-walk backstop for /users/stream, same reasoning as SQUAD_USAGE_MAX_PAGES
+# below: every caller filters down to a handful of users, so 100k rows means the
+# cursor is not converging and a partial list would be worse than an exception.
+USERS_STREAM_MAX_PAGES: Final[int] = 200
 
 # The bandwidth-stats endpoints take plain calendar dates, not timestamps.
 PANEL_DATE_FORMAT: Final[str] = "%Y-%m-%d"
