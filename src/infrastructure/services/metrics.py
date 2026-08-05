@@ -189,11 +189,7 @@ class MetricsEventListener:
     @on_event(ReferralCommissionRecordedEvent)
     async def on_referral_attributed(self, event: ReferralCommissionRecordedEvent) -> None:
         async def write() -> None:
-            referrer_ref = (
-                str(event.referrer_remna_uuid)
-                if event.referrer_remna_uuid is not None
-                else await self._user_ref_for_user_id(event.referrer_id)
-            )
+            referrer_ref = await self._user_ref_for_user_id(event.referrer_id)
             await self.events_dao.append(
                 event_type=MetricEvent.REFERRAL_ATTRIBUTED,
                 source=MetricSource.BOT,

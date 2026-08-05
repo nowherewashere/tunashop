@@ -79,6 +79,9 @@ lint.select = [
     "YTT",
 ]
 lint.ignore = ["N805"]
+# One-shot operator CLIs: their output IS the interface, run by hand from the app
+# host with no logging config in scope. Nothing here ships inside the bot image.
+lint.per-file-ignores = { "deploy/**" = ["T201"] }
 exclude = ["venv", ".venv", ".idea"]
 
 [tool.pytest.ini_options]

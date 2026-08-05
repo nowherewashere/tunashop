@@ -332,9 +332,7 @@ class RemnawaveImpl(Remnawave):
         other field — Remnawave applies just the provided ``expire_at``.
         """
         try:
-            await self.sdk.users.update_user(
-                UpdateUserRequestDto(id=user_id, expire_at=expire_at)
-            )
+            await self.sdk.users.update_user(UpdateUserRequestDto(id=user_id, expire_at=expire_at))
             logger.info(f"RemnaUser '{user_id}' expiry set to '{expire_at.isoformat()}'")
         except NotFoundError:
             logger.debug(f"RemnaUser '{user_id}' not found in panel")

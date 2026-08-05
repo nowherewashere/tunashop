@@ -419,7 +419,7 @@ class RemnaWebhookService:
 
             if not subscription:
                 logger.warning(
-                    f"Subscription not found for UUID '{remna_user.id}', delete aborted"
+                    f"Subscription not found for panel id '{remna_user.id}', delete aborted"
                 )
                 return
 

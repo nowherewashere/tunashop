@@ -465,7 +465,6 @@ class TrafficPoolMeteringService:
             quota_bytes=target.quota_bytes,
             reset_strategy=target.reset_strategy,
             subscription_created_at=target.subscription_created_at,
-            plan_internal_squads=target.plan_internal_squads,
         )
 
     async def _apply_verdict(

@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
@@ -115,4 +115,3 @@ class MeteringTargetDto:
     quota_bytes: int
     reset_strategy: TrafficLimitStrategy
     subscription_created_at: datetime
-    plan_internal_squads: list[UUID] = field(default_factory=list)

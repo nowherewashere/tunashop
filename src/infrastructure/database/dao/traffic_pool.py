@@ -1,5 +1,4 @@
 from typing import Any, Optional, cast
-from uuid import UUID
 
 from loguru import logger
 from redis.asyncio import Redis
@@ -266,7 +265,6 @@ class TrafficPoolDaoImpl(TrafficPoolDao):
                     quota_bytes=gb_to_bytes(quota_gb),
                     reset_strategy=strategy,
                     subscription_created_at=subscription.created_at,
-                    plan_internal_squads=_snapshot_squads(subscription.plan_snapshot),
                 )
             )
 
@@ -303,13 +301,3 @@ def _find_snapshot_quota(
 
         return int(entry.get("quota_gb") or 0), strategy
     return None
-
-
-def _snapshot_squads(snapshot: dict[str, Any]) -> list[UUID]:
-    squads: list[UUID] = []
-    for raw in snapshot.get("internal_squads") or []:
-        try:
-            squads.append(raw if isinstance(raw, UUID) else UUID(str(raw)))
-        except (ValueError, AttributeError, TypeError):
-            continue
-    return squads

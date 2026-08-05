@@ -14,7 +14,6 @@ A metrics signal must never notify anyone, so it sits one level below that fan-o
 
 from dataclasses import dataclass, field
 from typing import Optional
-from uuid import UUID
 
 from src.core.enums import SystemNotificationType
 from src.core.metrics import FunnelStep, MetricSource
@@ -71,4 +70,3 @@ class ReferralCommissionRecordedEvent(MetricSignalEvent):
     payment_kop: int
     commission_kop: int
     referred_telegram_id: Optional[int] = None
-    referrer_remna_uuid: Optional[UUID] = None
