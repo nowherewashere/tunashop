@@ -120,7 +120,7 @@ class PayWithBalance(Interactor[PayWithBalanceDto, PayWithBalanceResult]):
             # Paying from the referral balance is still a plan assignment: premium
             # pools already spent this period stay withheld until the period rolls.
             subscription.internal_squads = await self.pool_access.effective_squads(
-                plan_snapshot.internal_squads, subscription.id
+                plan_snapshot, subscription.id
             )
             subscription.external_squad = plan_snapshot.external_squad
             await self.pool_access.reconcile_windows(subscription.id, plan_snapshot)

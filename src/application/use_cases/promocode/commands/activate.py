@@ -273,7 +273,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
         # A promo plan is still a plan assignment: keep premium pools the user has
         # already spent this period withheld, or a promocode becomes a quota reset.
         pool_squads = await self.pool_access.effective_squads(
-            plan.internal_squads,
+            plan,
             subscription.id if subscription else None,
         )
         if subscription:

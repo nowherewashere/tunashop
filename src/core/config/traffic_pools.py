@@ -7,6 +7,12 @@ from .base import BaseConfig
 # covers both the warning and the exhaustion verdict.
 TRAFFIC_POOL_WARN_RATIO: Final[float] = 0.8
 
+# How long a per-user pool reading is reused across renders. The panel flushes its
+# bandwidth counters to the database roughly every two minutes, so a shorter window
+# would only buy extra round trips — and the query is day-granular anyway, which makes
+# consecutive reads within a minute identical by construction.
+POOL_USAGE_CACHE_TTL: Final[int] = 60
+
 
 class TrafficPoolsConfig(BaseConfig, env_prefix="TRAFFIC_POOLS_"):
     """Metered quotas on premium locations, on top of otherwise unlimited traffic.

@@ -4,6 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 from loguru import logger
+from redis.asyncio import Redis
 
 from src.application.common import EventPublisher, Remnawave
 from src.application.common.dao import SubscriptionDao, TrafficPoolDao, UserDao
@@ -19,7 +20,7 @@ from src.application.dto import (
 )
 from src.application.events import PoolTrafficExhaustedEvent, PoolTrafficWarningEvent
 from src.core.config import AppConfig
-from src.core.config.traffic_pools import TRAFFIC_POOL_WARN_RATIO
+from src.core.config.traffic_pools import POOL_USAGE_CACHE_TTL, TRAFFIC_POOL_WARN_RATIO
 from src.core.constants import POOL_RESET_DATE_FORMAT
 from src.core.utils.i18n_helpers import i18n_format_bytes_to_unit
 from src.core.utils.time import (
@@ -27,6 +28,38 @@ from src.core.utils.time import (
     get_traffic_period_end,
     get_traffic_period_start,
 )
+
+
+def bounded_period_start(period_start: datetime, now: datetime, max_period_days: int) -> datetime:
+    """Clamp an open-ended window so the panel query stays a bounded date range.
+
+    ``NO_RESET`` anchors on the subscription's own start, which can be years back, and
+    the bandwidth-stats endpoints are asked for an explicit range. Shared by the
+    metering pass and by the surfaces that display usage, deliberately: a figure shown
+    to the user that was measured over a wider window than the one enforcement uses
+    would contradict the verdict it is supposed to explain.
+    """
+    floor = now - timedelta(days=max_period_days)
+    return max(period_start, floor)
+
+
+def period_anchor(
+    window: Optional[SubscriptionPoolUsageDto],
+    subscription_created_at: datetime,
+) -> datetime:
+    """The date this pool's accounting window is anchored to.
+
+    ``MONTH_ROLLING`` (and ``NO_RESET``) derive their boundary from a date rather than
+    from the calendar, so that date has to survive a plan change — which retires the
+    old subscription row and writes a new one whose ``created_at`` is *now*. Anchoring
+    on the row would move the anniversary to today, roll the window on the next tick
+    and hand back a quota that has not reset: a free reset, farmable by switching plans
+    back and forth. An open window already records where the period started, so it
+    wins; the row's creation date is only the seed for the very first window.
+    """
+    if window is not None and window.id:
+        return window.period_start
+    return subscription_created_at
 
 
 class TrafficPoolAccessService:
@@ -46,10 +79,12 @@ class TrafficPoolAccessService:
         config: AppConfig,
         traffic_pool_dao: TrafficPoolDao,
         remnawave: Remnawave,
+        redis: Redis,
     ) -> None:
         self.config = config
         self.traffic_pool_dao = traffic_pool_dao
         self.remnawave = remnawave
+        self.redis = redis
 
     @property
     def is_enabled(self) -> bool:
@@ -57,30 +92,41 @@ class TrafficPoolAccessService:
 
     async def effective_squads(
         self,
-        plan_squads: list[UUID],
+        plan: PlanSnapshotDto,
         usage_subscription_id: Optional[int],
     ) -> list[UUID]:
-        """The plan's squads minus the pools this subscription has already spent.
+        """The plan's squads minus the pools *this plan meters* and the user has spent.
 
         Called from every path that assigns ``subscription.internal_squads`` from a
         plan. Without it a renewal, a promo reward or an admin plan grant would hand
         an exhausted pool straight back, because each of those rewrites the squad
         list wholesale from the plan.
 
+        Only pools the incoming plan actually meters are withheld. A plan that grants
+        the same squad unmetered — or with a larger quota — is paying for access, and
+        an exhausted window from the *previous* plan must not survive into it: the
+        window is about to be reconciled away, and nothing would ever hand the squad
+        back. That is the upgrade the exhaustion notice sells.
+
         A subscription with no windows yet (a brand-new purchase) gets the plan's
         list verbatim — as does everyone while the feature is switched off.
         """
         if not self.is_enabled or usage_subscription_id is None:
-            return list(plan_squads)
+            return list(plan.internal_squads)
 
-        exhausted = await self._exhausted_squads(usage_subscription_id)
+        metered = {quota.pool_id for quota in plan.traffic_pools if quota.quota_gb > 0}
+        if not metered:
+            return list(plan.internal_squads)
+
+        exhausted = await self._exhausted_squads(usage_subscription_id, metered)
         if not exhausted:
-            return list(plan_squads)
+            return list(plan.internal_squads)
 
-        kept = [squad for squad in plan_squads if squad not in exhausted]
+        kept = [squad for squad in plan.internal_squads if squad not in exhausted]
         logger.debug(
             f"Subscription '{usage_subscription_id}': withheld "
-            f"'{len(plan_squads) - len(kept)}' exhausted pool squad(s) from the plan's list"
+            f"'{len(plan.internal_squads) - len(kept)}' exhausted pool squad(s) "
+            f"from the plan's list"
         )
         return kept
 
@@ -148,20 +194,21 @@ class TrafficPoolAccessService:
                 continue
 
             window = windows.get(quota.pool_id)
+            # Same anchor the metering pass uses, so the reset date shown here is the
+            # instant the pass will actually roll the window on — not a second opinion
+            # derived from a subscription row that a plan change may have replaced.
+            anchor = period_anchor(window, created_at)
             period_start = (
                 window.period_start
                 if window
-                else get_traffic_period_start(quota.reset_strategy, created_at)
+                else get_traffic_period_start(quota.reset_strategy, anchor)
             )
             used = window.used_bytes if window else None
 
             if with_live_usage:
                 try:
-                    used = await self.remnawave.get_squad_user_usage(
-                        squad_uuid=pool.internal_squad_uuid,
-                        user_id=subscription.user_remna_id,
-                        start=period_start,
-                        end=datetime_now(),
+                    used = await self._live_usage(
+                        pool, subscription.user_remna_id, period_start
                     )
                 except Exception as e:
                     logger.warning(
@@ -176,16 +223,63 @@ class TrafficPoolAccessService:
                     quota_bytes=quota.quota_bytes,
                     used_bytes=used,
                     is_exhausted=bool(window and window.is_exhausted),
-                    reset_at=get_traffic_period_end(quota.reset_strategy, created_at),
+                    reset_at=get_traffic_period_end(quota.reset_strategy, anchor),
                 )
             )
         return views
 
-    async def _exhausted_squads(self, subscription_id: int) -> set[UUID]:
+    async def _live_usage(
+        self,
+        pool: TrafficPoolDto,
+        user_remna_id: int,
+        period_start: datetime,
+    ) -> int:
+        """This user's measured usage on one pool, over the window enforcement uses.
+
+        Cached briefly because this runs per pool on every cabinet render, while the
+        panel flushes its bandwidth counters to the database only every couple of
+        minutes — a fresher read would return the same numbers at the cost of one more
+        round trip per pool per page view. Clamped with the same bound as the metering
+        pass so the figure shown is the figure the quota is judged against.
+        """
+        now = datetime_now()
+        start = bounded_period_start(period_start, now, self.config.traffic_pools.max_period_days)
+        key = self._usage_cache_key(pool.id, user_remna_id, start)
+
+        # A cache failure degrades to a direct read rather than to no figure at all —
+        # the same contract `provide_cache` gives every other cached read here.
+        try:
+            cached = await self.redis.get(key)
+            if cached is not None:
+                return int(cached)
+        except Exception as e:
+            logger.warning(f"Pool usage cache read failed for key '{key}': {e}")
+
+        used = await self.remnawave.get_squad_user_usage(
+            squad_uuid=pool.internal_squad_uuid,
+            user_id=user_remna_id,
+            start=start,
+            end=now,
+        )
+
+        try:
+            await self.redis.set(key, used, ex=POOL_USAGE_CACHE_TTL)
+        except Exception as e:
+            logger.warning(f"Pool usage cache write failed for key '{key}': {e}")
+
+        return used
+
+    @staticmethod
+    def _usage_cache_key(pool_id: int, user_remna_id: int, start: datetime) -> str:
+        # The window start is part of the key, so a period roll invalidates the entry
+        # rather than serving the previous period's total for another minute.
+        return f"pool_usage:{pool_id}:{user_remna_id}:{int(start.timestamp())}"
+
+    async def _exhausted_squads(self, subscription_id: int, metered_pools: set[int]) -> set[UUID]:
         windows = [
             usage
             for usage in await self.traffic_pool_dao.list_usage(subscription_id)
-            if usage.is_exhausted
+            if usage.is_exhausted and usage.pool_id in metered_pools
         ]
         if not windows:
             return set()
@@ -301,7 +395,9 @@ class TrafficPoolMeteringService:
         groups: dict[tuple[datetime, int], set[int]] = {}
         for target in targets:
             period_start = get_traffic_period_start(
-                target.reset_strategy, target.subscription_created_at, now
+                target.reset_strategy,
+                period_anchor(target.usage, target.subscription_created_at),
+                now,
             )
             groups.setdefault((period_start, target.quota_bytes), set()).add(target.user_remna_id)
 
@@ -309,7 +405,9 @@ class TrafficPoolMeteringService:
         for (period_start, quota_bytes), wanted in groups.items():
             rows = await self.remnawave.get_squad_usage(
                 squad_uuid=pool.internal_squad_uuid,
-                start=self._bounded_start(period_start, now),
+                start=bounded_period_start(
+                    period_start, now, self.config.traffic_pools.max_period_days
+                ),
                 end=now,
                 min_total_bytes=max(1, int(quota_bytes * TRAFFIC_POOL_WARN_RATIO)),
                 page_size=self.config.traffic_pools.page_size,
@@ -331,10 +429,12 @@ class TrafficPoolMeteringService:
         report: MeteringReportDto,
     ) -> MeteringTargetDto:
         """Move the window to the current period, handing the squad back when it moves."""
-        period_start = get_traffic_period_start(
-            target.reset_strategy, target.subscription_created_at, now
-        )
         usage = target.usage
+        period_start = get_traffic_period_start(
+            target.reset_strategy,
+            period_anchor(usage, target.subscription_created_at),
+            now,
+        )
 
         if usage.id and usage.period_start == period_start:
             return target
@@ -379,6 +479,25 @@ class TrafficPoolMeteringService:
         usage = target.usage
         usage.used_bytes = used
         usage.metered_at = now
+        over_quota = used is not None and used >= target.quota_bytes
+
+        if usage.is_exhausted and not over_quota:
+            # The window says spent, the meter says otherwise: the quota grew under it
+            # (a plan change, an admin edit). Hand the squad back now rather than at
+            # the end of the period — buying a bigger quota is the upgrade the
+            # exhaustion notice sells, and waiting out the month would make it a lie.
+            # `used is None` counts as under quota: the sweep's floor is derived from
+            # the *current* quota, so falling below it means the new one is not spent.
+            if not await self._restore_access(pool, target):
+                return
+            usage.is_exhausted = False
+            usage.exhausted_at = None
+            # Cleared with the verdict, so a fresh warning can fire against the new
+            # quota instead of being suppressed by the previous one's.
+            usage.warned_at = None
+            await self._save(usage)
+            report.restored += 1
+            return
 
         if used is None:
             # Under the warning floor. The exact figure is unknown by construction
@@ -386,7 +505,7 @@ class TrafficPoolMeteringService:
             await self._save(usage)
             return
 
-        if used >= target.quota_bytes:
+        if over_quota:
             if usage.is_exhausted:
                 await self._save(usage)
                 return
@@ -499,7 +618,10 @@ class TrafficPoolMeteringService:
         if not user:
             return
 
-        reset_at = get_traffic_period_end(target.reset_strategy, target.subscription_created_at)
+        reset_at = get_traffic_period_end(
+            target.reset_strategy,
+            period_anchor(target.usage, target.subscription_created_at),
+        )
         # A plain string (not a datetime) so the FTL only has to interpolate it, and
         # `has_reset` so it can pick the "…до сброса" vs "…до конца подписки" wording.
         reset_label = reset_at.strftime(POOL_RESET_DATE_FORMAT) if reset_at else ""
@@ -542,11 +664,6 @@ class TrafficPoolMeteringService:
             return None, None
 
         return subscription, user
-
-    def _bounded_start(self, period_start: datetime, now: datetime) -> datetime:
-        """Clamp an open-ended window so the panel query stays a bounded date range."""
-        floor = now - timedelta(days=self.config.traffic_pools.max_period_days)
-        return max(period_start, floor)
 
     async def _save(self, usage: SubscriptionPoolUsageDto) -> SubscriptionPoolUsageDto:
         async with self.uow:

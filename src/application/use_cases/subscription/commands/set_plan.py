@@ -55,7 +55,7 @@ class SetUserSubscription(Interactor[SetUserSubscriptionDto, None]):
             # this period stay withheld until the period rolls, exactly as on a
             # renewal or a paid plan change.
             pool_squads = await self.pool_access.effective_squads(
-                plan.internal_squads,
+                plan_snapshot,
                 subscription.id if subscription else None,
             )
 

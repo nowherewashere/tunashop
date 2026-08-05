@@ -13,6 +13,7 @@ from src.application.dto import MeteringTargetDto, SubscriptionPoolUsageDto, Tra
 from src.core.constants import PUBLIC_LANDING_PLANS_CACHE_KEY
 from src.core.enums import SubscriptionStatus
 from src.core.utils.converters import gb_to_bytes
+from src.core.utils.time import datetime_now
 from src.infrastructure.database.models import (
     PlanTrafficPool,
     Subscription,
@@ -225,6 +226,12 @@ class TrafficPoolDaoImpl(TrafficPoolDao):
             )
             .where(
                 Subscription.status == SubscriptionStatus.ACTIVE,
+                # Checked alongside the status because the stored one only flips to
+                # EXPIRED on that user's next panel sync, exactly as UserDao does for
+                # paid audiences. A lapsed subscription left in here is not just noise:
+                # both verdicts push `expire_at` back to the panel, which rejects a date
+                # in the past, so the pass would fail on it again every single tick.
+                Subscription.expire_at > datetime_now(),
                 # jsonb_array_length() raises on a non-array, and this query runs on
                 # every cron tick over every live subscription — one hand-edited or
                 # legacy snapshot would take the whole pool's pass down. A missing key

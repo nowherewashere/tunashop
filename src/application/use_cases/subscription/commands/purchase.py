@@ -146,7 +146,7 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
         # so without this a renewal (or a plan change) would silently hand back a
         # quota that has not reset yet.
         pool_squads = await self.pool_access.effective_squads(
-            plan.internal_squads,
+            plan,
             subscription.id if subscription else None,
         )
 
