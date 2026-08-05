@@ -15,19 +15,9 @@ class RemnawaveProvider(Provider):
     async def get_remnawave(self, config: AppConfig) -> AsyncIterator[RemnawaveSDK]:
         logger.debug("Initializing RemnawaveSDK")
 
-        headers = {}
-        headers["Authorization"] = f"Bearer {config.remnawave.token.get_secret_value()}"
-        headers["X-Api-Key"] = config.remnawave.caddy_token.get_secret_value()
-        headers["CF-Access-Client-Id"] = config.remnawave.cf_client_id.get_secret_value()
-        headers["CF-Access-Client-Secret"] = config.remnawave.cf_client_secret.get_secret_value()
-
-        if not config.remnawave.is_external:
-            headers["x-forwarded-proto"] = "https"
-            headers["x-forwarded-for"] = "127.0.0.1"
-
         client = AsyncClient(
             base_url=f"{config.remnawave.url.get_secret_value()}/api",
-            headers=headers,
+            headers=config.remnawave.client_headers,
             cookies=config.remnawave.cookies,
             verify=True,
             timeout=Timeout(connect=15.0, read=25.0, write=10.0, pool=5.0),
