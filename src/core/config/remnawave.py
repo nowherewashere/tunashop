@@ -39,6 +39,29 @@ class RemnawaveConfig(BaseConfig, env_prefix="REMNAWAVE_"):
         return SecretStr(final_url)
 
     @property
+    def client_headers(self) -> dict[str, str]:
+        """Every header a request to the panel needs, for any client that talks to it.
+
+        The x-forwarded-* pair is not decoration. An internal (http://) panel drops a
+        request that arrives without it, and httpx reports that as
+        RemoteProtocolError("Server disconnected without sending a response") -- no
+        status code, nothing that reads like an auth or routing problem. Anything
+        rebuilding this header set by hand gets a panel that looks unreachable.
+        """
+        headers = {
+            "Authorization": f"Bearer {self.token.get_secret_value()}",
+            "X-Api-Key": self.caddy_token.get_secret_value(),
+            "CF-Access-Client-Id": self.cf_client_id.get_secret_value(),
+            "CF-Access-Client-Secret": self.cf_client_secret.get_secret_value(),
+        }
+
+        if not self.is_external:
+            headers["x-forwarded-proto"] = "https"
+            headers["x-forwarded-for"] = "127.0.0.1"
+
+        return headers
+
+    @property
     def cookies(self) -> Cookies:
         raw_cookie = self.cookie.get_secret_value()
         cookies = Cookies()

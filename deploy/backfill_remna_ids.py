@@ -23,16 +23,23 @@ cannot be resolved is a real problem and blocks 0056, so it exits non-zero for t
 Deliberately SDK-free: at this point in the rollout the panel is still on 2.8 while the
 image already carries the 3.x-era remnapy, so the 2.8 endpoints are spoken over plain
 httpx rather than through whichever SDK version happens to be installed. It does read
-`RemnawaveConfig` for the panel URL -- see `_panel_base_url`.
+`RemnawaveConfig`/`DatabaseConfig` for where the panel and the database are -- see
+`_panel_client`.
 
 Usage: run it FROM THE NEW IMAGE, which is the only place its asyncpg/httpx deps and
 this file are both present. The container is a toolbox here, not the service -- the bot
 itself must not start until the panel is on 3.x and 0056-0058 have run:
 
-    docker compose run --rm --no-deps --entrypoint "" app \
-        python deploy/backfill_remna_ids.py --dry-run   # report only, touch nothing
-    docker compose run --rm --no-deps --entrypoint "" app \
-        python deploy/backfill_remna_ids.py             # resolve and write
+    docker run --rm --network remnawave-network --env-file /path/to/.env \
+        <new-image> python deploy/backfill_remna_ids.py --dry-run   # touches nothing
+    docker run --rm --network remnawave-network --env-file /path/to/.env \
+        <new-image> python deploy/backfill_remna_ids.py             # resolve and write
+
+`docker run`, not `docker compose run`: compose would give this throwaway container the
+app service's pinned ipv4_address and fail with "Address already in use" while the bot
+still holds it. No --entrypoint override is needed either -- the image sets CMD, not
+ENTRYPOINT, so a command argument replaces docker-entrypoint.sh (and its unconditional
+`alembic upgrade head`, which at this point in the rollout must NOT run).
 
 Environment: the bot's own -- DATABASE_*, REMNAWAVE_HOST, REMNAWAVE_TOKEN -- read
 through the app's config objects so there is nothing extra to set. DATABASE_URL
@@ -49,7 +56,6 @@ from typing import Any, Optional
 
 import asyncpg
 import httpx
-from pydantic import SecretStr
 
 from src.core.config.database import DatabaseConfig
 from src.core.config.remnawave import RemnawaveConfig
@@ -63,7 +69,7 @@ RETIRED = "DELETED"
 def _database_dsn() -> str:
     """Build the DSN from the bot's own DATABASE_* settings.
 
-    Reuses `DatabaseConfig` for the same reason `_panel_base_url` reuses
+    Reuses `DatabaseConfig` for the same reason `_panel_client` reuses
     `RemnawaveConfig`: this script had a second, private idea of the variable names --
     POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB -- that the bot has never set. Those
     are the names the *postgres image* takes in docker-compose, not the ones the app
@@ -79,22 +85,29 @@ def _database_dsn() -> str:
     return DatabaseConfig().dsn.replace("postgresql+asyncpg://", "postgresql://")
 
 
-def _panel_base_url() -> str:
-    """Resolve REMNAWAVE_HOST exactly the way the running bot does.
+def _panel_client() -> httpx.AsyncClient:
+    """Aim a client at the panel exactly the way the running bot aims one.
 
-    Delegates to `RemnawaveConfig.url` instead of re-deriving, because the two silently
-    disagreed on the most common settings: a bare `remnawave` means port **3000**, not
-    80, and a bare domain means **https**, not http. Getting either wrong does not fail
-    loudly here -- every request just raises ConnectError, every row is filed unresolved,
-    and the run ends with "0 resolved" and a list of live rows that look corrupt but are
-    only unreachable.
+    Both halves of this were wrong while written out by hand here, and neither failed in
+    a way that pointed at itself:
 
-    `model_construct` skips validation on purpose: only `host` participates in the URL,
-    and this script must not start requiring REMNAWAVE_TOKEN's neighbours (webhook
-    secret et al) just to compute a base URL.
+    * `RemnawaveConfig.url` appends :3000 to a portless http host and promotes a bare
+      domain to https. Prepending "http://" and stopping -- what this did -- sent
+      REMNAWAVE_HOST=remnawave, the .env.example default, to port 80.
+    * `client_headers` carries the x-forwarded-* pair an internal panel demands. Without
+      it the panel closes the connection and httpx raises RemoteProtocolError.
+
+    Either way every request raises, so the run still *finishes* and files all nine rows
+    as unresolved: live ones look corrupt, retired ones look like their panel user is
+    gone. Reading the config instead of paraphrasing it is what stops that recurring.
     """
-    config = RemnawaveConfig.model_construct(host=SecretStr(os.environ["REMNAWAVE_HOST"]))
-    return config.url.get_secret_value()
+    config = RemnawaveConfig()
+    return httpx.AsyncClient(
+        base_url=config.url.get_secret_value(),
+        headers=config.client_headers,
+        cookies=config.cookies,
+        timeout=TIMEOUT,
+    )
 
 
 async def _resolve(
@@ -134,22 +147,36 @@ def _describe(row: asyncpg.Record) -> str:
     )
 
 
-def _report(unresolved: list[asyncpg.Record]) -> int:
+def _report(missing: list[asyncpg.Record], errored: list[asyncpg.Record]) -> int:
     """Print the leftovers, split by what they mean, and return the process exit code.
 
-    A retired row with no panel user left is the expected end state of a merge or a
-    delete, not an error: 0056 parks it on panel id 0 and carries on. Anything else is a
-    live subscription the panel has never heard of, and 0056 will refuse to run until it
-    is dealt with — by hand, while the uuid is still there to look at.
-    """
-    retired = [row for row in unresolved if row["status"] == RETIRED]
-    blocking = [row for row in unresolved if row["status"] != RETIRED]
+    `missing` is an answer from the panel: it looked and has no such user. For a retired
+    row that is the expected end state of a merge or a delete, so 0056 parks it on panel
+    id 0 and carries on; for a live row it is a real problem that 0056 must refuse until
+    a human deals with it, while the uuid is still there to look at.
 
-    if retired:
+    `errored` is the absence of an answer -- a timeout, a refused connection, a 502 from
+    something in front of the panel. It is never evidence about the panel user, so it
+    can never be filed as "no panel user left". Conflating the two is unrecoverable
+    rather than merely wrong: 0056 would park a retired row whose panel user is alive on
+    the sentinel and then drop `user_remna_id`, destroying the only copy of the mapping.
+    A blip on one row therefore fails the whole step, which is the cheap direction.
+    """
+    gone = [row for row in missing if row["status"] == RETIRED]
+    blocking = [row for row in missing if row["status"] != RETIRED]
+
+    if gone:
         print(
-            f"\n{len(retired)} retired subscription(s) have no panel user left "
+            f"\n{len(gone)} retired subscription(s) have no panel user left "
             "(expected — 0056 parks these on panel id 0):\n"
-            + "\n".join(f"  {_describe(row)}" for row in retired)
+            + "\n".join(f"  {_describe(row)}" for row in gone)
+        )
+
+    if errored:
+        print(
+            f"\n{len(errored)} subscription(s) could not be CHECKED — the panel never "
+            "answered, so nothing is known about them. Fix the connection and re-run; "
+            "do NOT proceed to 0056:\n" + "\n".join(f"  {_describe(row)}" for row in errored)
         )
 
     if blocking:
@@ -158,9 +185,8 @@ def _report(unresolved: list[asyncpg.Record]) -> int:
             "fix these before running 0056:\n"
             + "\n".join(f"  {_describe(row)}" for row in blocking)
         )
-        return 1
 
-    return 0
+    return 1 if (blocking or errored) else 0
 
 
 async def main(dry_run: bool) -> int:
@@ -181,13 +207,11 @@ async def main(dry_run: bool) -> int:
         if not rows:
             return 0
 
-        headers = {"Authorization": f"Bearer {os.environ['REMNAWAVE_TOKEN']}"}
         resolved = 0
-        unresolved: list[asyncpg.Record] = []
+        missing: list[asyncpg.Record] = []  # the panel answered: no such user
+        errored: list[asyncpg.Record] = []  # the panel did not answer at all
 
-        async with httpx.AsyncClient(
-            base_url=_panel_base_url(), headers=headers, timeout=TIMEOUT
-        ) as client:
+        async with _panel_client() as client:
             for row in rows:
                 # Mirrors UserDto.remna_name (REMNASHOP_PREFIX / WEB_PREFIX in
                 # src/core/constants.py): telegram users are rs_<tg_id>, web-only
@@ -209,11 +233,11 @@ async def main(dry_run: bool) -> int:
                     )
                 except Exception as exception:  # noqa: BLE001 - report and continue
                     print(f"  ! {_describe(row)}: {exception}", file=sys.stderr)
-                    unresolved.append(row)
+                    errored.append(row)
                     continue
 
                 if panel_id is None:
-                    unresolved.append(row)
+                    missing.append(row)
                     continue
 
                 if not dry_run:
@@ -225,9 +249,9 @@ async def main(dry_run: bool) -> int:
                 resolved += 1
 
         verb = "would resolve" if dry_run else "resolved"
-        print(f"{verb} {resolved}, unresolved {len(unresolved)}")
+        print(f"{verb} {resolved}, no such panel user {len(missing)}, unreachable {len(errored)}")
 
-        return _report(unresolved)
+        return _report(missing, errored)
     finally:
         await connection.close()
 
