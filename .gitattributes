@@ -1,0 +1,10 @@
+# Anything executed inside the Linux image must keep LF endings regardless of the
+# platform it was checked out on. With core.autocrlf=true (the Windows default) both
+# `git archive` and a plain `docker build` off the working tree otherwise ship
+# `#!/bin/sh\r`, and the container dies on start with the singularly unhelpful
+#
+#     exec ./docker-entrypoint.sh: no such file or directory
+#
+# -- the file is right there; it is the \r on the shebang that cannot be resolved.
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
