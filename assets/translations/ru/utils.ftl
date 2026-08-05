@@ -435,6 +435,8 @@ notification-type = { $notification_type ->
     [EXPIRES_IN_1_DAY] Подписка истекает (1 день)
     [EXPIRED] Подписка истекла
     [EXPIRED_1_DAY_AGO] Подписка истекла (1 день)
+    [EXPIRED_2_DAYS_AGO] Подписка истекла (2 дня)
+    [EXPIRED_3_DAYS_AGO] Подписка истекла (3 дня)
     [LIMITED] Трафик исчерпан
     [POOL_TRAFFIC_WARNING] Премиум-трафик на исходе
     [POOL_TRAFFIC_EXHAUSTED] Премиум-трафик исчерпан

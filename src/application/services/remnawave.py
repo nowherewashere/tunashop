@@ -38,6 +38,8 @@ from src.application.use_cases.remnawave.commands.synchronization import (
 from src.core.config import AppConfig
 from src.core.constants import (
     DATETIME_VIEW_FORMAT,
+    EXPIRED_AGO_NOTICE_TYPES,
+    EXPIRING_NOTICE_TYPES,
     IMPORTED_TAG,
     MAX_EXPIRING_NOTICE_DAYS,
     T_ME,
@@ -297,12 +299,14 @@ class RemnaWebhookService:
         # hours relative to expireAt and *signed*: negative means "expires in N hours",
         # positive means "expired N hours ago". The thresholds are the admin's to pick,
         # so the bucket is derived rather than matched against a fixed table — rounded
-        # up to whole days and clamped to what the copy is written for.
+        # up to whole days and clamped to what the copy is written for. The bucket also
+        # picks the admin toggle, so each threshold can be switched off on its own.
         day = min(MAX_EXPIRING_NOTICE_DAYS, ceil(abs(interval_hours) / 24))
 
         if interval_hours > 0:
             await self.event_bus.publish(
                 SubscriptionExpiredAgoEvent(
+                    notification_type=EXPIRED_AGO_NOTICE_TYPES[day],
                     user=user,
                     is_trial=current_subscription.is_trial,
                     day=day,
@@ -312,6 +316,7 @@ class RemnaWebhookService:
 
         await self.event_bus.publish(
             SubscriptionExpiresEvent(
+                notification_type=EXPIRING_NOTICE_TYPES[day],
                 day=day,
                 user=user,
                 is_trial=current_subscription.is_trial,

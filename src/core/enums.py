@@ -319,7 +319,12 @@ class UserNotificationType(UpperStrEnum):
     EXPIRES_IN_1_DAY = auto()
     #
     EXPIRED = auto()
+    # One per whole-day bucket, mirroring the EXPIRES_IN_* family above: a positive
+    # EXPIRATION_NOTIFICATIONS threshold other than 24h still says "истекла N дней
+    # назад", so it needs a toggle whose label says the same.
     EXPIRED_1_DAY_AGO = auto()
+    EXPIRED_2_DAYS_AGO = auto()
+    EXPIRED_3_DAYS_AGO = auto()
     LIMITED = auto()
     NOT_CONNECTED = auto()
     TORRENT_BLOCKED = auto()

@@ -7,7 +7,7 @@ from typing import Final
 
 from packaging.version import Version
 
-from src.core.enums import Currency
+from src.core.enums import Currency, UserNotificationType
 
 BASE_DIR: Final[Path] = Path(__file__).resolve().parents[2]
 ASSETS_DIR: Final[Path] = BASE_DIR / "assets"
@@ -41,6 +41,21 @@ REMNAWAVE_MAX_VERSION: Final[Version] = Version("3.3.0")
 # positive = expired N hours ago. Thresholds are the admin's to choose, so the bot
 # buckets them into whole days and clamps to what its copy is written for.
 MAX_EXPIRING_NOTICE_DAYS: Final[int] = 3
+
+# Day bucket -> the admin toggle the notice answers to. Both families must cover
+# 1..MAX_EXPIRING_NOTICE_DAYS, which is the range `day` is clamped to. Publishing
+# without one pins every notice to the 1-day toggle: the 2- and 3-day switches go
+# dead and the 1-day switch silences all three.
+EXPIRING_NOTICE_TYPES: Final[dict[int, UserNotificationType]] = {
+    1: UserNotificationType.EXPIRES_IN_1_DAY,
+    2: UserNotificationType.EXPIRES_IN_2_DAYS,
+    3: UserNotificationType.EXPIRES_IN_3_DAYS,
+}
+EXPIRED_AGO_NOTICE_TYPES: Final[dict[int, UserNotificationType]] = {
+    1: UserNotificationType.EXPIRED_1_DAY_AGO,
+    2: UserNotificationType.EXPIRED_2_DAYS_AGO,
+    3: UserNotificationType.EXPIRED_3_DAYS_AGO,
+}
 
 # Page size for /users/stream, which since panel 3.0.0 replaces the removed
 # by-telegram-id / by-email / by-tag lookups. Panel caps it at 1000.
