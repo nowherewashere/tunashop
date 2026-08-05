@@ -34,7 +34,9 @@ itself must not start until the panel is on 3.x and 0056-0058 have run:
     docker compose run --rm --no-deps --entrypoint "" app \
         python deploy/backfill_remna_ids.py             # resolve and write
 
-Environment: POSTGRES_* (or DATABASE_URL), REMNAWAVE_HOST, REMNAWAVE_TOKEN.
+Environment: the bot's own -- DATABASE_*, REMNAWAVE_HOST, REMNAWAVE_TOKEN -- read
+through the app's config objects so there is nothing extra to set. DATABASE_URL
+overrides the former when running from outside the container.
 """
 
 from __future__ import annotations
@@ -49,6 +51,7 @@ import asyncpg
 import httpx
 from pydantic import SecretStr
 
+from src.core.config.database import DatabaseConfig
 from src.core.config.remnawave import RemnawaveConfig
 
 TIMEOUT = httpx.Timeout(30.0)
@@ -58,15 +61,22 @@ RETIRED = "DELETED"
 
 
 def _database_dsn() -> str:
+    """Build the DSN from the bot's own DATABASE_* settings.
+
+    Reuses `DatabaseConfig` for the same reason `_panel_base_url` reuses
+    `RemnawaveConfig`: this script had a second, private idea of the variable names --
+    POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB -- that the bot has never set. Those
+    are the names the *postgres image* takes in docker-compose, not the ones the app
+    reads, so on a real install every run died on `KeyError: 'POSTGRES_USER'` before
+    opening a single connection.
+
+    DATABASE_URL still wins when present: it is the escape hatch for driving this from
+    outside the container, e.g. over a tunnelled port from a bastion.
+    """
     if dsn := os.getenv("DATABASE_URL"):
         return dsn.replace("postgresql+asyncpg://", "postgresql://")
 
-    user = os.environ["POSTGRES_USER"]
-    password = os.environ["POSTGRES_PASSWORD"]
-    host = os.getenv("POSTGRES_HOST", "localhost")
-    port = os.getenv("POSTGRES_PORT", "5432")
-    db = os.environ["POSTGRES_DB"]
-    return f"postgresql://{user}:{password}@{host}:{port}/{db}"
+    return DatabaseConfig().dsn.replace("postgresql+asyncpg://", "postgresql://")
 
 
 def _panel_base_url() -> str:
