@@ -35,19 +35,35 @@ list as something to read, not skip. See §Defects D-1.
 
 ## 1. Preconditions
 
-- The new image is built and present on the app host. It is used as a **toolbox** for
-  steps 2–5 and only becomes the running service in step 7.
-- `deploy/backfill_remna_ids.py` ships inside it (`docker run --rm --entrypoint sh
-  <image> -c 'ls deploy/'`). Older images do not have it — see D-2.
+> Re-run in full on 2026-08-05 against `ghcr.io/nowherewashere/tunashop:latest`
+> (= `main-7b26d34`, same digest) — the artefact `deploy.sh` actually pulls rather than a
+> local build — with the lab first rolled all the way back to panel 2.8.0 / alembic 0051.
+> Every step reproduced. Counts quoted below are from that run unless noted.
+
+- The new image is on the app host. It is a **toolbox** for steps 2–5 and only becomes
+  the running service in step 7.
+- `deploy/backfill_remna_ids.py` ships inside it. Verify against the real artefact, not a
+  local build — the whole point of D-2 is that this file went missing in the image:
+
+  ```bash
+  docker run --rm --entrypoint sh ghcr.io/nowherewashere/tunashop:latest \
+    -c 'ls deploy/ && head -c 12 docker-entrypoint.sh | od -c | head -1'
+  ```
+
+  Expect `backfill_remna_ids.py` and a shebang with `\n`, not `\r \n` (D-4).
 - Both databases are dumped and a restore is proven (§7).
 - You know which compose project owns the panel. On the lab: `/opt/remnawave`
   (project `remnawave`), separate from the bot's `/home/ubuntu/tunashop` (project
-  `tunashop`).
+  `tunashop`) — **and** from the subscription page, which is its own project under
+  `/opt/remnawave/subscription`. Naming it in a `docker compose up` run from
+  `/opt/remnawave` fails the whole command with `no such service`, so the panel silently
+  never starts; bring it up with `docker start remnawave-subscription-page` instead.
 
 Set once, used throughout:
 
 ```bash
-IMAGE=tunashop:cutover-test; ENVFILE=/home/ubuntu/tunashop/.env; NET=remnawave-network
+IMAGE=ghcr.io/nowherewashere/tunashop:latest
+ENVFILE=/home/ubuntu/tunashop/.env; NET=remnawave-network
 ```
 
 ### Why `docker run` and not `docker compose run`
@@ -364,6 +380,14 @@ drop would have destroyed the only copy of the mapping — unrecoverable, not me
 `missing` (the panel answered) and `errored` (it did not) are now separate, and anything
 unchecked fails the step.
 
+The audit re-run then hit this for real, unprompted: the panel was still warming up after
+its 2.8 restart and one request died mid-flight. The dry-run reported `would resolve 8,
+no such panel user 0, unreachable 1`, listed that row under "could not be CHECKED — the
+panel never answered", and exited 1 without writing. Re-running once the panel had
+settled resolved all nine. **Treat the warm-up window as a real hazard**: leave time
+between the panel coming up and the backfill, and re-run rather than reasoning past a
+partial result.
+
 ### D-4 · Medium · A Windows checkout builds a broken image *(fixed)*
 
 With `core.autocrlf=true` and no `.gitattributes`, both `git archive` and a plain
@@ -418,7 +442,15 @@ Stated plainly so nobody reads this as broader assurance than it is.
 
 ## 10. What was exercised, and passed
 
-Against the live 3.2.1 panel, after the cutover:
+Against the live 3.2.1 panel, after the cutover. Everything here was re-confirmed on the
+shipped `ghcr.io/nowherewashere/tunashop:latest` image after the merge, on a lab rolled
+back to 2.8.0 / 0051 — so it describes the artefact prod pulls, not a local build:
+
+- **The documented sequence, start to finish, on the shipped image.** 0051 → 0055 with
+  the bot still serving (`/health` 200 throughout, so the no-downtime claim in §2 holds),
+  backfill resolving all nine, panel 2.8 → 3.2.1, 0056 → 0058, bot restarted on the new
+  image and reconnecting. Migration output and the resulting uuid→id map were identical
+  to the first run.
 
 - **Sentinel delete regression** — the highest-value test here, and it does not occur
   naturally on this data, so it was constructed. A subscription parked on `user_remna_id
