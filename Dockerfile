@@ -29,6 +29,12 @@ ENV PYTHONPATH=/opt/remnashop
 COPY ./src ./src
 COPY ./assets /opt/remnashop/assets.default
 
+# One-shot rollout scripts (deploy/backfill_remna_ids.py). They run from this image --
+# `docker compose run --rm --no-deps app python deploy/...` -- because the venv here is
+# the only place their asyncpg/httpx deps are guaranteed to exist. A rollout step that
+# depends on a file the image does not ship cannot be run at all.
+COPY ./deploy ./deploy
+
 COPY ./docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 CMD ["./docker-entrypoint.sh"]

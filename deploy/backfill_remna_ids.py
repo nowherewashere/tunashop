@@ -20,14 +20,19 @@ onto a dead row and leave two rows claiming the same panel user. Retired rows th
 unresolved are reported and left alone; 0056 parks them on panel id 0. A *live* row that
 cannot be resolved is a real problem and blocks 0056, so it exits non-zero for those.
 
-Deliberately standalone and SDK-free: at this point in the rollout the running bot is
-still the pre-upgrade image, and the script has to speak the 2.8 API regardless of which
-remnapy version happens to be installed.
+Deliberately SDK-free: at this point in the rollout the panel is still on 2.8 while the
+image already carries the 3.x-era remnapy, so the 2.8 endpoints are spoken over plain
+httpx rather than through whichever SDK version happens to be installed. It does read
+`RemnawaveConfig` for the panel URL -- see `_panel_base_url`.
 
-Usage (from the app host, with the bot's env available):
+Usage: run it FROM THE NEW IMAGE, which is the only place its asyncpg/httpx deps and
+this file are both present. The container is a toolbox here, not the service -- the bot
+itself must not start until the panel is on 3.x and 0056-0058 have run:
 
-    python deploy/backfill_remna_ids.py            # resolve and write
-    python deploy/backfill_remna_ids.py --dry-run  # report only, touch nothing
+    docker compose run --rm --no-deps --entrypoint "" app \
+        python deploy/backfill_remna_ids.py --dry-run   # report only, touch nothing
+    docker compose run --rm --no-deps --entrypoint "" app \
+        python deploy/backfill_remna_ids.py             # resolve and write
 
 Environment: POSTGRES_* (or DATABASE_URL), REMNAWAVE_HOST, REMNAWAVE_TOKEN.
 """
@@ -42,6 +47,9 @@ from typing import Any, Optional
 
 import asyncpg
 import httpx
+from pydantic import SecretStr
+
+from src.core.config.remnawave import RemnawaveConfig
 
 TIMEOUT = httpx.Timeout(30.0)
 
@@ -62,10 +70,21 @@ def _database_dsn() -> str:
 
 
 def _panel_base_url() -> str:
-    host = os.environ["REMNAWAVE_HOST"].rstrip("/")
-    if not host.startswith(("http://", "https://")):
-        host = f"http://{host}"
-    return host
+    """Resolve REMNAWAVE_HOST exactly the way the running bot does.
+
+    Delegates to `RemnawaveConfig.url` instead of re-deriving, because the two silently
+    disagreed on the most common settings: a bare `remnawave` means port **3000**, not
+    80, and a bare domain means **https**, not http. Getting either wrong does not fail
+    loudly here -- every request just raises ConnectError, every row is filed unresolved,
+    and the run ends with "0 resolved" and a list of live rows that look corrupt but are
+    only unreachable.
+
+    `model_construct` skips validation on purpose: only `host` participates in the URL,
+    and this script must not start requiring REMNAWAVE_TOKEN's neighbours (webhook
+    secret et al) just to compute a base URL.
+    """
+    config = RemnawaveConfig.model_construct(host=SecretStr(os.environ["REMNAWAVE_HOST"]))
+    return config.url.get_secret_value()
 
 
 async def _resolve(
