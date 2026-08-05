@@ -4,6 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 from re import Pattern
 from typing import Final
+from uuid import UUID
 
 from packaging.version import Version
 
@@ -93,6 +94,13 @@ INLINE_QUERY_INVITE: Final[str] = "invite"
 # to skip it. Migration 0056 repeats the literal on purpose; a migration must not import
 # a constant that can drift under it.
 NO_PANEL_USER: Final[int] = 0
+
+# A traffic pool draft before its squad has been chosen. `TrafficPoolDto.internal_squad_uuid`
+# is not Optional -- a pool without a squad measures nothing and cannot be saved -- so the
+# editor carries this nil UUID in the meantime and refuses to commit while it is set.
+# It must never reach the panel: `/api/internal-squads/<nil>/accessible-nodes` is a 404,
+# which surfaces as NotFoundError and takes the whole dialog window down with it.
+UNASSIGNED_SQUAD: Final[UUID] = UUID(int=0)
 
 REMNASHOP_PREFIX: Final[str] = "rs_"
 WEB_PREFIX: Final[str] = "web_"

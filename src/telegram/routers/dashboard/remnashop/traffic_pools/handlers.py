@@ -16,7 +16,7 @@ from src.application.use_cases.traffic_pool import (
     DeleteTrafficPool,
     GetTrafficPools,
 )
-from src.core.constants import USER_KEY
+from src.core.constants import UNASSIGNED_SQUAD, USER_KEY
 from src.core.exceptions import (
     PoolInUseError,
     PoolNameAlreadyExistsError,
@@ -55,7 +55,7 @@ async def on_pool_create(
     _store(
         dialog_manager,
         retort,
-        TrafficPoolDto(name="", internal_squad_uuid=UUID(int=0)),
+        TrafficPoolDto(name="", internal_squad_uuid=UNASSIGNED_SQUAD),
     )
     await dialog_manager.switch_to(RemnashopTrafficPools.CONFIGURATOR)
 
@@ -144,7 +144,7 @@ async def on_pool_confirm(
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     pool = _load(dialog_manager, retort)
 
-    if pool.internal_squad_uuid == UUID(int=0):
+    if pool.internal_squad_uuid == UNASSIGNED_SQUAD:
         await notifier.notify_user(user, i18n_key="ntf-pool.squad-required")
         return
 

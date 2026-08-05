@@ -13,7 +13,7 @@ from src.application.use_cases.traffic_pool import (
     GetPoolNodesDto,
     GetTrafficPools,
 )
-from src.core.constants import USER_KEY
+from src.core.constants import UNASSIGNED_SQUAD, USER_KEY
 
 
 def _draft(dialog_manager: DialogManager, retort: Retort) -> TrafficPoolDto:
@@ -67,8 +67,16 @@ async def configurator_getter(
         "name": pool.name,
         "is_active": pool.is_active,
         "is_edit": bool(pool.id),
-        "squad": squad_names.get(pool.internal_squad_uuid, str(pool.internal_squad_uuid)),
-        "has_squad": pool.internal_squad_uuid is not None,
+        # `internal_squad_uuid` is not Optional, so `is not None` was true even for a
+        # brand-new draft — which left "🖥 Ноды пула" on screen before a squad existed
+        # and sent the nil UUID to the panel. UNASSIGNED_SQUAD is the real "not chosen
+        # yet" value; `on_pool_confirm` has always tested for it.
+        "squad": (
+            squad_names.get(pool.internal_squad_uuid, str(pool.internal_squad_uuid))
+            if pool.internal_squad_uuid != UNASSIGNED_SQUAD
+            else "—"
+        ),
+        "has_squad": pool.internal_squad_uuid != UNASSIGNED_SQUAD,
     }
 
 
@@ -122,7 +130,14 @@ async def nodes_getter(
     user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
     pool = _draft(dialog_manager, retort)
 
-    nodes = await get_pool_nodes(user, GetPoolNodesDto(squad_uuid=pool.internal_squad_uuid))
+    # The button into this window is hidden until a squad is picked, but a stale message
+    # can still deliver the callback afterwards. Asking the panel about the nil UUID is a
+    # 404, and a getter that raises leaves the window unrenderable rather than merely
+    # empty — so treat "no squad" as "no nodes", which the template already renders.
+    nodes: list[str] = []
+    if pool.internal_squad_uuid != UNASSIGNED_SQUAD:
+        nodes = await get_pool_nodes(user, GetPoolNodesDto(squad_uuid=pool.internal_squad_uuid))
+
     return {
         "name": pool.name,
         "nodes": "\n".join(f"• {node}" for node in nodes) if nodes else False,
