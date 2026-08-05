@@ -13,13 +13,9 @@ from src.application.common.dao import (
 )
 from src.application.common.uow import UnitOfWork
 from src.application.dto import MessagePayloadDto, SubscriptionDto, UserDto
-from src.core.constants import GOTO_PREFIX
+from src.core.constants import CHAIN_TRIAL_ENDING, CHAIN_WINBACK, GOTO_PREFIX
 from src.core.enums import UserNotificationType
 from src.core.utils.time import datetime_now
-from src.infrastructure.database.models.lifecycle_followup import (
-    CHAIN_TRIAL_ENDING,
-    CHAIN_WINBACK,
-)
 
 # Global-ish frequency cap (spec §9), matching the onboarding chain's defaults.
 _MIN_GAP = timedelta(minutes=180)

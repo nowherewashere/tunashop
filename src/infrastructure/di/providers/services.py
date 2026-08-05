@@ -16,6 +16,7 @@ from src.application.common import (
     Redirect,
     Remnawave,
     SupportService,
+    TrafficPoolAccess,
     TurnstileVerifier,
     XuiDbReader,
 )
@@ -100,7 +101,14 @@ class ServicesProvider(Provider):
     # Traffic pools. Both REQUEST-scoped: they compose onto the request-scoped uow +
     # DAOs, exactly like the merge service. The access service is pulled in by the
     # squad-assignment use cases; the metering service only by the cron task.
-    traffic_pool_access = provide(source=TrafficPoolAccessService, scope=Scope.REQUEST)
+    # Provided under both names, one instance either way: use cases ask for the
+    # `TrafficPoolAccess` port (they cannot import this package — see the port's
+    # docstring), while the metering service and the web layer take the class.
+    traffic_pool_access = provide(
+        source=TrafficPoolAccessService,
+        scope=Scope.REQUEST,
+        provides=AnyOf[TrafficPoolAccessService, TrafficPoolAccess],
+    )
     traffic_pool_metering = provide(source=TrafficPoolMeteringService, scope=Scope.REQUEST)
     # Unified support bridge (site + bot -> operator forum topics). REQUEST scope: it
     # composes onto the request-scoped uow + DAOs, like the other stateful services.

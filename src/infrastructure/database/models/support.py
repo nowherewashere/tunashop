@@ -1,8 +1,15 @@
 from datetime import datetime
-from typing import Final, Literal, Optional
+from typing import Literal, Optional
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
+
+from src.core.constants import (
+    CHANNEL_SITE,
+    CONVERSATION_OPEN,
+    SENDER_OPERATOR,
+    SENDER_SYSTEM,
+)
 
 from .base import BaseSql
 from .timestamp import TimestampMixin
@@ -18,25 +25,10 @@ from .timestamp import TimestampMixin
 #
 # Statuses / channels / directions are plain strings (not PG enums) to keep the
 # whole feature a set of additive tables with no changes to the shared enum
-# registry — mirroring `lifecycle_followups` / `referral_events`.
+# registry — mirroring `lifecycle_followups` / `referral_events`. They live in
+# `src.core.constants`, where the layers above this one can read them without
+# importing infrastructure.
 # ---------------------------------------------------------------------------
-
-# support_conversations.status
-CONVERSATION_OPEN: Final[str] = "open"
-CONVERSATION_CLOSED: Final[str] = "closed"
-
-# support_conversations.last_user_channel & support_messages.source
-CHANNEL_SITE: Final[str] = "site"
-CHANNEL_TELEGRAM: Final[str] = "telegram"
-
-# support_messages.direction
-DIRECTION_INBOUND: Final[str] = "inbound"  # user -> operator
-DIRECTION_OUTBOUND: Final[str] = "outbound"  # operator -> user
-
-# support_messages.sender
-SENDER_USER: Final[str] = "user"
-SENDER_OPERATOR: Final[str] = "operator"
-SENDER_SYSTEM: Final[str] = "system"
 
 
 def author_for_sender(sender: str) -> Literal["user", "operator", "system"]:

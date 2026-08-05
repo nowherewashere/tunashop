@@ -12,6 +12,7 @@ from src.application.use_cases.referral.queries.summary import (
     GetReferralSummaryDto,
 )
 from src.core.config import AppConfig
+from src.core.constants import PAYOUT_METHOD_STARS
 from src.core.exceptions import (
     BalanceNegativeError,
     PayoutBelowMinimumError,
@@ -21,7 +22,6 @@ from src.core.exceptions import (
     ReferralError,
 )
 from src.core.utils.money import kop_to_stars
-from src.infrastructure.database.models.referral_ledger import PAYOUT_METHOD_STARS
 
 
 @dataclass(frozen=True)

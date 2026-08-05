@@ -1,22 +1,18 @@
 from datetime import datetime
-from typing import Final, Optional
+from typing import Optional
 
 from sqlalchemy import BigInteger, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.constants import FOLLOWUP_PENDING
+
 from .base import BaseSql
 from .timestamp import TimestampMixin
 
-# Row lifecycle — plain strings (not a PG enum) to keep the feature a single
-# additive table, mirroring `onboarding_nudges`.
-FOLLOWUP_PENDING: Final[str] = "pending"
-FOLLOWUP_SENT: Final[str] = "sent"
-FOLLOWUP_CANCELLED: Final[str] = "cancelled"
-
-# Followup chains (spec §6). The onboarding "A" chain lives in its own table; these
-# are the post-connect / lifecycle chains driven by this unified dispatcher.
-CHAIN_TRIAL_ENDING: Final[str] = "C"  # −3h before trial end — convert
-CHAIN_WINBACK: Final[str] = "E"  # +3d / +2w after churn — win-back
+# The row-lifecycle statuses and the chain ids are plain strings (not a PG enum) to
+# keep the feature a single additive table, mirroring `onboarding_nudges`. They live
+# in `src.core.constants`, where the layers above this one can read them without
+# importing infrastructure.
 
 
 class LifecycleFollowup(BaseSql, TimestampMixin):

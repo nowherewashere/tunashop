@@ -20,11 +20,9 @@ from src.application.common.support import (
 )
 from src.application.dto import SupportMessageDto
 from src.core.config import AppConfig
+from src.core.constants import CHANNEL_SITE
 from src.core.exceptions import SupportUnavailableError
-from src.infrastructure.database.models.support import (
-    CHANNEL_SITE,
-    author_for_sender,
-)
+from src.infrastructure.database.models.support import author_for_sender
 from src.infrastructure.redis import SupportPubSubRedis
 from src.infrastructure.redis.key_builder import serialize_storage_key
 from src.infrastructure.redis.keys import SupportStreamCountKey

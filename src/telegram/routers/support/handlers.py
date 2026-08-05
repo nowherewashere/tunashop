@@ -12,10 +12,9 @@ from loguru import logger
 from src.application.common import BotService, SupportService
 from src.application.dto import TelegramUserDto
 from src.core.config import AppConfig
-from src.core.constants import SUPPORT_CB_CLOSE, SUPPORT_CB_LEAVE, TARGET_USER_ID
+from src.core.constants import CHANNEL_TELEGRAM, SUPPORT_CB_CLOSE, SUPPORT_CB_LEAVE, TARGET_USER_ID
 from src.core.enums import Deeplink
 from src.core.exceptions import SupportUnavailableError
-from src.infrastructure.database.models.support import CHANNEL_TELEGRAM
 from src.telegram.states import DashboardUser, Support
 
 router = Router(name=__name__)

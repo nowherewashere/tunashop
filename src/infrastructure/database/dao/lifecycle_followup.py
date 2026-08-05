@@ -5,12 +5,8 @@ from sqlalchemy.dialects.postgresql import insert
 
 from src.application.common.dao import LifecycleFollowupDao
 from src.application.dto import LifecycleFollowupDto
-from src.infrastructure.database.models.lifecycle_followup import (
-    FOLLOWUP_CANCELLED,
-    FOLLOWUP_PENDING,
-    FOLLOWUP_SENT,
-    LifecycleFollowup,
-)
+from src.core.constants import FOLLOWUP_CANCELLED, FOLLOWUP_PENDING, FOLLOWUP_SENT
+from src.infrastructure.database.models.lifecycle_followup import LifecycleFollowup
 
 from .base import BaseDaoImpl
 

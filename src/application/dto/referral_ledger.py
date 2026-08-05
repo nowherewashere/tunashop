@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
-from src.infrastructure.database.models.referral_ledger import (
+from src.core.constants import (
     EVENT_KIND_COMMISSION,
     PAYOUT_METHOD_CRYPTO,
     PAYOUT_REQUESTED,

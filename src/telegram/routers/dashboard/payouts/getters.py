@@ -10,12 +10,12 @@ from src.application.use_cases.referral.commands.operator import (
     GetPayoutQueue,
     GetPayoutQueueDto,
 )
-from src.core.utils.money import kop_to_rub
-from src.infrastructure.database.models.referral_ledger import (
+from src.core.constants import (
     PAYOUT_METHOD_STARS,
     PAYOUT_PROCESSING,
     PAYOUT_REQUESTED,
 )
+from src.core.utils.money import kop_to_rub
 
 
 def _user_label(user: Optional[UserDto]) -> str:

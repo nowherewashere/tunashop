@@ -6,14 +6,16 @@ from sqlalchemy.dialects.postgresql import insert
 
 from src.application.common.dao import ReferralLedgerDao
 from src.application.dto import BalanceSpendDto, PayoutDto, ReferralEventDto
-from src.infrastructure.database.models.referral import Referral
-from src.infrastructure.database.models.referral_ledger import (
+from src.core.constants import (
     PAYOUT_METHOD_CRYPTO,
     PAYOUT_OPEN_STATUSES,
     PAYOUT_PAID,
     PAYOUT_PROCESSING,
     PAYOUT_REJECTED,
     PAYOUT_REQUESTED,
+)
+from src.infrastructure.database.models.referral import Referral
+from src.infrastructure.database.models.referral_ledger import (
     BalanceSpend,
     Payout,
     ReferralEvent,

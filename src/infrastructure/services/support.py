@@ -32,11 +32,7 @@ from src.application.dto import (
 )
 from src.application.use_cases.user.queries.profile import GetUserDevices
 from src.core.config import AppConfig
-from src.core.constants import SUPPORT_CB_CLOSE, SUPPORT_FSM_STATE, UNLIMITED_EXPIRE_YEAR
-from src.core.enums import PurchaseType, Role, TransactionStatus
-from src.core.exceptions import SupportUnavailableError
-from src.core.utils.time import datetime_now
-from src.infrastructure.database.models.support import (
+from src.core.constants import (
     CHANNEL_TELEGRAM,
     CONVERSATION_CLOSED,
     CONVERSATION_OPEN,
@@ -44,8 +40,14 @@ from src.infrastructure.database.models.support import (
     DIRECTION_OUTBOUND,
     SENDER_OPERATOR,
     SENDER_USER,
-    author_for_sender,
+    SUPPORT_CB_CLOSE,
+    SUPPORT_FSM_STATE,
+    UNLIMITED_EXPIRE_YEAR,
 )
+from src.core.enums import PurchaseType, Role, TransactionStatus
+from src.core.exceptions import SupportUnavailableError
+from src.core.utils.time import datetime_now
+from src.infrastructure.database.models.support import author_for_sender
 
 # Telegram forum-topic name hard limit.
 _TOPIC_NAME_MAX = 128

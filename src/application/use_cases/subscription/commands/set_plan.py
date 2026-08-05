@@ -2,12 +2,12 @@ from dataclasses import dataclass
 
 from loguru import logger
 
-from src.application.common import Interactor, Remnawave
+from src.application.common import Interactor, Remnawave, TrafficPoolAccess
 from src.application.common.dao import PlanDao, SubscriptionDao, UserDao
 from src.application.common.policy import Permission
 from src.application.common.uow import UnitOfWork
 from src.application.dto import PlanSnapshotDto, SubscriptionDto, UserDto
-from src.application.services import SubscriptionProrationService, TrafficPoolAccessService
+from src.application.services import SubscriptionProrationService
 from src.core.enums import SubscriptionStatus
 
 
@@ -29,7 +29,7 @@ class SetUserSubscription(Interactor[SetUserSubscriptionDto, None]):
         subscription_dao: SubscriptionDao,
         remnawave: Remnawave,
         proration: SubscriptionProrationService,
-        pool_access: TrafficPoolAccessService,
+        pool_access: TrafficPoolAccess,
     ) -> None:
         self.uow = uow
         self.user_dao = user_dao

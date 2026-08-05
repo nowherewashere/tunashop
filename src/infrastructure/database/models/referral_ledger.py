@@ -1,8 +1,14 @@
 from datetime import datetime
-from typing import Final, Optional
+from typing import Optional
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
+
+from src.core.constants import (
+    EVENT_KIND_COMMISSION,
+    PAYOUT_METHOD_CRYPTO,
+    PAYOUT_REQUESTED,
+)
 
 from .base import BaseSql
 from .timestamp import TimestampMixin
@@ -12,29 +18,10 @@ from .timestamp import TimestampMixin
 #
 # This is an *additive* money layer that runs alongside the reward-based
 # `referrals` / `referral_rewards` tables (which stay untouched). All amounts are
-# stored in kopecks (integer); rubles exist only at the view layer. Statuses /
-# kinds are plain strings (not PG enums) to keep the whole feature a set of
-# additive tables with no changes to the shared enum registry — mirroring
-# `lifecycle_followups` / `onboarding_nudges`.
+# stored in kopecks (integer); rubles exist only at the view layer. The kind /
+# status / method strings these columns default to live in `src.core.constants`,
+# where the layers above this one can read them without importing infrastructure.
 # ---------------------------------------------------------------------------
-
-# referral_events.kind
-EVENT_KIND_COMMISSION: Final[str] = "commission"
-EVENT_KIND_ADJUSTMENT: Final[str] = "adjustment"  # chargeback reversal (external workstream)
-
-# payouts.method
-PAYOUT_METHOD_CRYPTO: Final[str] = "crypto"
-PAYOUT_METHOD_STARS: Final[str] = "stars"  # buy-and-gift Telegram Stars (spec §7.2)
-
-# payouts.status
-PAYOUT_REQUESTED: Final[str] = "requested"
-PAYOUT_PROCESSING: Final[str] = "processing"
-PAYOUT_PAID: Final[str] = "paid"
-PAYOUT_REJECTED: Final[str] = "rejected"
-
-# A payout is "open" (locks further payouts + pay-with-balance) while in either
-# of these states.
-PAYOUT_OPEN_STATUSES: Final[tuple[str, ...]] = (PAYOUT_REQUESTED, PAYOUT_PROCESSING)
 
 
 class ReferralEvent(BaseSql, TimestampMixin):

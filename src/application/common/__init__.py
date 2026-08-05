@@ -17,6 +17,7 @@ from .password_hasher import PasswordHasher
 from .redirect import Redirect
 from .remnawave import Remnawave
 from .support import SupportService
+from .traffic_pools import TrafficPoolAccess
 from .translator import TranslatorHub, TranslatorRunner
 from .turnstile import TurnstileVerifier
 from .xui_reader import XuiDbReader
@@ -41,6 +42,7 @@ __all__ = [
     "Redirect",
     "Remnawave",
     "SupportService",
+    "TrafficPoolAccess",
     "TranslatorHub",
     "TranslatorRunner",
     "TurnstileVerifier",

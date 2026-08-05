@@ -17,13 +17,13 @@ from src.application.use_cases.referral.queries.summary import (
     GetReferralSummary,
     GetReferralSummaryDto,
 )
-from src.core.exceptions import ReferralError
-from src.core.utils.money import kop_to_rub, mask_wallet
-from src.infrastructure.database.models.referral_ledger import (
+from src.core.constants import (
     PAYOUT_METHOD_STARS,
     PAYOUT_OPEN_STATUSES,
     PAYOUT_REQUESTED,
 )
+from src.core.exceptions import ReferralError
+from src.core.utils.money import kop_to_rub, mask_wallet
 
 
 @dataclass(frozen=True)

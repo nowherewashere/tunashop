@@ -5,7 +5,7 @@ from typing import Optional
 from adaptix import Retort
 from loguru import logger
 
-from src.application.common import EventPublisher, Interactor
+from src.application.common import EventPublisher, Interactor, TrafficPoolAccess
 from src.application.common.dao import PromocodeDao, SubscriptionDao, UserDao
 from src.application.common.policy import Permission
 from src.application.common.remnawave import Remnawave
@@ -13,7 +13,7 @@ from src.application.common.uow import UnitOfWork
 from src.application.dto import PlanSnapshotDto, PromocodeDto, SubscriptionDto, UserDto
 from src.application.dto.promocode import PromocodeActivationDto
 from src.application.events.system import PromocodeActivatedEvent
-from src.application.services import SubscriptionProrationService, TrafficPoolAccessService
+from src.application.services import SubscriptionProrationService
 from src.application.use_cases.promocode.queries.validate import (
     ValidatePromocode,
     ValidatePromocodeDto,
@@ -55,7 +55,7 @@ class ActivatePromocode(Interactor[ActivatePromocodeDto, PromocodeDto]):
         event_publisher: EventPublisher,
         retort: Retort,
         proration: SubscriptionProrationService,
-        pool_access: TrafficPoolAccessService,
+        pool_access: TrafficPoolAccess,
     ) -> None:
         self.uow = uow
         self.promocode_dao = promocode_dao

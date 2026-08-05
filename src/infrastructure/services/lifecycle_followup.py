@@ -5,8 +5,8 @@ from loguru import logger
 from src.application.common.dao import LifecycleFollowupDao
 from src.application.common.uow import UnitOfWork
 from src.application.events.user import SubscriptionExpiredEvent
+from src.core.constants import CHAIN_WINBACK
 from src.core.utils.time import datetime_now
-from src.infrastructure.database.models.lifecycle_followup import CHAIN_WINBACK
 from src.infrastructure.services.event_bus import on_event
 
 # Win-back touches after churn (spec §6 chain E): soft returns at +3d and +2w.

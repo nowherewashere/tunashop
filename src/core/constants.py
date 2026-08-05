@@ -188,6 +188,59 @@ EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: Final[int] = 60
 WEB_PASSWORD_LEN: Final[int] = 8
 WEB_PASSWORD_ALPHABET: Final[str] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
+# Unified support bridge (support spec). One conversation per user, bridged to a
+# Telegram forum topic; the DB is the source of truth for history.
+
+# support_conversations.status
+CONVERSATION_OPEN: Final[str] = "open"
+CONVERSATION_CLOSED: Final[str] = "closed"
+
+# support_conversations.last_user_channel & support_messages.source
+CHANNEL_SITE: Final[str] = "site"
+CHANNEL_TELEGRAM: Final[str] = "telegram"
+
+# support_messages.direction
+DIRECTION_INBOUND: Final[str] = "inbound"  # user -> operator
+DIRECTION_OUTBOUND: Final[str] = "outbound"  # operator -> user
+
+# support_messages.sender
+SENDER_USER: Final[str] = "user"
+SENDER_OPERATOR: Final[str] = "operator"
+SENDER_SYSTEM: Final[str] = "system"
+
+# lifecycle_followups.status
+FOLLOWUP_PENDING: Final[str] = "pending"
+FOLLOWUP_SENT: Final[str] = "sent"
+FOLLOWUP_CANCELLED: Final[str] = "cancelled"
+
+# lifecycle_followups.chain
+CHAIN_TRIAL_ENDING: Final[str] = "C"  # −3h before trial end — convert
+CHAIN_WINBACK: Final[str] = "E"  # +3d / +2w after churn — win-back
+
+# Money referral ledger (referral spec §2/§4). Statuses / kinds are plain strings, not
+# PG enums, to keep the whole feature a set of additive tables with no changes to the
+# shared enum registry — mirroring `lifecycle_followups` / `onboarding_nudges`. They
+# live here rather than beside the SQLAlchemy models because the DTOs, use cases and
+# bot getters that compare against them all sit above the infrastructure layer.
+
+# referral_events.kind
+EVENT_KIND_COMMISSION: Final[str] = "commission"
+EVENT_KIND_ADJUSTMENT: Final[str] = "adjustment"  # chargeback reversal (external workstream)
+
+# payouts.method
+PAYOUT_METHOD_CRYPTO: Final[str] = "crypto"
+PAYOUT_METHOD_STARS: Final[str] = "stars"  # buy-and-gift Telegram Stars (spec §7.2)
+
+# payouts.status
+PAYOUT_REQUESTED: Final[str] = "requested"
+PAYOUT_PROCESSING: Final[str] = "processing"
+PAYOUT_PAID: Final[str] = "paid"
+PAYOUT_REJECTED: Final[str] = "rejected"
+
+# A payout is "open" (locks further payouts + pay-with-balance) while in either
+# of these states.
+PAYOUT_OPEN_STATUSES: Final[tuple[str, ...]] = (PAYOUT_REQUESTED, PAYOUT_PROCESSING)
+
 # Reason stamped on the payout an account merge had to close, and read back to its owner
 # through `event-payout.rejected` ("Вывод { $amount } ₽ отклонён: { $reason }."). Free
 # text and lowercase for that sentence position — exactly like the reason an operator

@@ -4,7 +4,7 @@ from src.application.common import Interactor
 from src.application.common.dao import ReferralDao, ReferralLedgerDao, UserDao
 from src.application.common.policy import Permission
 from src.application.dto import ReferralStatisticsDto, UserDto
-from src.infrastructure.database.models.referral_ledger import (
+from src.core.constants import (
     PAYOUT_PROCESSING,
     PAYOUT_REQUESTED,
 )

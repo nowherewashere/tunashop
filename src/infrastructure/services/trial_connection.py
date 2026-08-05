@@ -11,8 +11,8 @@ from src.application.common.dao import (
 from src.application.common.remnawave import Remnawave
 from src.application.common.uow import UnitOfWork
 from src.application.events.system import UserFirstConnectionEvent
+from src.core.constants import CHAIN_TRIAL_ENDING
 from src.core.utils.time import datetime_now
-from src.infrastructure.database.models.lifecycle_followup import CHAIN_TRIAL_ENDING
 from src.infrastructure.services.event_bus import on_event
 
 # Post-connect proactive followups armed at first connection (spec §6).

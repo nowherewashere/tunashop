@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
-from src.infrastructure.database.models.support import (
+from src.core.constants import (
     CHANNEL_SITE,
     CONVERSATION_OPEN,
 )

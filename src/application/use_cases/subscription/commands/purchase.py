@@ -5,12 +5,12 @@ from uuid import UUID
 
 from loguru import logger
 
-from src.application.common import EventPublisher, Interactor, Remnawave
+from src.application.common import EventPublisher, Interactor, Remnawave, TrafficPoolAccess
 from src.application.common.dao import SubscriptionDao, UserDao
 from src.application.common.uow import UnitOfWork
 from src.application.dto import PlanSnapshotDto, SubscriptionDto, TransactionDto, UserDto
 from src.application.events import TrialActivatedEvent
-from src.application.services import SubscriptionProrationService, TrafficPoolAccessService
+from src.application.services import SubscriptionProrationService
 from src.core.enums import PurchaseType, SubscriptionStatus
 from src.core.exceptions import TrialNotAvailableError
 from src.core.types import RemnaUserDto
@@ -116,7 +116,7 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
         subscription_dao: SubscriptionDao,
         remnawave: Remnawave,
         proration: SubscriptionProrationService,
-        pool_access: TrafficPoolAccessService,
+        pool_access: TrafficPoolAccess,
     ) -> None:
         self.uow = uow
         self.user_dao = user_dao

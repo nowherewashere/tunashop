@@ -4,7 +4,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.application.common.dao import AccountMergeDao
 from src.application.dto import PayoutDto
-from src.core.constants import MERGE_SUPERSEDED_PAYOUT_REASON
+from src.core.constants import (
+    MERGE_SUPERSEDED_PAYOUT_REASON,
+    PAYOUT_OPEN_STATUSES,
+    PAYOUT_PROCESSING,
+    PAYOUT_REJECTED,
+)
 from src.infrastructure.database.models import (
     BalanceSpend,
     BroadcastMessage,
@@ -20,11 +25,6 @@ from src.infrastructure.database.models import (
     Transaction,
     User,
     UserOAuthProvider,
-)
-from src.infrastructure.database.models.referral_ledger import (
-    PAYOUT_OPEN_STATUSES,
-    PAYOUT_PROCESSING,
-    PAYOUT_REJECTED,
 )
 from src.infrastructure.database.models.timestamp import NOW_FUNC
 

@@ -6,9 +6,8 @@ from sqlalchemy.dialects.postgresql import insert
 
 from src.application.common.dao import SupportDao
 from src.application.dto import SupportConversationDto, SupportMessageDto
+from src.core.constants import CONVERSATION_CLOSED, CONVERSATION_OPEN
 from src.infrastructure.database.models.support import (
-    CONVERSATION_CLOSED,
-    CONVERSATION_OPEN,
     SupportConversation,
     SupportMessage,
 )

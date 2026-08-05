@@ -6,7 +6,7 @@ from uuid import UUID
 from loguru import logger
 from redis.asyncio import Redis
 
-from src.application.common import EventPublisher, Remnawave
+from src.application.common import EventPublisher, Remnawave, TrafficPoolAccess
 from src.application.common.dao import SubscriptionDao, TrafficPoolDao, UserDao
 from src.application.common.uow import UnitOfWork
 from src.application.dto import (
@@ -62,7 +62,7 @@ def period_anchor(
     return subscription_created_at
 
 
-class TrafficPoolAccessService:
+class TrafficPoolAccessService(TrafficPoolAccess):
     """Decides which internal squads a subscription may hold right now.
 
     The panel has no per-squad traffic limit, so "the quota on the premium pool ran

@@ -4,12 +4,11 @@ from decimal import ROUND_HALF_UP
 
 from loguru import logger
 
-from src.application.common import EventPublisher, Interactor, Remnawave
+from src.application.common import EventPublisher, Interactor, Remnawave, TrafficPoolAccess
 from src.application.common.dao import PlanDao, ReferralLedgerDao, SubscriptionDao
 from src.application.common.uow import UnitOfWork
 from src.application.dto import BalanceSpendDto, PlanSnapshotDto, UserDto
 from src.application.events import BalanceRenewalEvent
-from src.application.services import TrafficPoolAccessService
 from src.application.use_cases.referral.queries.summary import (
     GetReferralSummary,
     GetReferralSummaryDto,
@@ -63,7 +62,7 @@ class PayWithBalance(Interactor[PayWithBalanceDto, PayWithBalanceResult]):
         remnawave: Remnawave,
         get_referral_summary: GetReferralSummary,
         event_publisher: EventPublisher,
-        pool_access: TrafficPoolAccessService,
+        pool_access: TrafficPoolAccess,
     ) -> None:
         self.uow = uow
         self.plan_dao = plan_dao

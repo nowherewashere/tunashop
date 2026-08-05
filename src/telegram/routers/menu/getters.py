@@ -22,6 +22,7 @@ from src.application.use_cases.referral.queries.summary import (
 )
 from src.application.use_cases.user.queries.plans import GetAvailablePlans
 from src.core.config import AppConfig
+from src.core.constants import PAYOUT_METHOD_STARS, PAYOUT_REQUESTED
 from src.core.enums import Currency
 from src.core.exceptions import MenuRenderError, PriceNotFoundError
 from src.core.utils.i18n_helpers import (
@@ -32,10 +33,6 @@ from src.core.utils.i18n_helpers import (
 from src.core.utils.money import kop_to_rub, kop_to_stars
 from src.core.utils.text import strip_leading_emoji
 from src.core.utils.time import datetime_now, get_traffic_reset_delta
-from src.infrastructure.database.models.referral_ledger import (
-    PAYOUT_METHOD_STARS,
-    PAYOUT_REQUESTED,
-)
 from src.telegram.utils import translate_or_literal
 
 
