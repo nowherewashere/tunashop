@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 from loguru import logger
 
@@ -19,6 +20,13 @@ from src.core.utils.time import datetime_now
 class SyncRemnaUserDto:
     remna_user: RemnaUserDto
     creating: bool
+    # Owner of the panel user, when the caller already knows it. Set by the recreate
+    # paths: since panel 3.0.0 `create_user` can no longer carry the old identifier,
+    # so a recreated user comes back with a brand-new id that no local row points at
+    # yet — and the webhook-style lookups below cannot find it. Writing that id back
+    # onto the subscription is the entire reason those paths call this use case, and
+    # for a web-only user (no telegram_id) there is no other way to resolve the owner.
+    user_id: Optional[int] = None
 
 
 class SyncRemnaUser(Interactor[SyncRemnaUserDto, bool]):
@@ -44,7 +52,18 @@ class SyncRemnaUser(Interactor[SyncRemnaUserDto, bool]):
         remna_user = data.remna_user
 
         async with self.uow:
-            user = await self.user_dao.get_by_remna_id(remna_user.id)
+            user = None
+
+            if data.user_id is not None:
+                user = await self.user_dao.get_by_id(data.user_id)
+                if not user:
+                    logger.warning(
+                        f"Sync failed: user '{data.user_id}' named by the caller is gone"
+                    )
+                    return False
+
+            if not user:
+                user = await self.user_dao.get_by_remna_id(remna_user.id)
 
             if not user and remna_user.telegram_id:
                 user = await self.user_dao.get_by_telegram_id(remna_user.telegram_id)
@@ -204,8 +223,10 @@ class SyncAllUsersFromBot(Interactor[None, dict[str, int]]):
                         user=user,
                         subscription=subscription,
                     )
+                    # Name the owner: the panel issued a fresh id, so the payload alone
+                    # cannot be traced back to this subscription.
                     await self.sync_remna_user.system(
-                        SyncRemnaUserDto(created_user, creating=False)
+                        SyncRemnaUserDto(created_user, creating=False, user_id=user.id)
                     )
                     recreated += 1
 

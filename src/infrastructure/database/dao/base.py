@@ -8,6 +8,11 @@ from src.application.dto.base import TrackableMixin
 
 
 class BaseDaoImpl:
+    # A DTO's `id` is the row's primary key. Every caller of `_serialize_for_update`
+    # already keys its UPDATE on it, so it can only ever appear in the SET clause by
+    # mistake — and a mistake there rewrites the identity of the row being updated.
+    _IMMUTABLE_FIELDS: typing.Final[frozenset[str]] = frozenset({"id"})
+
     def __init__(self, session: AsyncSession, retort: Retort) -> None:
         self.session = session
         self.retort = retort
@@ -22,6 +27,9 @@ class BaseDaoImpl:
         type_hints = typing.get_type_hints(dto_class)
         result = {}
         for key in dto.changed_data:
+            if key in self._IMMUTABLE_FIELDS:
+                continue
+
             full_value = getattr(dto, key)
             field_type = type_hints.get(key)
 

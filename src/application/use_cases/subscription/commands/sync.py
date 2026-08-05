@@ -170,8 +170,10 @@ class SyncSubscriptionFromRemnashop(Interactor[int, None]):
                         user=target_user,
                         subscription=subscription,
                     )
+                    # Name the owner: the panel issued a fresh id, so the payload alone
+                    # cannot be traced back to this subscription.
                     await self.sync_remna_user.system(
-                        SyncRemnaUserDto(created_user, creating=False)
+                        SyncRemnaUserDto(created_user, creating=False, user_id=target_user.id)
                     )
                     logger.info(
                         f"{actor.log} Recreated user '{user_id}' in Remnawave with local data"

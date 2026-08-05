@@ -1,7 +1,7 @@
 import asyncio
 from dataclasses import fields, is_dataclass
 from datetime import datetime, timedelta
-from typing import Any, Optional, Union
+from typing import Any, Final, Optional, Union
 from uuid import UUID
 
 from loguru import logger
@@ -41,6 +41,19 @@ from src.core.constants import (
 from src.core.enums import SubscriptionStatus
 from src.core.utils.converters import days_to_datetime, gb_to_bytes
 from src.core.utils.time import datetime_now
+
+# Panel field -> local field, for the pairs whose names do not match. The panel's user
+# id is `id` on the wire and `user_remna_id` on the subscription row.
+SYNC_FIELD_MAP: Final[dict[str, str]] = {"user_remna_id": "id"}
+
+# Local fields that must never be written from panel data, whatever they are called on
+# the other side. `SubscriptionDto.id` is the row's primary key while
+# `RemnaSubscriptionDto.id` is the panel's user id: same name, unrelated meaning. They
+# only started colliding when panel 3.0.0 replaced the user UUID with a numeric id, and
+# copying one onto the other rewrites the PK — which `SubscriptionDao.update` then uses
+# in its WHERE, sending the whole sync to an unrelated subscription. The panel id has
+# exactly one home on the target and SYNC_FIELD_MAP declares it.
+SYNC_PROTECTED_FIELDS: Final[frozenset[str]] = frozenset({"id"})
 
 
 class RemnawaveImpl(Remnawave):
@@ -378,30 +391,32 @@ class RemnawaveImpl(Remnawave):
         target_fields = {f.name for f in fields(target)}
         source_fields = {f.name for f in fields(source)}
 
-        field_map = {"user_remna_id": "id"}
-
-        for target_field, source_field in field_map.items():
+        for target_field, source_field in SYNC_FIELD_MAP.items():
             if target_field in target_fields and source_field in source_fields:
-                old_value = getattr(target, target_field)
-                new_value = getattr(source, source_field)
+                self._sync_field(target, target_field, getattr(source, source_field))
 
-                if old_value != new_value:
-                    logger.debug(
-                        f"Field '{target_field}' changed from '{old_value}' to '{new_value}'"
-                    )
-                    setattr(target, target_field, new_value)
-
-        common_fields = target_fields & source_fields
+        # Everything else carries over by matching name. Fields already placed by
+        # SYNC_FIELD_MAP are skipped here — their source name means something else on
+        # the target — and so are the protected ones, which never come from the panel.
+        common_fields = (
+            (target_fields & source_fields)
+            - set(SYNC_FIELD_MAP.values())
+            - SYNC_PROTECTED_FIELDS
+        )
 
         for field_name in common_fields:
-            old_value = getattr(target, field_name)
-            new_value = getattr(source, field_name)
-
-            if old_value != new_value:
-                logger.debug(f"Field '{field_name}' changed from '{old_value}' to '{new_value}'")
-                setattr(target, field_name, new_value)
+            self._sync_field(target, field_name, getattr(source, field_name))
 
         return target
+
+    @staticmethod
+    def _sync_field(target: Any, field_name: str, new_value: Any) -> None:
+        old_value = getattr(target, field_name)
+        if old_value == new_value:
+            return
+
+        logger.debug(f"Field '{field_name}' changed from '{old_value}' to '{new_value}'")
+        setattr(target, field_name, new_value)
 
     def _build_create_request(
         self,
