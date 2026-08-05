@@ -43,8 +43,8 @@ class FunnelStepEvent(MetricSignalEvent):
 
     Emitted from BOTH the bot (published on the bus) and the site (via the public
     ``/events/funnel`` endpoint, which re-publishes it) so the funnel is comparable
-    across surfaces. ``user_ref`` (remnawave_uuid) is resolved by the listener from
-    ``telegram_id`` when the caller doesn't already know it (e.g. the bot mid-funnel).
+    across surfaces. ``user_ref`` (the panel user id as text) is resolved by the listener
+    from ``telegram_id`` when the caller doesn't already know it (e.g. the bot mid-funnel).
     """
 
     step: FunnelStep

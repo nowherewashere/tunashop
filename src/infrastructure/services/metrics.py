@@ -39,8 +39,9 @@ class MetricsEventListener:
     whose ``try/except`` wraps the *whole* unit of work — including opening it — so
     a metrics failure never surfaces to the user and never lets an exception escape
     into the bus's ErrorEvent fan-out (which would storm the admin chat). Per-user
-    events are keyed by ``remnawave_uuid`` (``Subscription.user_remna_id``), resolved
-    from the current subscription, so bot + site + probe data auto-consolidate.
+    events are keyed by the panel user id (``Subscription.user_remna_id`` — a numeric
+    BigInt since panel 3.x, rendered as text), resolved from the current subscription,
+    so bot + site + probe data auto-consolidate.
     """
 
     def __init__(
@@ -75,8 +76,8 @@ class MetricsEventListener:
 
     @on_event(UserFirstConnectionEvent)
     async def on_first_connect(self, event: UserFirstConnectionEvent) -> None:
-        # `subscription_id` already IS the remnawave_uuid (the spec keys on it
-        # directly). No node/protocol here — the FIRST_CONNECTED webhook doesn't
+        # `subscription_id` already IS the panel user id (`remna_user.id`), which is
+        # what the spec keys on. No node/protocol here — the FIRST_CONNECTED webhook doesn't
         # carry them; the dimensioned health signal comes from probes (§6.2) and
         # node_status (§6.1). This row is the passive "activation" signal.
         async def write() -> None:

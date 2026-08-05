@@ -112,7 +112,7 @@ class RecordReferralCommission(Interactor[RecordReferralCommissionDto, None]):
             # only when the ledger row is freshly inserted, so the metric mirrors the
             # idempotent ledger exactly (no double count on a retried webhook). Fire-
             # and-forget: the bus fans out on a background task; MetricsEventListener
-            # resolves both remnawave_uuids and writes the row.
+            # resolves both panel user ids and writes the row.
             await self.event_publisher.publish(
                 ReferralCommissionRecordedEvent(
                     referrer_id=referral.referrer.id,
