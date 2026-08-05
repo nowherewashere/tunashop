@@ -402,9 +402,6 @@ for anything like `v1.0.0-preview`. Unrelated to the cutover; filed separately.
 
 Stated plainly so nobody reads this as broader assurance than it is.
 
-- **`referrer_ref` remap.** The lab had 0 `referral_attributed` events carrying the key,
-  so that half of 0056's remap ran against nothing (`0 referrer_ref(s)`). The `user_ref`
-  half ran over 82 rows and was verified row-by-row.
 - **`events` remap duration.** 207 rows / 192 kB. Measure prod separately (§4).
 - **A real payment.** Only `TELEGRAM_STARS` is enabled on the lab and it needs a genuine
   Telegram payment. Trial activation, plan change with proration, renewal and status
@@ -435,6 +432,31 @@ Against the live 3.2.1 panel, after the cutover:
   the owner's summary shows `invited=1`; deleting the owner leaves the code alive and
   ownerless (`owner_user_id` NULL, `is_active` true) and the dashboard label renders
   `—`; account merge moves an owned code to the survivor.
+- **Both halves of 0056's event remap, including the paths this data does not produce.**
+  The first pass logged `remapped 82 event user_ref(s) and 0 referrer_ref(s)` — real
+  coverage of `user_ref`, none at all of `referrer_ref`, and the stranded-UUID warning
+  never fired. So the bot DB was restored to the pre-panel-upgrade snapshot (0055,
+  backfill applied), seeded, and 0056 re-run against:
+
+  ```
+  0056: remapped 85 event user_ref(s) and 2 referrer_ref(s)
+  WARNING 0056: 3 event(s) keep a UUID user_ref — the panel user they belong to has
+                no subscription row left to map from, so their history stays a
+                separate series
+  ```
+
+  Both counts are exactly what the fixture predicts, and the interesting row is the one
+  whose `user_ref` remapped to `8` while its `referrer_ref` stayed a UUID: the two are
+  translated independently, each only where a pair exists. The warning's count matched
+  the seeded unmappable rows.
+
+  Note when re-checking this yourself that `user_remna_id` is a bigint by then, so a
+  query joining it against a UUID `user_ref` returns zero *by construction* and proves
+  nothing — the evidence has to come from what you seeded, or from a pre-0056 snapshot.
+
+  Restoring for this needs the bot stack **stopped first**: the entrypoint's
+  `alembic upgrade head` would otherwise run 0056 the moment the container starts, before
+  anything can be seeded.
 - **User journey** — trial activation creating panel user id 10, subscription link,
   device list/reset, plan change Trial→Pro with proration, renewal +30d, disable/enable.
   Local and panel expiry agreed at every step.
