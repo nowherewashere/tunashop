@@ -6,13 +6,15 @@ from dishka import FromDishka
 from dishka.integrations.aiogram import inject
 from loguru import logger
 
-from src.application.common import TranslatorRunner
+from src.application.common import EventPublisher, TranslatorRunner
 from src.application.dto import TelegramUserDto
+from src.application.events import ErrorEvent
 from src.application.use_cases.broadcast.commands.bonus import (
     ClaimTrialBonus,
     ClaimTrialBonusDto,
     TrialBonusOutcome,
 )
+from src.core.config import AppConfig
 from src.core.constants import DATETIME_VIEW_FORMAT, TRIAL_BONUS_CB
 from src.core.enums import TrialBonusResult
 
@@ -57,6 +59,8 @@ async def on_trial_bonus(
     user: TelegramUserDto,
     i18n: FromDishka[TranslatorRunner],
     claim_trial_bonus: FromDishka[ClaimTrialBonus],
+    event_publisher: FromDishka[EventPublisher],
+    config: FromDishka[AppConfig],
 ) -> None:
     raw_task_id = (callback.data or "").removeprefix(TRIAL_BONUS_CB)
 
@@ -69,7 +73,25 @@ async def on_trial_bonus(
         await callback.answer(i18n.get(_RESULT_KEYS[TrialBonusResult.UNAVAILABLE]), show_alert=True)
         return
 
-    outcome: TrialBonusOutcome = await claim_trial_bonus(user, ClaimTrialBonusDto(task_id))
+    try:
+        outcome: TrialBonusOutcome = await claim_trial_bonus(user, ClaimTrialBonusDto(task_id))
+    except Exception as exc:  # noqa: BLE001 - panel down, panel 404, lock wait expired
+        # Nothing was granted (the claim rolled back with the transaction), so the press
+        # is still spendable. Answering here is the point: letting this reach the error
+        # middleware would report it but never close the callback, leaving the spinner
+        # to time out on its own with the button still promising a day.
+        logger.exception(f"{user.log} Trial bonus of broadcast '{task_id}' failed to apply")
+        await event_publisher.publish(
+            ErrorEvent(
+                **config.build.data,
+                telegram_id=user.telegram_id,
+                username=user.username,
+                name=user.name,
+                exception=exc,
+            )
+        )
+        await callback.answer(i18n.get(_RESULT_KEYS[TrialBonusResult.UNAVAILABLE]), show_alert=True)
+        return
 
     text = i18n.get(
         _RESULT_KEYS[outcome.result],

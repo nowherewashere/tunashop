@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
@@ -10,7 +11,11 @@ from src.application.common.dao import BroadcastDao, SubscriptionDao
 from src.application.common.policy import Permission
 from src.application.common.uow import UnitOfWork
 from src.application.dto import UserDto
-from src.core.constants import TRIAL_BONUS_DAYS
+from src.core.constants import (
+    TRIAL_BONUS_DAYS,
+    TRIAL_BONUS_LOCK_WAIT_SECONDS,
+    TRIAL_BONUS_PANEL_WAIT_SECONDS,
+)
 from src.core.enums import SubscriptionStatus, TrialBonusResult
 from src.core.utils.time import datetime_now
 
@@ -78,6 +83,11 @@ class ClaimTrialBonus(Interactor[ClaimTrialBonusDto, TrialBonusOutcome]):
             return TrialBonusOutcome(TrialBonusResult.NOT_ELIGIBLE)
 
         async with self.uow:
+            # The claim below locks its ledger row until this transaction ends, and the
+            # panel call sits inside that window. Capped so a rival press for the same
+            # row gives up rather than holding a pooled connection through the panel.
+            await self.uow.set_lock_timeout(TRIAL_BONUS_LOCK_WAIT_SECONDS)
+
             # Taking the claim first is what makes a double press (or two racing ones)
             # harmless: the loser matches no row here and leaves with nothing granted.
             if not await self.broadcast_dao.claim_message_bonus(task_id, actor.id):
@@ -91,12 +101,17 @@ class ClaimTrialBonus(Interactor[ClaimTrialBonusDto, TrialBonusOutcome]):
             subscription.expire_at = new_expire
 
             # Inside the transaction on purpose: a panel failure raises, the UoW rolls
-            # back, and the claim is released so the person can press again.
-            updated = await self.remnawave.update_user(
-                user=actor,
-                user_id=subscription.user_remna_id,
-                subscription=subscription,
-            )
+            # back, and the claim is released so the person can press again. The other
+            # half of that bargain is this timeout — the lock cap above only governs
+            # who waits, so without a cap on the wait itself a panel that never answers
+            # would keep the row (and the connection) for the client's own 25s read
+            # timeout. Timing out raises, which takes the same rollback path.
+            async with asyncio.timeout(TRIAL_BONUS_PANEL_WAIT_SECONDS):
+                updated = await self.remnawave.update_user(
+                    user=actor,
+                    user_id=subscription.user_remna_id,
+                    subscription=subscription,
+                )
             # A revived trial comes back ACTIVE from the panel; without this the row
             # would keep saying EXPIRED until the next sync.
             subscription.status = SubscriptionStatus(updated.status)

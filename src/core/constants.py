@@ -111,6 +111,16 @@ SUPPORT_FSM_STATE: Final[str] = "Support:CHAT"
 # Budget: prefix 4 + uuid 36 = 40 of Telegram's 64 callback_data bytes.
 TRIAL_BONUS_CB: Final[str] = "tbn:"
 TRIAL_BONUS_DAYS: Final[int] = 1
+# The claim keeps its ledger row locked across the panel round trip (deliberately — a
+# panel failure must roll the claim back), and a broadcast is exactly when presses arrive
+# in bulk. Both halves of that wait are therefore capped, and capped low: the pool is 30
+# connections app-wide, and Telegram refuses a callback answer that arrives more than
+# ~15s late. Waiting side — a rival press for the same row gives up instead of queueing
+# behind the panel.
+TRIAL_BONUS_LOCK_WAIT_SECONDS: Final[float] = 3.0
+# Holding side — a hung panel cannot pin the row (and the connection under it) for the
+# httpx client's own 25s read timeout.
+TRIAL_BONUS_PANEL_WAIT_SECONDS: Final[float] = 8.0
 
 # goto targets (see routers/extra/goto.py) that open the onboarding funnel from a
 # plain notification button; must match the Onboarding state strings in

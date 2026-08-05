@@ -18,6 +18,8 @@ class UnitOfWork(Protocol):
 
     async def rollback(self) -> None: ...
 
+    async def set_lock_timeout(self, seconds: float) -> None: ...
+
     async def persist_with_unique_code(
         self,
         generate: Callable[[], Awaitable[str]],

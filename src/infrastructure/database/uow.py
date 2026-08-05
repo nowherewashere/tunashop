@@ -2,6 +2,7 @@ from types import TracebackType
 from typing import Awaitable, Callable, Optional, Self, Type, TypeVar
 
 from loguru import logger
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,6 +45,25 @@ class UnitOfWorkImpl(UnitOfWork):
     async def rollback(self) -> None:
         await self.session.rollback()
         logger.warning("SQL transaction rolled back")
+
+    async def set_lock_timeout(self, seconds: float) -> None:
+        """Cap how long statements in this transaction wait for a row lock.
+
+        For a transaction that holds a lock across something slow and external: without
+        a cap, every rival statement waits out that whole round trip holding a pooled
+        connection, so one stuck call becomes a pool-wide stall.
+
+        ``SET LOCAL`` expires with the transaction (this one is already open — the
+        reads that chose the row started it), so the connection returns to the pool on
+        the server default either way. A statement that gives up raises
+        ``sqlalchemy.exc.DBAPIError`` wrapping asyncpg's ``LockNotAvailableError``
+        (SQLSTATE 55P03) — an ordinary ``Exception``, which is what leaves the caller's
+        rollback in charge of undoing the rest.
+        """
+        # Interpolated, not bound: SET takes no parameters. `seconds` is ours, never
+        # user input, and int() leaves nothing for a literal to carry.
+        await self.session.execute(text(f"SET LOCAL lock_timeout = {int(seconds * 1000)}"))
+        logger.debug(f"SQL transaction lock wait capped at '{seconds}s'")
 
     async def persist_with_unique_code(
         self,
