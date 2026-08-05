@@ -10,7 +10,7 @@ class EventsDao(Protocol):
 
     The write side (``append``) is best-effort and off the user's critical path;
     the read side backs the offline daily job. Everything is keyed on
-    ``user_ref`` (remnawave_uuid) so bot + site data auto-consolidate.
+    ``user_ref`` (the panel user id as text) so bot + site data auto-consolidate.
     """
 
     # --- write side (fire-and-forget) ---

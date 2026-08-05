@@ -1,7 +1,7 @@
 """Bot-side onboarding funnel emits (metrics spec §5).
 
 The bot publishes the same ``FunnelStepEvent`` the site posts, so the funnel is
-comparable across surfaces. ``MetricsEventListener`` resolves the ``remnawave_uuid``
+comparable across surfaces. ``MetricsEventListener`` resolves the panel user id
 from ``telegram_id`` and writes the row. Emitting is fire-and-forget: a telemetry
 hiccup must never break the onboarding dialog.
 """

@@ -84,6 +84,16 @@ REMNAWAVE_WEBHOOK_PATH: Final[str] = "/remnawave"
 
 IMPORTED_TAG: Final[str] = "IMPORTED"
 INLINE_QUERY_INVITE: Final[str] = "invite"
+# Parked panel id for a subscription whose panel user was already gone at the 3.x
+# cutover — an account merge or a delete removed it, so migration 0056 had nothing to
+# resolve and stamped this instead of blocking the rollout. Panel ids are a positive
+# sequence (`z.coerce.number().positive()` on every path param), so nothing can ever
+# resolve onto it — but for the same reason nothing may be *sent* to the panel either:
+# id 0 is a 400, not a 404. Callers that sweep a user's whole subscription history have
+# to skip it. Migration 0056 repeats the literal on purpose; a migration must not import
+# a constant that can drift under it.
+NO_PANEL_USER: Final[int] = 0
+
 REMNASHOP_PREFIX: Final[str] = "rs_"
 WEB_PREFIX: Final[str] = "web_"
 PAYMENT_PREFIX: Final[str] = "payment_"

@@ -1,7 +1,7 @@
 # Metrics & Analytics Layer — Runbook
 
 Implements `specs/tuna-vpn-metrics-spec-en.md`. One append-only `events` table in
-the shared Postgres, written async by bot + site and keyed on `remnawave_uuid`;
+the shared Postgres, written async by bot + site and keyed on the panel user id;
 business events close the economic hypotheses, and `node_status` rows (from
 Remnawave node webhooks) give passive node-health monitoring. Offline computation
 only — no live dashboards.
@@ -37,8 +37,17 @@ Health (§6): `node_status` (from Remnawave node webhooks).
 
 `source` ∈ `bot | site | psp`. Business events are backend-origin (`bot`),
 except `payment`/`subscription_renewed` which are `psp` (PSP-webhook driven). Funnel
-rows carry the true surface. Per-user rows are keyed by `user_ref = remnawave_uuid`
+rows carry the true surface. Per-user rows are keyed by `user_ref` = the panel user id
 (`Subscription.user_remna_id`), resolved from the current subscription.
+
+Panel 3.x turned that id from a UUID into a numeric BigInt (still stored as text).
+Migration `0056` remaps the pre-upgrade rows in place — both `user_ref` and the
+`referrer_ref` inside `referral_attributed.properties` — so timelines stay joinable
+across the swap. It has to happen there and nowhere else: the uuid→id mapping exists
+only while both subscription columns are populated, and `0056` drops the uuid one.
+Rows whose uuid no longer has a subscription (panel user deleted, or retired by hand
+to clear the migration's guard) keep the uuid and stay orphaned — a dead key either
+way, and blanking it would destroy data in an append-only store.
 
 ## Fire-and-forget guarantee (§2, §7)
 

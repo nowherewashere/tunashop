@@ -19,6 +19,7 @@ from src.application.common.policy import Permission
 from src.application.common.remnawave import Remnawave
 from src.application.common.uow import UnitOfWork
 from src.application.dto import UserDto
+from src.core.constants import NO_PANEL_USER
 from src.core.exceptions import (
     UserDeletionPanelError,
     UserDeletionPrivilegedError,
@@ -112,8 +113,14 @@ class DeleteUser(Interactor[int, DeleteUserResult]):
         telegram_id = target.telegram_id
         # Every subscription the user ever had, not only the current one: each carries
         # its own panel user, and an old one left behind still holds a username.
+        # NO_PANEL_USER is skipped: migration 0056 parks rows whose panel user was
+        # already gone on it, and the panel's path params are `z.coerce.number()
+        # .positive()`, so asking it to delete id 0 is a 400 — which this method turns
+        # into a refusal to delete the user at all.
         panel_ids: set[int] = {
-            sub.user_remna_id for sub in await self.subscription_dao.get_all_by_user(target.id)
+            sub.user_remna_id
+            for sub in await self.subscription_dao.get_all_by_user(target.id)
+            if sub.user_remna_id != NO_PANEL_USER
         }
         # Read while the row still exists — the conversation cascades away with it, and
         # its forum topic has to be closed from the outside afterwards.

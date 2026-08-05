@@ -12,8 +12,8 @@ from .timestamp import NOW_FUNC
 class Event(BaseSql):
     """The single append-only analytics store (metrics spec §3).
 
-    One flat, additive table shared by bot + site + probes, keyed by
-    ``remnawave_uuid`` (the spine that links bot↔site). No joins on write, flexible
+    One flat, additive table shared by bot + site + probes, keyed by the panel user id
+    (the spine that links bot↔site). No joins on write, flexible
     ``properties`` JSONB, near-zero write weight. Deliberately NOT a ``TimestampMixin``
     row: an event has exactly one time, ``ts`` — there is no "updated_at" for an
     immutable fact.
@@ -27,7 +27,9 @@ class Event(BaseSql):
         server_default=NOW_FUNC,
         nullable=False,
     )
-    # remnawave_uuid; NULL for node-level / active-probe rows that aren't per-user.
+    # Panel user id as text (`Subscription.user_remna_id`); NULL for node-level /
+    # active-probe rows that aren't per-user. Text, not BigInt: rows written before the
+    # panel 3.x upgrade hold the old UUID, so both spellings have to coexist here.
     user_ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     source: Mapped[str] = mapped_column(String(16), nullable=False)  # MetricSource
     event_type: Mapped[str] = mapped_column(String(48), nullable=False)  # MetricEvent

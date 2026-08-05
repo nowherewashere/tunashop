@@ -14,7 +14,7 @@ from src.application.use_cases.referral.queries.summary import (
     GetReferralSummary,
     GetReferralSummaryDto,
 )
-from src.core.constants import MERGE_SUPERSEDED_PAYOUT_REASON
+from src.core.constants import MERGE_SUPERSEDED_PAYOUT_REASON, NO_PANEL_USER
 from src.core.enums import SubscriptionStatus
 from src.core.utils.money import kop_to_rub
 
@@ -227,7 +227,10 @@ class AccountMergeService:
         for sub in await self.subscription_dao.get_all_by_user(survivor_id):
             if sub.user_remna_id == keep:
                 continue
-            orphans.add(sub.user_remna_id)
+            # Same skip as DeleteUser: a row parked on NO_PANEL_USER has no panel user
+            # to delete, and asking the panel for id 0 is a 400 rather than a no-op.
+            if sub.user_remna_id != NO_PANEL_USER:
+                orphans.add(sub.user_remna_id)
             if sub.status != SubscriptionStatus.DELETED:
                 await self.subscription_dao.update_status(sub.id, SubscriptionStatus.DELETED)
         return orphans

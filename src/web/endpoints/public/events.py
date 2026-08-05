@@ -1,5 +1,5 @@
+import re
 from typing import Optional
-from uuid import UUID
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
@@ -28,12 +28,28 @@ _FUNNEL_RATE_WINDOW_SECONDS = 60
 _FUNNEL_GLOBAL_RATE_LIMIT = 3000
 _PLATFORM_MAX_LEN = 32
 
+# A panel user id is a Postgres BigInt (`Subscription.user_remna_id`), so the largest
+# ref the backend itself can ever emit is the signed 64-bit maximum.
+_MAX_USER_REF = 2**63 - 1
+# Digits only, no leading zero, capped at BigInt's digit count. One id must have exactly
+# one spelling — accepting "007" beside "7" would split a single user's timeline across
+# two keys — and the length cap keeps the int() conversion cheap on hostile input.
+# Deliberately not `str.isdigit()`: that is also true of "²" and of non-ASCII digits such
+# as "٥", which int() would then quietly fold into an ordinary ASCII number.
+_USER_REF_PATTERN = re.compile(r"[1-9][0-9]{0,18}")
+
 
 class FunnelStepRequest(BaseModel):
     step: str = Field(..., max_length=48)
     platform: Optional[str] = Field(default=None, max_length=_PLATFORM_MAX_LEN)
-    # remnawave_uuid — the SPA sends it only after the subscription is known; the
+    # The panel user id — the SPA sends it only after the subscription is known; the
     # early funnel steps (start/device) are anonymous and leave it null.
+    #
+    # Stays a loose string with a generous cap even though the id is now numeric: this
+    # is only a payload-size guard, and `_clean_user_ref` below is the real check.
+    # Declaring it `int` (or shrinking the cap to BigInt's 19 digits) would make pydantic
+    # reject a malformed value with a 422 *before* the handler runs, breaking the
+    # always-204 contract; as a string it is quietly recorded as NULL instead.
     user_ref: Optional[str] = Field(default=None, max_length=64)
 
 
@@ -100,11 +116,20 @@ async def track_funnel_step(
 
 
 def _clean_user_ref(user_ref: Optional[str]) -> Optional[str]:
-    """Accept a ``user_ref`` only if it is a real UUID — keeps the append-only store
-    from being polluted with arbitrary keys from an open endpoint."""
+    """Accept a ``user_ref`` only if it is a well-formed Remnawave panel user id — keeps
+    the append-only store from being polluted with arbitrary keys from an open endpoint.
+
+    Panel 3.x replaced the user UUID with a numeric BigInt id (migrations 0055/0056), so
+    the shape enforced here is "positive integer within BigInt range" rather than "parses
+    as a UUID". That is exactly what the site echoes back: it forwards the
+    ``user_remna_id`` string it got from ``SubscriptionInfoResponse`` untouched.
+
+    Zero is refused along with the negatives: panel ids are a positive sequence, so a 0
+    is a client bug or a probe, and accepting it would pile unrelated sessions into one
+    bogus shared key.
+    """
     if not user_ref:
         return None
-    try:
-        return str(UUID(user_ref))
-    except (ValueError, AttributeError):
+    if not _USER_REF_PATTERN.fullmatch(user_ref):
         return None
+    return user_ref if int(user_ref) <= _MAX_USER_REF else None
