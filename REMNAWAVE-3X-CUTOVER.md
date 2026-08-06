@@ -200,6 +200,32 @@ sudo -n docker exec remnawave-db psql -U postgres -d postgres -c \
 
 Those `id` values must equal the `user_remna_id_bigint` you backfilled.
 
+### Restart the nginx in front of the panel — this is not optional
+
+```bash
+sudo -n docker restart remnawave-nginx      # or whatever fronts the panel on prod
+```
+
+Recreating the panel container gives it a **new address on the docker network**, and
+nginx resolves `upstream { server remnawave:3000; }` once at config load and caches it
+for the life of the process. It keeps proxying to the address the panel used to have:
+
+```
+connect() failed (111: Connection refused) while connecting to upstream,
+server: <panel domain>  →  502
+```
+
+Nothing about this looks like the panel: `docker ps` says healthy, `RestartCount 0`, and
+the panel's own log is silent because no request reaches it. The **bot keeps working
+throughout** — httpx resolves per connection — so the API is fine while the admin UI is
+dead, which is a genuinely confusing pair of symptoms. Observed on the lab: the panel was
+recreated at 22:49 and its UI served 502 until nginx was restarted twelve hours later.
+
+The bot's own compose file pins `ipv4_address` specifically to dodge this (see the
+comment on the `remnashop` service); the panel service has no such pin, so the restart is
+the fix. Do it immediately after `compose up -d remnawave`, before you judge whether the
+upgrade worked.
+
 **Fails if** `APP_SECRET` is missing (boot loop, above) or wrong (panel healthy, every
 API call 401 — including the bot's, with no panel-side log line).
 
@@ -412,6 +438,18 @@ container. Wrong → healthy panel, every API token 401, no explanatory panel lo
 The app service's pinned `ipv4_address` makes it fail with `Address already in use` while
 the bot holds it. Use `docker run --network remnawave-network`. Corrected in the script's
 usage block, which previously prescribed the compose form.
+
+### D-8 · High · Recreating the panel 502s its UI until nginx is restarted *(runbook only)*
+
+The fronting nginx caches the panel's docker-network address at config load, so the
+container's new address after `compose up -d remnawave` is never picked up:
+`connect() failed (111: Connection refused) … 502`. The panel reports healthy, its log
+stays silent, and the bot keeps working because httpx resolves per connection — so the
+obvious readings ("panel is down", "the upgrade broke it") are all wrong.
+
+Missed by the first two rehearsal passes because every check went through the docker
+network or the bot, never through the public ingress. Cost twelve hours of a dead admin
+UI on the lab before it was noticed from a browser. Restart is now a step in §3.
 
 ### D-7 · Low · Update checker mangles version tags *(not fixed — out of scope)*
 
