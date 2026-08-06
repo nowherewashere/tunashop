@@ -39,25 +39,34 @@ class PlanDaoImpl(PlanDao):
         plan_data.pop("pool_quotas", None)
 
         db_plan = Plan(**plan_data)
-        for quota in plan.pool_quotas:
-            db_plan.pool_quotas.append(
-                PlanTrafficPool(
-                    pool_id=quota.pool_id,
-                    quota_gb=quota.quota_gb,
-                    reset_strategy=quota.reset_strategy,
-                )
+        # Assign every owned collection, never append into it. An append loop over an
+        # empty source never touches the attribute at all, so it stays unloaded; once
+        # flush() turns the row persistent, `_convert_to_dto` reading it emits a lazy
+        # SELECT from synchronous adaptix code and asyncpg raises MissingGreenlet. The
+        # plan is then never created. `update` below has always assigned for this reason.
+        db_plan.pool_quotas = [
+            PlanTrafficPool(
+                pool_id=quota.pool_id,
+                quota_gb=quota.quota_gb,
+                reset_strategy=quota.reset_strategy,
             )
+            for quota in plan.pool_quotas
+        ]
 
+        db_durations = []
         for duration_data in durations_data:
             duration_data.pop("id", None)
             prices_data = duration_data.pop("prices", [])
             db_duration = PlanDuration(**duration_data)
 
-            for price_data in prices_data:
-                price_data.pop("id", None)
-                db_duration.prices.append(PlanPrice(**price_data))
+            db_duration.prices = [
+                PlanPrice(**{k: v for k, v in price_data.items() if k != "id"})
+                for price_data in prices_data
+            ]
 
-            db_plan.durations.append(db_duration)
+            db_durations.append(db_duration)
+
+        db_plan.durations = db_durations
 
         self.session.add(db_plan)
         await self.session.flush()
