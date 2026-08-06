@@ -69,7 +69,9 @@ async def configurator_getter(
     squad_names = {squad.uuid: squad.name for squad in await remnawave.get_internal_squads()}
 
     return {
-        "name": pool.name,
+        # A draft has no name until the admin sets one; without this the header rendered
+        # as "⚡ Пул:" with nothing after the colon.
+        "name": pool.name or "—",
         "is_active": pool.is_active,
         "is_edit": bool(pool.id),
         # `internal_squad_uuid` is not Optional, so `is not None` was true even for a
@@ -147,9 +149,9 @@ async def nodes_getter(
             # The squad was picked once and has since been deleted on the panel. The pool
             # is now metering nothing, which the admin has to be told rather than shown as
             # an empty list — and a getter that raises takes the whole window with it.
-            return {"name": pool.name, "nodes": _SQUAD_GONE}
+            return {"name": pool.name or "—", "nodes": _SQUAD_GONE}
 
     return {
-        "name": pool.name,
+        "name": pool.name or "—",
         "nodes": "\n".join(f"• {node}" for node in nodes) if nodes else False,
     }

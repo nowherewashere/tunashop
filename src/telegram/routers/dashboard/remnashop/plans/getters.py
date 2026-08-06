@@ -365,7 +365,9 @@ async def pool_quota_getter(
     quota = next((q for q in plan.pool_quotas if q.pool_id == pool_id), None)
 
     return {
-        "pool_name": pool.name if pool else str(pool_id),
+        # `str(pool_id)` printed the literal "None" when nothing had been selected yet.
+        # A pool that has since been deleted still shows its id, which is actionable.
+        "pool_name": pool.name if pool else (f"#{pool_id}" if pool_id is not None else "—"),
         "quota_gb": quota.quota_gb if quota else 0,
         # Named to match the `traffic-strategy` term's argument, which this screen
         # reuses so the wording is identical to the plan's own traffic strategy.

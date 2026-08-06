@@ -42,8 +42,11 @@ async def configurator_getter(
     link_url = await bot_service.get_ad_link_url(link.code) if link.code else ""
 
     return {
-        "name": link.name,
-        "code": link.code or "0",
+        # An unsaved draft has neither yet. Show the dash the rest of the dashboard uses
+        # for "not set" -- `or "0"` rendered as `• Код: 0`, which reads like a real code,
+        # and a bare empty name rendered as `• Название:` with nothing after it.
+        "name": link.name or "—",
+        "code": link.code or "—",
         "is_active": int(link.is_active),
         "is_edit": is_edit,
         "link_url": link_url,
