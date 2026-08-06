@@ -144,5 +144,18 @@ class GetPoolNodes(Interactor[GetPoolNodesDto, list[str]]):
         self.remnawave = remnawave
 
     async def _execute(self, actor: UserDto, data: GetPoolNodesDto) -> list[str]:
+        # Ask what squads exist before asking about one of them, exactly as
+        # CommitTrafficPool does. A saved pool's squad can be deleted on the panel
+        # afterwards, and `get_accessible_nodes` answers that with a 404 -> NotFoundError.
+        # Raised out of a dialog getter that becomes "cannot get window data" and the
+        # screen will not render at all, so the miss is turned into the domain error the
+        # dashboard already knows how to say out loud.
+        squads = {squad.uuid for squad in await self.remnawave.get_internal_squads()}
+        if data.squad_uuid not in squads:
+            logger.warning(
+                f"{actor.log} Pool squad '{data.squad_uuid}' is not present in the panel"
+            )
+            raise PoolSquadNotFoundError()
+
         nodes = await self.remnawave.get_squad_nodes(data.squad_uuid)
         return [f"{node.country_code} {node.name}".strip() for node in nodes]

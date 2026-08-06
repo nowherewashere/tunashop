@@ -14,6 +14,11 @@ from src.application.use_cases.traffic_pool import (
     GetTrafficPools,
 )
 from src.core.constants import UNASSIGNED_SQUAD, USER_KEY
+from src.core.exceptions import PoolSquadNotFoundError
+
+# Selector value in `msg-pool-nodes`. A plain sentinel rather than a second getter key,
+# because the window renders one message and Fluent already branches on `$nodes`.
+_SQUAD_GONE = "GONE"
 
 
 def _draft(dialog_manager: DialogManager, retort: Retort) -> TrafficPoolDto:
@@ -136,7 +141,13 @@ async def nodes_getter(
     # empty — so treat "no squad" as "no nodes", which the template already renders.
     nodes: list[str] = []
     if pool.internal_squad_uuid != UNASSIGNED_SQUAD:
-        nodes = await get_pool_nodes(user, GetPoolNodesDto(squad_uuid=pool.internal_squad_uuid))
+        try:
+            nodes = await get_pool_nodes(user, GetPoolNodesDto(squad_uuid=pool.internal_squad_uuid))
+        except PoolSquadNotFoundError:
+            # The squad was picked once and has since been deleted on the panel. The pool
+            # is now metering nothing, which the admin has to be told rather than shown as
+            # an empty list — and a getter that raises takes the whole window with it.
+            return {"name": pool.name, "nodes": _SQUAD_GONE}
 
     return {
         "name": pool.name,
