@@ -72,7 +72,8 @@ async def code_getter(
 ) -> dict[str, Any]:
     raw = dialog_manager.dialog_data.get(AdLinkDto.__name__)
     link = retort.load(raw, AdLinkDto) if raw else AdLinkDto(name="", code="")
-    return {"code": link.code or "0"}
+    # Same "not set yet" dash as the configurator screen this one is opened from.
+    return {"code": link.code or "—"}
 
 
 @inject
