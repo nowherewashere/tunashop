@@ -1310,10 +1310,10 @@ msg-plan-configurator =
         [1] { unlimited }
         *[0] { $traffic_limit }
         }
-    • <b>Лимит устройств</b>: { $is_unlimited_devices -> 
+    • <b>Лимит устройств</b>: { $is_unlimited_devices ->
         [1] { unlimited }
         *[0] { $device_limit }
-        }
+        }{ $pools_line }
     </blockquote>
 
     Выберите пункт для изменения.
@@ -1590,15 +1590,39 @@ msg-subscription-plans =
 # One card per available plan — assembled in the getters and injected above.
 # Locations are per-plan (edited in the dashboard); the getter pre-renders the
 # frg-plan-locations line into { $locations_line }, or "" when the plan has none.
+# { $pools_line } works the same way — see frg-plan-pool below.
 frg-plan-card =
     <b>{ $name }</b>
     <blockquote>
     • <b>Трафик</b>: { $traffic }
-    • <b>Устройства</b>: { $devices }{ $locations_line }
+    • <b>Устройства</b>: { $devices }{ $locations_line }{ $pools_line }
     </blockquote>
 frg-plan-locations =
     { "" }
     • <b>Локации</b>: { $locations }
+
+# Premium-pool lines for the cards above. A plan can meter several pools and an FTL
+# pattern cannot loop, so the getters assemble the block and inject it as one
+# { $pools_line } — "" when the plan meters nothing, or the feature is off.
+#
+# frg-plan-pool — a plan being OFFERED. No accounting window exists before purchase,
+# so only the quota and how often it resets can be stated.
+frg-plan-pool =
+    { "" }
+    • <b>{ $name }</b>: { $quota } / { traffic-strategy }
+# frg-plan-pool-usage — a plan the user HOLDS: what is left in the window the metering
+# pass is judging. UNKNOWN is the panel being unreachable, and is deliberately not
+# rendered as a full quota the user may not actually have.
+frg-plan-pool-usage =
+    { "" }
+    • <b>{ $name }</b>: { $state ->
+    [EXHAUSTED] квота { $quota } израсходована
+    [UNKNOWN] квота { $quota } (расход временно неизвестен)
+    *[LEFT] осталось { $remaining } из { $quota }
+    }{ $reset ->
+    [0] { "" }
+    *[HAS] { " " }· сброс { $reset }
+    }
 msg-subscription-new-success = Чтобы начать пользоваться сервисом, нажми кнопку <code>`{ btn-subscription.connect }`</code> и следуй инструкциям!
 msg-subscription-renew-success = Твоя подписка продлена на { $added_duration }.
 
@@ -1631,7 +1655,7 @@ msg-subscription-details =
     }
 
     • <b>Лимит трафика</b>: { $traffic }
-    • <b>Лимит устройств</b>: { $devices }
+    • <b>Лимит устройств</b>: { $devices }{ $pools_line }
     { $period ->
     [0] { empty }
     *[HAS] • <b>Длительность</b>: { $period }
@@ -1734,7 +1758,7 @@ msg-subscription-success =
     <b>Подписка { $plan_name }</b>
     <blockquote>
     • <b>Трафик</b>: { $traffic_limit }
-    • <b>Устройства</b>: { $device_limit }
+    • <b>Устройства</b>: { $device_limit }{ $pools_line }
     • <b>Осталось</b>: { $expire_time }
     </blockquote>
 

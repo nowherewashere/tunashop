@@ -10,9 +10,11 @@ from remnapy.enums.users import TrafficLimitStrategy
 from src.application.common import BotService, Remnawave, TranslatorRunner
 from src.application.common.dao import PlanDao
 from src.application.dto import PlanDto, PlanDurationDto, PlanPriceDto, TelegramUserDto
+from src.application.services.traffic_pools import TrafficPoolAccessService
 from src.application.use_cases.traffic_pool import GetTrafficPools
 from src.core.constants import USER_KEY
 from src.core.enums import Currency, PlanAvailability, PlanType
+from src.telegram.utils import plan_pool_lines
 
 
 @inject
@@ -67,6 +69,8 @@ async def configurator_getter(
     bot_service: FromDishka[BotService],
     retort: FromDishka[Retort],
     i18n: FromDishka[TranslatorRunner],
+    pool_access: FromDishka[TrafficPoolAccessService],
+    get_pools: FromDishka[GetTrafficPools],
     **kwargs: Any,
 ) -> dict[str, Any]:
     raw_plan = dialog_manager.dialog_data.get(PlanDto.__name__)
@@ -113,11 +117,21 @@ async def configurator_getter(
     else:
         plan = retort.load(raw_plan, PlanDto)
 
+    # Gated on the feature flag, not just on the plan having quotas: with pools off
+    # nothing meters or enforces them, and a card advertising an inert quota reads as
+    # a promise. The «Квоты по пулам» screen still shows and edits them either way,
+    # so a quota configured ahead of the rollout is never hidden from its own editor.
+    user: TelegramUserDto = dialog_manager.middleware_data[USER_KEY]
+    pools_by_id = (
+        {pool.id: pool for pool in await get_pools(user)} if pool_access.is_enabled else {}
+    )
+
     helpers = {
         "name": plan.name,
         "is_edit": dialog_manager.dialog_data.get("is_edit", False),
         "is_unlimited_traffic": plan.is_unlimited_traffic,
         "is_unlimited_devices": plan.is_unlimited_devices,
+        "pools_line": plan_pool_lines(i18n, plan.pool_quotas, pools_by_id),
         "plan_type": plan.type,
         "availability_type": plan.availability,
         "plan_url": f"{await bot_service.get_plan_url(plan.public_code)}"

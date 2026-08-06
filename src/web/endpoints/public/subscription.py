@@ -189,20 +189,18 @@ async def get_current_subscription(
     # None (not []) while the feature is off or the plan meters nothing, so the cabinet
     # can tell "no pools on this plan" from "pools exist but I could not read them".
     pool_views = await pool_access.build_views(current_subscription)
-    pools = (
-        [
-            PoolUsageResponse(
-                pool_id=view.pool_id,
-                name=view.name,
-                quota_bytes=view.quota_bytes,
-                used_bytes=view.used_bytes,
-                is_exhausted=view.is_exhausted,
-                reset_at=view.reset_at,
-            )
-            for view in pool_views
-        ]
-        or None
-    )
+    pools = [
+        PoolUsageResponse(
+            pool_id=view.pool_id,
+            name=view.name,
+            quota_bytes=view.quota_bytes,
+            used_bytes=view.used_bytes,
+            remaining_bytes=view.remaining_bytes,
+            is_exhausted=view.is_exhausted,
+            reset_at=view.reset_at,
+        )
+        for view in pool_views
+    ] or None
 
     return SubscriptionInfoResponse(
         user_remna_id=str(current_subscription.user_remna_id),
