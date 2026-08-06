@@ -100,20 +100,28 @@ def get_traffic_period_start(  # noqa: C901
     them to ``startOf('day')``/``endOf('day')``, inclusive at both ends, so the times of
     day above are unrepresentable and the date on which a window opens falls inside that
     window *and* the one before it. The double-counted slice is the boundary's own
-    offset: ten minutes at most for the calendar strategies, and for ``NO_RESET`` —
-    whose window opens whenever the subscription was created — the rest of that calendar
-    day. It errs against the user, never in their favour. None of this is a timezone
-    problem: both sides work in UTC (:data:`~src.core.constants.TIMEZONE`), it is
-    granularity alone. Callers that group or compare windows must do it at the same
-    granularity to match — see :func:`to_panel_day_start`.
+    offset — ten minutes at most. It errs against the user, never in their favour. None
+    of this is a timezone problem: both sides work in UTC
+    (:data:`~src.core.constants.TIMEZONE`), it is granularity alone. Callers that group
+    or compare windows must do it at the same granularity to match — see
+    :func:`to_panel_day_start`.
 
-    ``NO_RESET`` has no boundary: the window opened when the subscription did and never
-    closes, so ``created_at`` is returned verbatim.
+    ``NO_RESET`` has no closing boundary: the window opens with the subscription and
+    never rolls. Its start is nonetheless snapped back to the 1st of the month the
+    subscription began, for a purely operational reason. The metering pass issues one
+    panel request per *distinct window start*, so anchoring on the exact creation
+    instant would cost one request per signup date — hundreds, every quarter of an hour.
+    Snapping collapses that to one per signup month. It cannot change any figure: before
+    the subscription existed the user did not hold the pool's squad, so the widened
+    leading slice contains no traffic of theirs. The one case where that reasoning would
+    not hold — a fresh window opening mid-month for someone who already spent on this
+    pool in the same month — is precisely a renewal, where the quota is meant to start
+    over anyway.
     """
     now = now or datetime_now()
 
     if strategy == TrafficLimitStrategy.NO_RESET:
-        return created_at
+        return datetime(created_at.year, created_at.month, 1, 0, 10, 0, tzinfo=TIMEZONE)
 
     if strategy == TrafficLimitStrategy.DAY:
         return datetime.combine(now.date(), datetime.min.time(), tzinfo=TIMEZONE)

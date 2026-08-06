@@ -40,15 +40,31 @@ class PoolQuotaSnapshotDto:
     Carries the *priced* part only — the quota and its period. The pool's name and
     squad stay live on ``traffic_pools`` (single source of truth), so renaming a pool
     or fixing its squad reflects everywhere at once, exactly like ``plan.locations``.
+
+    ``quota_gb`` is the quota for the **whole term**: the plan prices it per month and
+    :func:`~src.core.utils.converters.quota_months` scales it at purchase, so a 3-month
+    term freezes 3× the monthly figure and ``reset_strategy`` is ``NO_RESET``. Written
+    that way rather than resolved on read so the terms a user bought cannot drift when
+    an admin later edits the live plan.
     """
 
     pool_id: int
     quota_gb: int
-    reset_strategy: TrafficLimitStrategy = TrafficLimitStrategy.MONTH
+    # What the plan advertises per month, kept alongside the multiplied total so the
+    # two stay distinguishable — «500 ГБ/мес × 3» reads differently from an admin
+    # typing 1500. Defaults to 0 for snapshots written before the scaling existed;
+    # `base_or_total` is what surfaces should read.
+    base_quota_gb: int = 0
+    reset_strategy: TrafficLimitStrategy = TrafficLimitStrategy.NO_RESET
 
     @property
     def quota_bytes(self) -> int:
         return gb_to_bytes(self.quota_gb)
+
+    @property
+    def base_or_total_gb(self) -> int:
+        """The monthly figure, falling back to the total for pre-scaling snapshots."""
+        return self.base_quota_gb or self.quota_gb
 
 
 @dataclass(kw_only=True)

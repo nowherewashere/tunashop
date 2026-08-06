@@ -76,6 +76,24 @@ def bytes_to_gb(value: Optional[int]) -> int:
     return _round_decimal(Decimal(value) / _GB_FACTOR)
 
 
+def quota_months(duration_days: int) -> int:
+    """How many months of pool quota a plan of ``duration_days`` grants.
+
+    A pool quota is priced per month, so a longer term simply gets a proportionally
+    larger one — spent across the whole term rather than reset every month. Only exact
+    multiples of 30 scale: the catalogue is built from 30/90/180/360, and stretching an
+    odd term (a 3-day trial, a 365-day leftover) into a fractional quota would produce
+    numbers nobody chose. Everything else, including the open-ended ``0``, gets ×1.
+
+    Single source of the rule — the snapshot writes it into the frozen quota, and the
+    offer surfaces re-derive it to show what a given term will actually grant.
+    """
+    if duration_days > 0 and duration_days % 30 == 0:
+        return duration_days // 30
+
+    return 1
+
+
 def percent(part: Union[int, float], whole: Union[int, float]) -> float:
     if whole == 0:
         return 0

@@ -20,13 +20,13 @@ msg-main-menu =
     { $trial_ending ->
     [1]
     <blockquote>
-    • <b>Трафик</b>: { $traffic_limit }
+    • <b>Трафик</b>: { $traffic_limit }{ $pools_line }
     • <b>Устройства</b>: { $device_limit }
     • ⏳ <b>Осталось</b>: { $expire_time } — продли, чтобы не отключиться
     </blockquote>
     *[0]
     <blockquote>
-    • <b>Трафик</b>: { $traffic_limit }
+    • <b>Трафик</b>: { $traffic_limit }{ $pools_line }
     • <b>Устройства</b>: { $device_limit }
     • <b>Осталось</b>: { $expire_time }
     </blockquote>
@@ -694,7 +694,7 @@ msg-user-sync-subscription =
     }
     • Ссылка: <a href="{ $url }">*********</a>
 
-    • Лимит трафика: { $traffic_limit }
+    • Лимит трафика: { $traffic_limit }{ $pools_line }
     • Лимит устройств: { $device_limit }
     • Осталось: { $expire_time }
 
@@ -1306,14 +1306,14 @@ msg-plan-configurator =
     </blockquote>
     
     <blockquote>
-    • <b>Лимит трафика</b>: { $is_unlimited_traffic -> 
+    • <b>Лимит трафика</b>: { $is_unlimited_traffic ->
         [1] { unlimited }
         *[0] { $traffic_limit }
-        }
+        }{ $pools_line }
     • <b>Лимит устройств</b>: { $is_unlimited_devices ->
         [1] { unlimited }
         *[0] { $device_limit }
-        }{ $pools_line }
+        }
     </blockquote>
 
     Выберите пункт для изменения.
@@ -1447,16 +1447,18 @@ msg-plan-external-squads =
 msg-plan-pool-quotas =
     <b>⚡ Квоты по пулам</b>
 
-    Трафик на обычных локациях безлимитен. Пул — это премиум-локации, на которых у плана есть отдельная квота: когда она исчерпана, сквад пула снимается с пользователя до конца периода, остальные локации продолжают работать.
+    Трафик на обычных локациях безлимитен. Пул — это премиум-локации, на которых у плана есть отдельная квота: когда она исчерпана, сквад пула снимается с пользователя до конца срока, остальные локации продолжают работать.
+
+    Квота задаётся <b>на месяц</b> и умножается на длительность: при тарифе на 3 месяца пользователь получает тройную квоту одним объёмом на весь срок, без ежемесячного обнуления.
 
     Квота работает, только если сквад пула входит в список внутренних сквадов плана. Пулы без такого сквада отмечены ⚠️ — их квота не сохранится.
 
 msg-plan-pool-quota =
     <b>⚡ Квота: { $pool_name }</b>
 
-    Текущая квота: <b>{ $quota_gb } ГБ</b>, период сброса: <b>{ traffic-strategy }</b>.
+    Текущая квота: <b>{ $quota_gb } ГБ</b> в месяц.
 
-    Пришлите новое значение в гигабайтах. <b>0</b> — снять квоту: пул останется доступен, но без учёта.
+    Пришлите новое значение в гигабайтах — за месяц. На тарифах длиннее месяца оно умножается на число месяцев. <b>0</b> — снять квоту: пул останется доступен, но без учёта.
 
 msg-plan-pool-strategy =
     <b>🔄 Период сброса квоты</b>
@@ -1594,8 +1596,8 @@ msg-subscription-plans =
 frg-plan-card =
     <b>{ $name }</b>
     <blockquote>
-    • <b>Трафик</b>: { $traffic }
-    • <b>Устройства</b>: { $devices }{ $locations_line }{ $pools_line }
+    • <b>Трафик</b>: { $traffic }{ $pools_line }
+    • <b>Устройства</b>: { $devices }{ $locations_line }
     </blockquote>
 frg-plan-locations =
     { "" }
@@ -1603,25 +1605,30 @@ frg-plan-locations =
 
 # Premium-pool lines for the cards above. A plan can meter several pools and an FTL
 # pattern cannot loop, so the getters assemble the block and inject it as one
-# { $pools_line } — "" when the plan meters nothing, or the feature is off.
+# { $pools_line } — "" when the plan meters nothing, or the feature is off. It sits
+# directly under the traffic line everywhere: the two are one claim — unlimited
+# everywhere, metered only here.
 #
 # frg-plan-pool — a plan being OFFERED. No accounting window exists before purchase,
-# so only the quota and how often it resets can be stated.
+# so only the quota can be stated. { $per_month } marks the monthly rate on a shelf
+# that has not asked for a term yet; once a duration is picked the getter multiplies
+# instead and the suffix goes away.
 frg-plan-pool =
     { "" }
-    • <b>{ $name }</b>: { $quota } / { traffic-strategy }
-# frg-plan-pool-usage — a plan the user HOLDS: what is left in the window the metering
-# pass is judging. UNKNOWN is the panel being unreachable, and is deliberately not
-# rendered as a full quota the user may not actually have.
+    • <b>{ $name }</b>: { $quota }{ $per_month ->
+    [1] /мес
+    *[0] { "" }
+    }
+# frg-plan-pool-usage — a plan the user HOLDS: what is left of the term's quota.
+# UNKNOWN is the panel being unreachable, and is deliberately not rendered as a full
+# quota the user may not actually have. No reset date — the quota is bought for the
+# whole term and does not come back inside it.
 frg-plan-pool-usage =
     { "" }
     • <b>{ $name }</b>: { $state ->
-    [EXHAUSTED] квота { $quota } израсходована
-    [UNKNOWN] квота { $quota } (расход временно неизвестен)
-    *[LEFT] осталось { $remaining } из { $quota }
-    }{ $reset ->
-    [0] { "" }
-    *[HAS] { " " }· сброс { $reset }
+    [EXHAUSTED] { $remaining } / { $quota } — исчерпано
+    [UNKNOWN] { $quota } (расход временно неизвестен)
+    *[LEFT] { $remaining } / { $quota }
     }
 msg-subscription-new-success = Чтобы начать пользоваться сервисом, нажми кнопку <code>`{ btn-subscription.connect }`</code> и следуй инструкциям!
 msg-subscription-renew-success = Твоя подписка продлена на { $added_duration }.
@@ -1654,8 +1661,8 @@ msg-subscription-details =
     { $description }
     }
 
-    • <b>Лимит трафика</b>: { $traffic }
-    • <b>Лимит устройств</b>: { $devices }{ $pools_line }
+    • <b>Лимит трафика</b>: { $traffic }{ $pools_line }
+    • <b>Лимит устройств</b>: { $devices }
     { $period ->
     [0] { empty }
     *[HAS] • <b>Длительность</b>: { $period }
@@ -1721,31 +1728,13 @@ msg-subscription-platega-method =
 
     <blockquote>
     • <b>Тариф</b>: { $plan }
+    • <b>Трафик</b>: { $traffic }{ $pools_line }
+    • <b>Устройства</b>: { $devices }
     • <b>Длительность</b>: { $period }
     • <b>Стоимость</b>: { $final_amount } { $currency }
     </blockquote>
 
     { frg-purchase-notice }
-
-msg-subscription-confirm =
-    <b>🛒 Подтверждение { $purchase_type ->
-    [RENEW] продления
-    [CHANGE] изменения
-    *[OTHER] покупки
-    } подписки</b>
-
-    { msg-subscription-details }
-
-    { $purchase_type ->
-    [RENEW] ⚠️ Текущая подписка будет продлена на выбранный срок.
-    [CHANGE] ℹ️ Текущая подписка будет заменена выбранной; оставшееся время пересчитается в бонусные дни нового тарифа.
-    *[OTHER] { empty }
-    }
-
-    { $plan_is_modified ->
-    [0] { empty }
-    *[MODIFIED] ℹ️ Условия плана изменились с момента последней покупки — актуальные данные указаны выше.
-    }
 
 msg-subscription-trial =
     <b>✅ Пробная подписка успешно получена!</b>
@@ -1757,18 +1746,12 @@ msg-subscription-success =
 
     <b>Подписка { $plan_name }</b>
     <blockquote>
-    • <b>Трафик</b>: { $traffic_limit }
-    • <b>Устройства</b>: { $device_limit }{ $pools_line }
+    • <b>Трафик</b>: { $traffic_limit }{ $pools_line }
+    • <b>Устройства</b>: { $device_limit }
     • <b>Осталось</b>: { $expire_time }
     </blockquote>
 
     Спасибо, что остаёшься с Tuna 🐟
-
-msg-subscription-change-success =
-    Твоя подписка изменена.
-
-    <b>{ $plan_name }</b>
-    { frg-subscription }
 
 msg-subscription-failed =
     <b>❌ Произошла ошибка!</b>

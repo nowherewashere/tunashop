@@ -723,13 +723,10 @@ pool_quotas = Window(
 pool_quota = Window(
     Banner(BannerName.DASHBOARD),
     I18nFormat("msg-plan-pool-quota"),
-    Row(
-        SwitchTo(
-            text=I18nFormat("btn-plans.pool-strategy"),
-            id="pool_strategy",
-            state=RemnashopPlans.POOL_STRATEGY,
-        ),
-    ),
+    # No «Период сброса» button: a pool quota is now priced per month and frozen into
+    # the snapshot for the whole term (see PlanSnapshotDto.from_plan), so the stored
+    # strategy no longer decides anything and offering the choice would only mislead.
+    # The window below stays registered — unreachable, but a one-line revert away.
     Row(
         SwitchTo(
             text=I18nFormat("btn-back.general"),

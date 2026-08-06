@@ -110,17 +110,14 @@ frg-user-details =
     }
     </blockquote>
 
-frg-subscription =
-    <blockquote>
-    • <b>Лимит трафика</b>: { $traffic_limit }
-    • <b>Лимит устройств</b>: { $device_limit }
-    • <b>Осталось</b>: { $expire_time }
-    </blockquote>
-
+# { $pools_line } is pre-rendered by the getter (see src/telegram/utils.py) and sits
+# directly under the traffic line, the same as on every user-facing card. It is ""
+# when the plan meters no pool or the feature is off — and also on the notification
+# paths, whose events carry no pool figure.
 frg-subscription-user-editor =
     <blockquote>
     • <b>План</b>: { $plan_name }
-    • <b>Лимит трафика</b>: { $traffic_limit }
+    • <b>Лимит трафика</b>: { $traffic_limit }{ $pools_line }
     • <b>Лимит устройств</b>: { $device_limit }
     • <b>Осталось</b>: { $expire_time }
     </blockquote>
@@ -129,7 +126,7 @@ frg-subscription-details =
     <blockquote>
     • <b>ID</b>: <code>{ $subscription_id }</code>
     • <b>Статус</b>: { subscription-status }
-    • <b>Трафик</b>: { $traffic_used } / { $traffic_limit }
+    • <b>Трафик</b>: { $traffic_used } / { $traffic_limit }{ $pools_line }
     • <b>Лимит устройств</b>: { $device_limit }
     • <b>Осталось</b>: { $expire_time }
     </blockquote>
@@ -149,8 +146,8 @@ frg-payment-amount = { $final_amount }{ $currency } { $discount_percent ->
 frg-plan-snapshot =
     <blockquote>
     • <b>План</b>: <code>{ $plan_name }</code>
-    • <b>Тип</b>: { plan-type } 
-    • <b>Лимит трафика</b>: { $plan_traffic_limit }
+    • <b>Тип</b>: { plan-type }
+    • <b>Лимит трафика</b>: { $plan_traffic_limit }{ $plan_pools_line }
     • <b>Лимит устройств</b>: { $plan_device_limit }
     • <b>Длительность</b>: { $plan_duration }
     </blockquote>
@@ -268,6 +265,12 @@ unit-device = { $value ->
     [few] устройства
     *[OTHER] устройств
 }
+
+# A pool figure with the unit left off, for the «495 / 500 ГБ» pair — the unit is
+# stated once, on the right-hand half. It exists so both halves are formatted by
+# fluent under the same locale rules; formatting one of them in Python produced
+# «0.49 / 5,86 ТБ», two decimal separators in one line.
+frg-pool-amount = { $value }
 
 unit-byte = { $value } Б
 unit-kilobyte = { $value } КБ

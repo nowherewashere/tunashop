@@ -131,7 +131,9 @@ async def configurator_getter(
         "is_edit": dialog_manager.dialog_data.get("is_edit", False),
         "is_unlimited_traffic": plan.is_unlimited_traffic,
         "is_unlimited_devices": plan.is_unlimited_devices,
-        "pools_line": plan_pool_lines(i18n, plan.pool_quotas, pools_by_id),
+        # The plan is being edited, not sold for a term, so the card states the same
+        # per-month figure the admin typed — the ×N happens at purchase.
+        "pools_line": plan_pool_lines(i18n, plan.pool_quotas, pools_by_id, per_month=True),
         "plan_type": plan.type,
         "availability_type": plan.availability,
         "plan_url": f"{await bot_service.get_plan_url(plan.public_code)}"

@@ -7,6 +7,7 @@ from remnapy.enums.users import TrafficLimitStrategy
 
 from src.core.enums import Currency, PlanAvailability, PlanType
 from src.core.exceptions import PriceNotFoundError
+from src.core.utils.converters import quota_months
 
 from .base import BaseDto, TimestampMixin, TrackableMixin
 from .traffic_pool import PlanPoolQuotaDto, PoolQuotaSnapshotDto
@@ -61,11 +62,16 @@ class PlanSnapshotDto:
             duration=duration,
             internal_squads=plan.internal_squads,
             external_squad=plan.external_squad,
+            # Pool quotas are priced per month, so the term buys a proportionally larger
+            # one, spent as a single window instead of reset monthly — hence NO_RESET
+            # even for a one-month term, whose window then runs from the purchase rather
+            # than being cut in half by the calendar 1st.
             traffic_pools=[
                 PoolQuotaSnapshotDto(
                     pool_id=quota.pool_id,
-                    quota_gb=quota.quota_gb,
-                    reset_strategy=quota.reset_strategy,
+                    quota_gb=quota.quota_gb * quota_months(duration),
+                    base_quota_gb=quota.quota_gb,
+                    reset_strategy=TrafficLimitStrategy.NO_RESET,
                 )
                 for quota in plan.pool_quotas
             ],

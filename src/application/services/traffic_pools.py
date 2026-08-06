@@ -5,6 +5,7 @@ from uuid import UUID
 
 from loguru import logger
 from redis.asyncio import Redis
+from remnapy.enums.users import TrafficLimitStrategy
 
 from src.application.common import EventPublisher, Remnawave, TrafficPoolAccess
 from src.application.common.dao import SubscriptionDao, TrafficPoolDao, UserDao
@@ -99,13 +100,15 @@ class TrafficPoolAccessService(TrafficPoolAccess):
         self,
         plan: PlanSnapshotDto,
         usage_subscription_id: Optional[int],
+        *,
+        new_term: bool = False,
     ) -> list[UUID]:
         """The plan's squads minus the pools *this plan meters* and the user has spent.
 
         Called from every path that assigns ``subscription.internal_squads`` from a
-        plan. Without it a renewal, a promo reward or an admin plan grant would hand
-        an exhausted pool straight back, because each of those rewrites the squad
-        list wholesale from the plan.
+        plan. Without it a promo reward or a plan swap would hand an exhausted pool
+        straight back, because each of those rewrites the squad list wholesale from
+        the plan.
 
         Only pools the incoming plan actually meters are withheld. A plan that grants
         the same squad unmetered — or with a larger quota — is paying for access, and
@@ -113,10 +116,16 @@ class TrafficPoolAccessService(TrafficPoolAccess):
         window is about to be reconciled away, and nothing would ever hand the squad
         back. That is the upgrade the exhaustion notice sells.
 
+        ``new_term`` means a fresh term was bought outright, so the quota starts over
+        and there is nothing left to withhold — the matching
+        :meth:`reconcile_windows` call opens the new window. Passing it here as well
+        is what makes the squad come back *now* rather than on the next metering tick,
+        which matters because the user is looking at the success screen.
+
         A subscription with no windows yet (a brand-new purchase) gets the plan's
         list verbatim — as does everyone while the feature is switched off.
         """
-        if not self.is_enabled or usage_subscription_id is None:
+        if not self.is_enabled or usage_subscription_id is None or new_term:
             return list(plan.internal_squads)
 
         metered = {quota.pool_id for quota in plan.traffic_pools if quota.quota_gb > 0}
@@ -139,15 +148,32 @@ class TrafficPoolAccessService(TrafficPoolAccess):
         self,
         subscription_id: int,
         plan_snapshot: PlanSnapshotDto,
+        *,
+        new_term: bool = False,
     ) -> None:
         """Close windows for pools the (new) plan does not meter.
 
         A plan change can move the user onto a plan that grants the same pool with no
         quota at all — a leftover window must not keep cutting a squad the new plan
-        gives away freely. Windows for pools the new plan *does* meter are deliberately
-        left in place: they carry the period the user is already inside, so switching
-        plans is never a free quota reset. Missing windows are opened by the metering
-        pass, which is the only place that knows the real usage behind them.
+        gives away freely. Missing windows are opened by the metering pass, which is the
+        only place that knows the real usage behind them.
+
+        ``new_term`` is the caller stating that a *fresh* term was bought at full price
+        (a renewal, a balance extension, an admin grant) rather than swapped with credit
+        for the unused part of the current one. The quota is priced per term, so a fresh
+        term opens a fresh window.
+
+        It has to be said explicitly, because since the quota became term-long the window
+        no longer rolls on its own: ``_roll_window`` only acts when ``period_start``
+        moves, and under ``NO_RESET`` it never does. Without this an exhausted pool would
+        stay exhausted for the rest of the user's life with the service — a renewal would
+        take their money and hand back nothing.
+
+        A *swap* deliberately keeps the window instead. Its counter follows the user onto
+        the new plan, and access comes back only if the new quota genuinely exceeds what
+        they have already spent — which ``_apply_verdict`` notices on the next pass and
+        restores. That is the upgrade the exhaustion notice sells, and it is also what
+        stops a swap between two equally-priced plans from being a free quota reset.
         """
         if not self.is_enabled:
             return
@@ -164,6 +190,26 @@ class TrafficPoolAccessService(TrafficPoolAccess):
                 f"Subscription '{subscription_id}': closed '{len(stale)}' pool window(s) "
                 f"the new plan no longer meters"
             )
+
+        if not new_term or not metered:
+            return
+
+        # Anchored on now, not on the subscription's creation: a renewal reuses the same
+        # row, whose created_at still points at the original purchase — counting from
+        # there would charge the new term for traffic spent in the old one.
+        period_start = get_traffic_period_start(TrafficLimitStrategy.NO_RESET, datetime_now())
+        for pool_id in sorted(metered):
+            await self.traffic_pool_dao.upsert_usage(
+                SubscriptionPoolUsageDto(
+                    subscription_id=subscription_id,
+                    pool_id=pool_id,
+                    period_start=period_start,
+                )
+            )
+        logger.info(
+            f"Subscription '{subscription_id}': opened '{len(metered)}' fresh pool "
+            f"window(s) for the new term from '{period_start}'"
+        )
 
     async def carry_over(self, from_subscription_id: int, to_subscription_id: int) -> None:
         """Move windows onto the subscription row that replaced another (plan change)."""

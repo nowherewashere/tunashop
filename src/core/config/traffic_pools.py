@@ -41,6 +41,11 @@ class TrafficPoolsConfig(BaseConfig, env_prefix="TRAFFIC_POOLS_"):
     # How far back the metering pass is willing to look when a period started long
     # ago (NO_RESET, or a very old rolling window). The panel query is bounded by
     # dates, so this caps an unbounded scan; usage older than this is not counted.
-    max_period_days: int = 400
+    #
+    # Must clear the longest term a plan can sell, plus the snap back to the 1st of
+    # the starting month: the 360-day plan reaches ~390 days, and the old 400 left so
+    # little headroom that a yearly subscriber would have silently stopped being
+    # metered near the end of their term.
+    max_period_days: int = 460
     # Users per page of the squad-usage cursor. The panel caps this at 1000.
     page_size: int = 500

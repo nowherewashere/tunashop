@@ -18,12 +18,16 @@ class TrafficPoolAccess(Protocol):
         self,
         plan: PlanSnapshotDto,
         usage_subscription_id: Optional[int],
+        *,
+        new_term: bool = False,
     ) -> list[UUID]: ...
 
     async def reconcile_windows(
         self,
         subscription_id: int,
         plan_snapshot: PlanSnapshotDto,
+        *,
+        new_term: bool = False,
     ) -> None: ...
 
     async def carry_over(self, from_subscription_id: int, to_subscription_id: int) -> None: ...

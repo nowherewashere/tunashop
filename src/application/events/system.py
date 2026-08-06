@@ -28,6 +28,18 @@ from src.core.utils.i18n_helpers import (
 
 from .base import BaseEvent, SystemEvent
 
+# The shared FTL fragments these events render — frg-subscription-details and
+# frg-plan-snapshot — carry a premium-pool line, and fluent prints a missing argument
+# as a literal "{$pools_line}". Events therefore have to supply one.
+#
+# They supply an empty one. A pool line needs the pool's *name*, which lives on the
+# live `traffic_pools` row rather than in the snapshot, and a translator to render the
+# byte units — and these publishers (the panel sync service, the payment webhook) hold
+# neither. Wiring both through would put a database read and an i18n lookup on paths
+# whose only job is to fire a notification. The figures are on the admin's own screens,
+# one tap from the log line, so the log states the plan and the screens state the pool.
+POOLS_LINE_DEFAULT: Final[str] = ""
+
 
 @dataclass(frozen=True, kw_only=True)
 class RemnashopWelcomeEvent(BaseEvent):
@@ -323,6 +335,7 @@ class UserFirstConnectionEvent(UserEvent):
     traffic_used: Any
     traffic_limit: Any
     device_limit: Any
+    pools_line: Any = POOLS_LINE_DEFAULT
     expire_time: Any
 
     @property
@@ -462,6 +475,7 @@ class UserPurchaseEvent(UserEvent):
     plan_name: Any
     plan_type: PlanType
     plan_traffic_limit: Any
+    plan_pools_line: Any = POOLS_LINE_DEFAULT
     plan_device_limit: Any
     plan_duration: Any
 
@@ -566,6 +580,7 @@ class BalanceRenewalEvent(SystemEvent):
                 "plan_name": (self.plan_name, {}),
                 "plan_type": self.plan_type,
                 "plan_traffic_limit": i18n_format_traffic_limit(self.plan_traffic_limit),
+                "plan_pools_line": POOLS_LINE_DEFAULT,
                 "plan_device_limit": i18n_format_device_limit(self.plan_device_limit),
                 "plan_duration": i18n_format_days(self.duration_days),
             },
@@ -585,6 +600,7 @@ class TrialActivatedEvent(UserEvent):
     plan_name: Any
     plan_type: PlanType
     plan_traffic_limit: Any
+    plan_pools_line: Any = POOLS_LINE_DEFAULT
     plan_device_limit: Any
     plan_duration: Any
 
@@ -614,6 +630,7 @@ class SubscriptionRevokedEvent(UserEvent):
     traffic_used: Any
     traffic_limit: Any
     device_limit: Any
+    pools_line: Any = POOLS_LINE_DEFAULT
     expire_time: Any
 
     def as_payload(self) -> "MessagePayloadDto":

@@ -29,6 +29,7 @@ from src.application.use_cases.plan.queries.match import MatchPlan, MatchPlanDto
 from src.application.use_cases.user.queries.plans import GetAvailablePlans
 from src.core.config import AppConfig
 from src.core.enums import PaymentGatewayType, PlategaPaymentMethod, PurchaseType
+from src.core.utils.converters import quota_months
 from src.core.utils.i18n_helpers import (
     i18n_format_days,
     i18n_format_device_limit,
@@ -218,8 +219,8 @@ async def plans_getter(
     # Pre-render one card per plan (spec fix #8) — a dynamic list can't be looped
     # inside fluent, so it is assembled here and injected as { $plans_info }.
     # Cards are separated by a blank line for readability. Locations are per-plan.
-    # Pools are advertised as quota-per-period: none of these plans is held yet, so
-    # there is no accounting window and no remainder to show.
+    # Pools show the monthly rate: this is the shelf, no term has been picked yet, so
+    # the total a purchase would grant is not knowable here.
     plans_info = "\n\n".join(
         i18n.get(
             "frg-plan-card",
@@ -227,7 +228,7 @@ async def plans_getter(
             traffic=i18n_format_traffic_limit(plan.traffic_limit),
             devices=i18n_format_device_limit(plan.device_limit),
             locations_line=_locations_line(i18n, plan.locations),
-            pools_line=plan_pool_lines(i18n, plan.pool_quotas, pools_by_id),
+            pools_line=plan_pool_lines(i18n, plan.pool_quotas, pools_by_id, per_month=True),
         )
         for plan in plans
     )
@@ -397,9 +398,12 @@ async def payment_method_getter(
         "type": plan.type,
         "devices": i18n_format_device_limit(plan.device_limit),
         "traffic": i18n_format_traffic_limit(plan.traffic_limit),
-        # Advertised quota, not a remainder: this screen prices a plan the user is
-        # about to buy, and any window they hold belongs to the plan they hold now.
-        "pools_line": plan_pool_lines(i18n, plan.pool_quotas, pools_by_id),
+        # The term is on the screen, so state what it actually grants rather than the
+        # monthly rate. Still the advertised figure, not a remainder: any window the
+        # user holds belongs to the plan they hold now, not to the one being bought.
+        "pools_line": plan_pool_lines(
+            i18n, plan.pool_quotas, pools_by_id, months=quota_months(duration.days)
+        ),
         "period": i18n.get(key, **kw),
         "payment_methods": payment_methods,
         # Cost line only appears once a payment exists (pay-state); before that the
@@ -433,6 +437,8 @@ async def platega_method_getter(
     i18n: FromDishka[TranslatorRunner],
     payment_gateway_dao: FromDishka[PaymentGatewayDao],
     pricing_service: FromDishka[PricingService],
+    pool_access: FromDishka[TrafficPoolAccessService],
+    traffic_pool_dao: FromDishka[TrafficPoolDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
     raw_plan = dialog_manager.dialog_data.get(PlanDto.__name__)
@@ -441,6 +447,7 @@ async def platega_method_getter(
         raise UnknownIntent("PlanDto not found in subscription dialog data")
 
     plan = retort.load(raw_plan, PlanDto)
+    pools_by_id = await _offer_pools(pool_access, traffic_pool_dao)
     selected_duration = dialog_manager.dialog_data["selected_duration"]
     duration = plan.get_duration(selected_duration)
 
@@ -485,6 +492,11 @@ async def platega_method_getter(
         "type": plan.type,
         "devices": i18n_format_device_limit(plan.device_limit),
         "traffic": i18n_format_traffic_limit(plan.traffic_limit),
+        # The term is known here too, so the pool line states the whole-term total
+        # rather than the monthly rate — same figure the previous screen showed.
+        "pools_line": plan_pool_lines(
+            i18n, plan.pool_quotas, pools_by_id, months=quota_months(duration.days)
+        ),
         "period": i18n.get(key, **kw),
         "final_amount": price.final_amount,
         "currency": gateway.currency.symbol,

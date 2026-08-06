@@ -51,12 +51,13 @@ class SetUserSubscription(Interactor[SetUserSubscriptionDto, None]):
 
             plan_snapshot = PlanSnapshotDto.from_plan(plan, data.duration)
             subscription = await self.subscription_dao.get_current(target_user.id)
-            # An admin grant is still a plan assignment: premium pools already spent
-            # this period stay withheld until the period rolls, exactly as on a
-            # renewal or a paid plan change.
+            # An admin granting a plan for an explicit duration is handing over a fresh
+            # term, so the pool quota starts over with it — an admin who wanted the old
+            # counter kept would extend the existing subscription instead.
             pool_squads = await self.pool_access.effective_squads(
                 plan_snapshot,
                 subscription.id if subscription else None,
+                new_term=True,
             )
 
             if subscription:
@@ -119,7 +120,9 @@ class SetUserSubscription(Interactor[SetUserSubscriptionDto, None]):
             # pool windows have to follow it (see PurchaseSubscription's CHANGE path).
             if subscription:
                 await self.pool_access.carry_over(subscription.id, new_subscription.id)
-            await self.pool_access.reconcile_windows(new_subscription.id, plan_snapshot)
+            await self.pool_access.reconcile_windows(
+                new_subscription.id, plan_snapshot, new_term=True
+            )
 
             await self.user_dao.set_trial_available(target_user.id, False)
             await self.uow.commit()

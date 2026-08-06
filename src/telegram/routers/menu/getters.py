@@ -15,6 +15,7 @@ from src.application.common.dao import (
     UserConnectionStateDao,
 )
 from src.application.dto import TelegramUserDto
+from src.application.services.traffic_pools import TrafficPoolAccessService
 from src.application.use_cases.misc.queries.menu import GetMenuData
 from src.application.use_cases.referral.queries.summary import (
     GetReferralSummary,
@@ -33,7 +34,7 @@ from src.core.utils.i18n_helpers import (
 from src.core.utils.money import kop_to_rub, kop_to_stars
 from src.core.utils.text import strip_leading_emoji
 from src.core.utils.time import datetime_now, get_traffic_reset_delta
-from src.telegram.utils import translate_or_literal
+from src.telegram.utils import subscription_pool_lines, translate_or_literal
 
 
 def _term_label(days: int) -> str:
@@ -56,6 +57,7 @@ async def menu_getter(
     get_menu_data: FromDishka[GetMenuData],
     settings_dao: FromDishka[SettingsDao],
     conn_state_dao: FromDishka[UserConnectionStateDao],
+    pool_access: FromDishka[TrafficPoolAccessService],
     **kwargs: Any,
 ) -> dict[str, Any]:
     try:
@@ -122,6 +124,10 @@ async def menu_getter(
             "subscription_type": None,
             "traffic_limit": None,
             "device_limit": None,
+            # Must be present even on the no-subscription path: msg-main-menu carries
+            # { $pools_line } and fluent prints the placeholder verbatim when an
+            # argument is missing, so omitting it would put "{$pools_line}" on the hub.
+            "pools_line": "",
             "expire_time": None,
             "reset_time": None,
             "connection_url": None,
@@ -163,6 +169,8 @@ async def menu_getter(
             translate_or_literal(i18n, subscription.plan_snapshot.name)
         )
 
+        pool_views = await pool_access.build_views(subscription)
+
         data.update(
             {
                 "has_subscription": True,
@@ -176,6 +184,10 @@ async def menu_getter(
                 "subscription_type": subscription.limit_type,
                 "traffic_limit": i18n_format_traffic_limit(subscription.traffic_limit),
                 "device_limit": i18n_format_device_limit(subscription.device_limit),
+                # The hub is the surface people actually look at, so the premium quota
+                # shows its live remainder here exactly as it does on the subscription
+                # screen — one figure, one wording, wherever it appears.
+                "pools_line": subscription_pool_lines(i18n, pool_views),
                 "expire_time": i18n_format_expire_time(subscription.expire_at),
                 "reset_time": i18n_format_expire_time(
                     get_traffic_reset_delta(

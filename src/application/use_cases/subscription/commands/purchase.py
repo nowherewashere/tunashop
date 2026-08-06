@@ -141,13 +141,20 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
             f"for user '{user.remna_name}'"
         )
 
-        # Premium pools the user has already spent this period stay withheld across
-        # every branch below: each of them rewrites `internal_squads` from the plan,
-        # so without this a renewal (or a plan change) would silently hand back a
-        # quota that has not reset yet.
+        # A renewal buys a whole new term at full price, so its pool quota starts over.
+        # A change swaps the plan with credit for the unused part of the current term
+        # and therefore keeps the counter — access returns only if the new quota really
+        # is bigger, which is what the exhaustion notice offers.
+        starts_new_term = purchase_type == PurchaseType.RENEW and not has_trial
+
+        # Premium pools the user has already spent this term stay withheld across every
+        # branch below: each of them rewrites `internal_squads` from the plan, so
+        # without this a promo reward or a plan change would silently hand back a quota
+        # that has not been re-earned.
         pool_squads = await self.pool_access.effective_squads(
             plan,
             subscription.id if subscription else None,
+            new_term=starts_new_term,
         )
 
         async with self.uow:
@@ -191,7 +198,7 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
                 subscription.tag = plan.tag
                 subscription.internal_squads = pool_squads
                 subscription.external_squad = plan.external_squad
-                await self.pool_access.reconcile_windows(subscription.id, plan)
+                await self.pool_access.reconcile_windows(subscription.id, plan, new_term=True)
 
                 await self.remnawave.update_user(
                     user=user,

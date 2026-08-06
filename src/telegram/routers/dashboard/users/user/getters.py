@@ -13,6 +13,7 @@ from src.application.common.dao import (
     PlanDao,
     ReferralDao,
     SubscriptionDao,
+    TrafficPoolDao,
     TransactionDao,
     UserDao,
 )
@@ -21,7 +22,9 @@ from src.application.dto import (
     RemnaSubscriptionDto,
     SubscriptionDto,
     TelegramUserDto,
+    TrafficPoolDto,
 )
+from src.application.services.traffic_pools import TrafficPoolAccessService
 from src.application.use_cases.remnawave.queries.squads import (
     GetExternalSquads,
     GetInternalSquads,
@@ -51,7 +54,21 @@ from src.core.utils.i18n_helpers import (
 )
 from src.core.utils.i18n_keys import ByteUnitKey
 from src.core.utils.money import kop_to_rub
-from src.telegram.utils import translate_or_literal
+from src.telegram.utils import plan_pool_lines, subscription_pool_lines, translate_or_literal
+
+
+async def _admin_pools(
+    pool_access: TrafficPoolAccessService,
+    traffic_pool_dao: TrafficPoolDao,
+) -> dict[int, TrafficPoolDto]:
+    """Pools keyed by id for rendering a snapshot's quotas — empty while the feature is off.
+
+    Names come from the live pool row, so a rename shows on every admin card at once,
+    exactly as it does on the user-facing ones.
+    """
+    if not pool_access.is_enabled:
+        return {}
+    return {pool.id: pool for pool in await traffic_pool_dao.get_all()}
 
 
 @inject
@@ -60,6 +77,7 @@ async def user_getter(
     user: TelegramUserDto,
     get_user_profile: FromDishka[GetUserProfile],
     i18n: FromDishka[TranslatorRunner],
+    pool_access: FromDishka[TrafficPoolAccessService],
     **kwargs: Any,
 ) -> dict[str, Any]:
     dialog_manager.dialog_data.pop("payload", None)
@@ -90,6 +108,9 @@ async def user_getter(
         "can_delete": profile.can_delete,
         "status": None,
         "is_trial": False,
+        # Present on both branches: frg-subscription-user-editor interpolates it, and
+        # fluent prints a missing argument as a literal "{$pools_line}".
+        "pools_line": "",
         "has_subscription": profile.subscription is not None,
     }
 
@@ -101,6 +122,9 @@ async def user_getter(
                 "plan_name": translate_or_literal(i18n, profile.subscription.plan_snapshot.name),
                 "traffic_limit": i18n_format_traffic_limit(profile.subscription.traffic_limit),
                 "device_limit": i18n_format_device_limit(profile.subscription.device_limit),
+                "pools_line": subscription_pool_lines(
+                    i18n, await pool_access.build_views(profile.subscription)
+                ),
                 "expire_time": i18n_format_expire_time(profile.subscription.expire_at),
             }
         )
@@ -114,6 +138,8 @@ async def subscription_getter(
     user: TelegramUserDto,
     get_user_profile_subscription: FromDishka[GetUserProfileSubscription],
     i18n: FromDishka[TranslatorRunner],
+    pool_access: FromDishka[TrafficPoolAccessService],
+    traffic_pool_dao: FromDishka[TrafficPoolDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
     target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
@@ -138,6 +164,15 @@ async def subscription_getter(
         ),
         "traffic_limit": i18n_format_traffic_limit(subscription.traffic_limit),
         "device_limit": i18n_format_device_limit(subscription.device_limit),
+        # Two different facts on the same screen, so two arguments: what is left right
+        # now (frg-subscription-details) and what the purchased plan grants for the
+        # term (frg-plan-snapshot). Showing one figure twice would read as a bug.
+        "pools_line": subscription_pool_lines(i18n, await pool_access.build_views(subscription)),
+        "plan_pools_line": plan_pool_lines(
+            i18n,
+            subscription.plan_snapshot.traffic_pools,
+            await _admin_pools(pool_access, traffic_pool_dao),
+        ),
         "expire_time": i18n_format_expire_time(subscription.expire_at),
         #
         "internal_squads": user_profile_subscription.formatted_internal_squads or False,
@@ -456,6 +491,8 @@ async def transaction_getter(
     transaction_dao: FromDishka[TransactionDao],
     user_dao: FromDishka[UserDao],
     i18n: FromDishka[TranslatorRunner],
+    pool_access: FromDishka[TrafficPoolAccessService],
+    traffic_pool_dao: FromDishka[TrafficPoolDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
     if TARGET_USER_ID not in dialog_manager.dialog_data:
@@ -505,6 +542,13 @@ async def transaction_getter(
         "plan_type": transaction.plan_snapshot.type,
         "plan_traffic_limit": i18n_format_traffic_limit(transaction.plan_snapshot.traffic_limit),
         "plan_device_limit": i18n_format_device_limit(transaction.plan_snapshot.device_limit),
+        # Straight off the frozen snapshot, so the card shows the quota this payment
+        # actually bought — already multiplied by the term.
+        "plan_pools_line": plan_pool_lines(
+            i18n,
+            transaction.plan_snapshot.traffic_pools,
+            await _admin_pools(pool_access, traffic_pool_dao),
+        ),
         "plan_duration": i18n_format_days(transaction.plan_snapshot.duration),
     }
 
@@ -616,6 +660,7 @@ async def sync_getter(  # noqa: C901
     user_dao: FromDishka[UserDao],
     subscription_dao: FromDishka[SubscriptionDao],
     remnawave_sdk: FromDishka[RemnawaveSDK],
+    pool_access: FromDishka[TrafficPoolAccessService],
     **kwargs: Any,
 ) -> dict[str, Any]:
     target_user_id = dialog_manager.dialog_data[TARGET_USER_ID]
@@ -644,7 +689,16 @@ async def sync_getter(  # noqa: C901
     squads_res = await remnawave_sdk.internal_squads.get_internal_squads()
     squads_map = {s.uuid: s.name for s in squads_res.internal_squads}
 
-    def format_subscription(sub: Union[None, SubscriptionDto, RemnaSubscriptionDto]) -> str:
+    # Pools live only on our side — the panel has no concept of them, so the right-hand
+    # column of this comparison deliberately shows no pool line rather than a blank one.
+    bot_pools_line = (
+        subscription_pool_lines(i18n, await pool_access.build_views(bot_sub)) if bot_sub else ""
+    )
+
+    def format_subscription(
+        sub: Union[None, SubscriptionDto, RemnaSubscriptionDto],
+        pools_line: str = "",
+    ) -> str:
         if not sub:
             return ""
 
@@ -658,6 +712,7 @@ async def sync_getter(  # noqa: C901
             "url": sub.url,
             "traffic_limit": i18n_format_traffic_limit(sub.traffic_limit),
             "device_limit": i18n_format_device_limit(sub.device_limit),
+            "pools_line": pools_line,
             "expire_time": i18n_format_expire_time(sub.expire_at),
             "internal_squads": squad_names or False,
             "external_squad": str(sub.external_squad) if sub.external_squad else False,
@@ -680,6 +735,6 @@ async def sync_getter(  # noqa: C901
         "has_remna_subscription": bool(remna_sub),
         "bot_version": i18n.get("msg-user-sync-version", version=bot_version_key),
         "remna_version": i18n.get("msg-user-sync-version", version=remna_version_key),
-        "bot_subscription": format_subscription(bot_sub),
+        "bot_subscription": format_subscription(bot_sub, bot_pools_line),
         "remna_subscription": format_subscription(remna_sub),
     }

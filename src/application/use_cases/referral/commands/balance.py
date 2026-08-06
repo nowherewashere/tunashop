@@ -116,13 +116,13 @@ class PayWithBalance(Interactor[PayWithBalanceDto, PayWithBalanceResult]):
             subscription.traffic_limit = plan_snapshot.traffic_limit
             subscription.traffic_limit_strategy = plan_snapshot.traffic_limit_strategy
             subscription.tag = plan_snapshot.tag
-            # Paying from the referral balance is still a plan assignment: premium
-            # pools already spent this period stay withheld until the period rolls.
+            # Extending from the referral balance buys a whole new term, just paid for
+            # differently — so the pool quota starts over exactly as on a card renewal.
             subscription.internal_squads = await self.pool_access.effective_squads(
-                plan_snapshot, subscription.id
+                plan_snapshot, subscription.id, new_term=True
             )
             subscription.external_squad = plan_snapshot.external_squad
-            await self.pool_access.reconcile_windows(subscription.id, plan_snapshot)
+            await self.pool_access.reconcile_windows(subscription.id, plan_snapshot, new_term=True)
 
             # Debit first, then extend — the Remnawave call happens before commit, so a
             # failure rolls back the spend (atomic-ish, mirroring AddSubscriptionDuration).
