@@ -19,6 +19,11 @@ class PoolUsageResponse(BaseModel):
     # None when the panel could not be reached — render "unknown", never 0, or the bar
     # would claim the user has spent nothing.
     used_bytes: Optional[int] = None
+    # What is left in the *current* accounting window, served rather than left as
+    # `quota - used` for each client to redo: the subtraction has two cases that are
+    # easy to get wrong — it is None (not the full quota) when usage is unknown, and it
+    # floors at 0 when the panel reports an overshoot between metering passes.
+    remaining_bytes: Optional[int] = None
     is_exhausted: bool = False
     # None when the quota never resets (NO_RESET): it lasts the whole subscription.
     reset_at: Optional[datetime] = None

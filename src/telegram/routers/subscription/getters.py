@@ -8,10 +8,23 @@ from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 
 from src.application.common import TranslatorRunner
-from src.application.common.dao import PaymentGatewayDao, PlanDao, SettingsDao, SubscriptionDao
-from src.application.dto import PaymentGatewayDto, PlanDto, PriceDetailsDto, TelegramUserDto
+from src.application.common.dao import (
+    PaymentGatewayDao,
+    PlanDao,
+    SettingsDao,
+    SubscriptionDao,
+    TrafficPoolDao,
+)
+from src.application.dto import (
+    PaymentGatewayDto,
+    PlanDto,
+    PriceDetailsDto,
+    TelegramUserDto,
+    TrafficPoolDto,
+)
 from src.application.dto.payment_gateway import PlategaGatewaySettingsDto
 from src.application.services import PricingService
+from src.application.services.traffic_pools import TrafficPoolAccessService
 from src.application.use_cases.plan.queries.match import MatchPlan, MatchPlanDto
 from src.application.use_cases.user.queries.plans import GetAvailablePlans
 from src.core.config import AppConfig
@@ -22,7 +35,7 @@ from src.core.utils.i18n_helpers import (
     i18n_format_expire_time,
     i18n_format_traffic_limit,
 )
-from src.telegram.utils import translate_or_literal
+from src.telegram.utils import plan_pool_lines, subscription_pool_lines, translate_or_literal
 from src.telegram.widgets.banner import plan_banner_candidates
 
 
@@ -33,6 +46,20 @@ def _locations_line(i18n: TranslatorRunner, locations: Optional[str]) -> str:
     (per-plan locations replaced the former shared APP_PLAN_LOCATIONS env value).
     """
     return i18n.get("frg-plan-locations", locations=locations) if locations else ""
+
+
+async def _offer_pools(
+    pool_access: TrafficPoolAccessService,
+    traffic_pool_dao: TrafficPoolDao,
+) -> dict[int, TrafficPoolDto]:
+    """Pools available for rendering an offer, keyed by id — empty while the feature is off.
+
+    Names are read from the live pool row rather than from the plan, so renaming a pool
+    reflects on every card at once, exactly as the cabinet does it.
+    """
+    if not pool_access.is_enabled:
+        return {}
+    return {pool.id: pool for pool in await traffic_pool_dao.get_all()}
 
 
 def _get_gateway_title(i18n: TranslatorRunner, gateway: PaymentGatewayDto) -> str:
@@ -85,6 +112,7 @@ async def subscription_getter(
     i18n: FromDishka[TranslatorRunner],
     subscription_dao: FromDishka[SubscriptionDao],
     plan_dao: FromDishka[PlanDao],
+    pool_access: FromDishka[TrafficPoolAccessService],
     **kwargs: Any,
 ) -> dict[str, Any]:
     current_subscription = await subscription_dao.get_current(user.id)
@@ -100,12 +128,17 @@ async def subscription_getter(
         snapshot = current_subscription.plan_snapshot
         plan_name = translate_or_literal(i18n, snapshot.name)
         plan = await plan_dao.get_by_id(snapshot.id)
+        # This subscription *holds* the plan, so the pools carry a live remainder
+        # rather than the advertised quota. build_views reads usage per pool from the
+        # panel (briefly cached) and returns [] while the feature is off.
+        pool_views = await pool_access.build_views(current_subscription)
         subscription_info = i18n.get(
             "frg-plan-card",
             name=plan_name,
             traffic=i18n_format_traffic_limit(current_subscription.traffic_limit),
             devices=i18n_format_device_limit(current_subscription.device_limit),
             locations_line=_locations_line(i18n, plan.locations if plan else None),
+            pools_line=subscription_pool_lines(i18n, pool_views),
         )
         # DataBanner shows the current plan's own image here (→ choose_sub → default).
         banner_candidates = plan_banner_candidates(plan_name, snapshot.id)
@@ -167,9 +200,12 @@ async def plans_getter(
     user: TelegramUserDto,
     i18n: FromDishka[TranslatorRunner],
     get_available_plans: FromDishka[GetAvailablePlans],
+    pool_access: FromDishka[TrafficPoolAccessService],
+    traffic_pool_dao: FromDishka[TrafficPoolDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
     plans = await get_available_plans.system(user)
+    pools_by_id = await _offer_pools(pool_access, traffic_pool_dao)
 
     formatted_plans = [
         {
@@ -182,6 +218,8 @@ async def plans_getter(
     # Pre-render one card per plan (spec fix #8) — a dynamic list can't be looped
     # inside fluent, so it is assembled here and injected as { $plans_info }.
     # Cards are separated by a blank line for readability. Locations are per-plan.
+    # Pools are advertised as quota-per-period: none of these plans is held yet, so
+    # there is no accounting window and no remainder to show.
     plans_info = "\n\n".join(
         i18n.get(
             "frg-plan-card",
@@ -189,6 +227,7 @@ async def plans_getter(
             traffic=i18n_format_traffic_limit(plan.traffic_limit),
             devices=i18n_format_device_limit(plan.device_limit),
             locations_line=_locations_line(i18n, plan.locations),
+            pools_line=plan_pool_lines(i18n, plan.pool_quotas, pools_by_id),
         )
         for plan in plans
     )
@@ -311,6 +350,8 @@ async def payment_method_getter(
     i18n: FromDishka[TranslatorRunner],
     payment_gateway_dao: FromDishka[PaymentGatewayDao],
     pricing_service: FromDishka[PricingService],
+    pool_access: FromDishka[TrafficPoolAccessService],
+    traffic_pool_dao: FromDishka[TrafficPoolDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
     raw_plan = dialog_manager.dialog_data.get(PlanDto.__name__)
@@ -319,6 +360,7 @@ async def payment_method_getter(
         raise UnknownIntent("PlanDto not found in subscription dialog data")
 
     plan = retort.load(raw_plan, PlanDto)
+    pools_by_id = await _offer_pools(pool_access, traffic_pool_dao)
     gateways = await payment_gateway_dao.get_active()
     selected_duration = dialog_manager.dialog_data["selected_duration"]
     only_single_duration = dialog_manager.dialog_data.get("only_single_duration", False)
@@ -355,6 +397,9 @@ async def payment_method_getter(
         "type": plan.type,
         "devices": i18n_format_device_limit(plan.device_limit),
         "traffic": i18n_format_traffic_limit(plan.traffic_limit),
+        # Advertised quota, not a remainder: this screen prices a plan the user is
+        # about to buy, and any window they hold belongs to the plan they hold now.
+        "pools_line": plan_pool_lines(i18n, plan.pool_quotas, pools_by_id),
         "period": i18n.get(key, **kw),
         "payment_methods": payment_methods,
         # Cost line only appears once a payment exists (pay-state); before that the
@@ -487,6 +532,7 @@ async def success_payment_getter(
     subscription_dao: FromDishka[SubscriptionDao],
     settings_dao: FromDishka[SettingsDao],
     i18n: FromDishka[TranslatorRunner],
+    pool_access: FromDishka[TrafficPoolAccessService],
     **kwargs: Any,
 ) -> dict[str, Any]:
     start_data = cast(dict[str, Any], dialog_manager.start_data)
@@ -497,12 +543,17 @@ async def success_payment_getter(
         raise ValueError(f"User '{user.telegram_id}' has no active subscription after purchase")
 
     settings = await settings_dao.get()
+    # The purchase already opened the accounting windows, so this reads as a remainder
+    # like every other held-plan surface — on a fresh buy that is simply the full quota,
+    # and on a renewal it correctly shows what the carried-over window has left.
+    pool_views = await pool_access.build_views(subscription)
 
     return {
         "purchase_type": purchase_type,
         "plan_name": translate_or_literal(i18n, subscription.plan_snapshot.name),
         "traffic_limit": i18n_format_traffic_limit(subscription.traffic_limit),
         "device_limit": i18n_format_device_limit(subscription.device_limit),
+        "pools_line": subscription_pool_lines(i18n, pool_views),
         "expire_time": i18n_format_expire_time(subscription.expire_at),
         "added_duration": i18n_format_days(subscription.plan_snapshot.duration),
         "is_mini_app": config.bot.is_mini_app,
